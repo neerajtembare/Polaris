@@ -2,263 +2,424 @@
 
 ## 1. Overview
 
-Polaris is a local-first life management system that connects long-term strategic goals with daily execution and behavioral analysis.
+Polaris is a **personal activity tracker with AI coaching potential** that connects long-term goals with daily actions through accumulated progress tracking and behavioral analysis.
 
-This document defines the functional and non-functional requirements for the MVP and near-term phases.
-
----
-
-# 2. Functional Requirements
-
-## 2.1 Goal Hierarchy System
-
-### 2.1.1 Time Horizons
-The system must support the following structured goal levels:
-
-- Vision (5-year)
-- Yearly
-- Monthly
-- Weekly
-- Daily (tasks)
-
-Each goal must:
-- Have a title
-- Have optional description
-- Have a start and end date
-- Have a parent (except Vision)
-- Track progress percentage
-- Track status (planned, active, completed, paused)
+This document defines the functional and non-functional requirements for MVP and subsequent phases.
 
 ---
 
-## 2.2 Task System (Ground Level)
+## 2. Core Concepts
 
-### 2.2.1 Task Types
-Tasks must be classified as:
+### 2.1 Goals
 
-- Growth (contributes to a higher goal)
-- Maintenance (daily life / non-growth tasks)
+A **Goal** represents something the user wants to achieve. Goals are flexible:
 
-Each task must:
-- Have title
-- Optional description
-- Optional linked goal
-- Scheduled date (optional)
-- Duration estimate (optional)
-- Status (todo, done, skipped)
-- AI-generated flag (boolean)
+| Property | Description |
+|----------|-------------|
+| Title | What you're trying to achieve |
+| Description | Optional context |
+| Timeframe | Hint for UI grouping: `long`, `medium`, `short` |
+| Target Date | Optional deadline (nullable) |
+| Target Value | Optional numeric target (e.g., 10000 for "Save ₹10k") |
+| Target Unit | Optional unit (₹, km, pages, hours, books, etc.) |
+| Parent Goal | Optional link to a parent goal (flexible hierarchy) |
+| Status | `active`, `completed`, `paused`, `archived` |
 
----
+**Key principle:** Goals can exist at any level of specificity. Users aren't forced into a rigid hierarchy.
 
-## 2.3 Parent-Child Linking
-
-- Tasks may link to any goal level.
-- Deleting a parent goal must:
-  - Either cascade delete children
-  - Or prompt reassignment (decision handled in UX spec)
-- Goal progress must roll up from completed child tasks.
+**Examples:**
+- "Save ₹1,00,000 this year" (long-term, target: 100000, unit: ₹)
+- "Read 12 books in 2026" (long-term, target: 12, unit: books)
+- "Complete B1 German certification" (medium-term, no numeric target)
+- "Finish Atomic Habits this month" (short-term, target: 1, unit: books)
 
 ---
 
-## 2.4 Daily View ("Today")
+### 2.2 Activities
 
-The system must provide a Today view that:
+An **Activity** is something the user did (or plans to do) that contributes to a goal.
 
-- Shows all tasks scheduled for current day
-- Allows marking complete or skipped
-- Displays breadcrumb of parent goal
-- Separates Growth vs Maintenance visually
-- Does NOT auto-delete tasks after 24 hours
-- Archives history in logs
+| Property | Description |
+|----------|-------------|
+| Title | Description of what was done |
+| Activity Type | `quantity`, `duration`, `completion` |
+| Value | Numeric value (for quantity/duration types) |
+| Unit | Inherited from goal or specified |
+| Linked Goal | Which goal this contributes to (optional) |
+| Activity Date | When it happened/is planned |
+| Category | `growth` (toward goals) or `maintenance` (life admin) |
+| Status | `planned`, `completed`, `skipped` |
+| Notes | Optional additional context |
+| AI Generated | Boolean flag |
 
----
+**Activity Types:**
 
-## 2.5 Weekly Planning
+| Type | Example | Value | Unit |
+|------|---------|-------|------|
+| `quantity` | "Read 30 pages" | 30 | pages |
+| `duration` | "Studied Python for 2 hours" | 120 | minutes |
+| `completion` | "Went for a morning walk" | null | null |
 
-The system must allow:
-
-- Creating a weekly plan block
-- Assigning tasks to specific days
-- Viewing past weeks
-- Duplicating last week (manual confirmation only)
-
----
-
-## 2.6 Dashboard
-
-The dashboard must show:
-
-- Active Vision and Year goals
-- Progress % for Monthly goals
-- Weekly completion rate
-- Growth vs Maintenance distribution
-- Active streaks
+**Key principle:** Not everything is quantifiable. "Did yoga" is valid even without duration.
 
 ---
 
-## 2.7 Streak Engine
+### 2.3 Progress Calculation
 
-The system must:
+Progress is **computed, not manually entered**.
 
-- Calculate streaks for Growth tasks
-- Reset streak on missed day (configurable later)
-- Persist streak history
-- Display streak visually
+**For goals with numeric targets:**
+```
+progress_value = SUM(activities.value) WHERE linked_goal_id = goal.id
+progress_percentage = (progress_value / target_value) * 100
+```
 
----
-
-# 3. AI-Assisted Features (Phase 2+)
-
-AI functionality must be optional and never autonomous.
-
----
-
-## 3.1 Natural Language Goal Entry
-
-User input:
-"Add a goal to learn Python by December"
-
-System must:
-- Parse goal level
-- Assign timeframe
-- Create structured goal object
-- Require user confirmation before save
+**For goals without numeric targets:**
+- Track **consistency metrics**: days active, total hours, week-over-week comparison
+- Progress is shown as effort summary, not percentage
 
 ---
 
-## 3.2 Goal Decomposition
+### 2.4 Consistency Metrics (Computed)
 
-User action:
-Right-click → "AI Breakdown"
+For any goal, the system computes:
 
-System must:
-- Send goal context to LLM
-- Receive structured JSON sub-goals
-- Display editable preview
-- Save only upon explicit acceptance
+| Metric | Description |
+|--------|-------------|
+| Days Active | Count of days with at least one completed activity |
+| Total Duration | Sum of duration-type activities |
+| Total Quantity | Sum of quantity-type activities |
+| Current Streak | Consecutive days with activity |
+| This Week vs Last Week | Comparison of effort |
+| Activities Count | Number of logged activities |
 
----
-
-## 3.3 Spaced Revision Suggestion
-
-When completing a study task:
-
-System may:
-- Suggest a 5–15 minute revision in X days
-- Allow user to accept/reject
-- Create revision task if accepted
+These metrics are **deterministic** and calculated on demand.
 
 ---
 
-## 3.4 Behavioral Analysis
+# 3. Functional Requirements
 
-User action:
-Click "Analyze Week"
+## 3.1 Goal Management
 
-System must:
-- Send last 7 days summary to LLM
-- Receive structured analysis
-- Persist result in Insights table
-- Display:
-  - Summary
-  - Productivity score
-  - Behavioral suggestions
+### 3.1.1 CRUD Operations
+- [ ] Create goal with title, optional description, optional timeframe hint
+- [ ] Set optional target (value + unit)
+- [ ] Set optional target date
+- [ ] Link to parent goal (optional)
+- [ ] Edit goal properties
+- [ ] Archive goal (soft delete)
+- [ ] Restore archived goal
+- [ ] View all goals grouped by timeframe
 
----
+### 3.1.2 Goal Detail View
+- [ ] Display goal title, description, target
+- [ ] Show progress (percentage or consistency metrics)
+- [ ] List all contributing activities (chronological)
+- [ ] Show sub-goals (if any)
+- [ ] Display consistency metrics
 
-# 4. Logs & Insights
-
-## 4.1 Logs
-
-The system must:
-- Log task completion
-- Log skipped tasks
-- Log goal state changes
-- Timestamp all events
-
----
-
-## 4.2 Insights
-
-The system must:
-- Persist AI outputs
-- Store:
-  - Raw prompt
-  - Raw response
-  - Parsed metrics
-  - Timestamp
-  - Model version
+### 3.1.3 Goal Hierarchy
+- [ ] Goals can have optional parent_id
+- [ ] Sub-goals displayed nested under parent
+- [ ] No rigid level enforcement
+- [ ] Deleting parent does NOT auto-delete children (orphan handling)
 
 ---
 
-# 5. Non-Functional Requirements
+## 3.2 Activity Management
 
-## 5.1 Local-First
+### 3.2.1 CRUD Operations
+- [ ] Create activity with title
+- [ ] Select activity type (quantity, duration, completion)
+- [ ] Enter value if applicable
+- [ ] Link to goal (optional)
+- [ ] Set activity date (defaults to today)
+- [ ] Set category (growth/maintenance)
+- [ ] Set status (planned, completed, skipped)
+- [ ] Edit activity
+- [ ] Delete activity (soft delete)
 
-- Must run entirely on localhost.
-- No internet required.
-- Ollama runs locally.
+### 3.2.2 Quick Entry (MVP Foundation for AI)
+- [ ] Text input field for activity title
+- [ ] System stores raw input for future AI parsing
+- [ ] Manual selection of goal, type, value (Phase 1)
+- [ ] AI-assisted parsing (Phase 3)
 
----
-
-## 5.2 Performance
-
-- UI must remain responsive during AI calls.
-- AI calls must be asynchronous.
-- Basic task operations must complete under 200ms locally.
-
----
-
-## 5.3 Reliability
-
-- If Ollama is unavailable:
-  - Show "Brain Offline"
-  - Manual features remain usable
-- System must not crash on malformed AI output.
-
----
-
-## 5.4 Data Integrity
-
-- Database migrations must be versioned.
-- No destructive schema changes without migration.
-- Deleting parent goals must preserve integrity.
+### 3.2.3 Activity Categorization
+- [ ] Growth: contributes to a goal
+- [ ] Maintenance: life admin, doesn't contribute to tracked goals
+- [ ] Visual distinction in UI
 
 ---
 
-## 5.5 Extensibility
+## 3.3 Today View (Daily Execution)
 
-System must allow future addition of:
+### 3.3.1 Layout
+- [ ] Show activities for current date
+- [ ] Separate sections: Planned (to-do) vs Logged (done)
+- [ ] Separate Growth vs Maintenance visually
+- [ ] Show breadcrumb for linked goal
 
-- Financial tracking
-- PWA support
-- Multi-model LLM support
-- Optional sync
-- Plugin modules
+### 3.3.2 Interactions
+- [ ] Quick-add activity
+- [ ] Mark activity complete
+- [ ] Mark activity skipped
+- [ ] Edit activity inline
+- [ ] View goal context (click breadcrumb)
 
----
-
-# 6. Explicit Non-Requirements (MVP)
-
-- Cloud sync
-- Multi-user accounts
-- Collaboration
-- Social features
-- Push notifications when app is closed
-- Automatic recurring tasks
-- Full financial ledger
+### 3.3.3 Behavior
+- [ ] Activities do NOT auto-delete at midnight
+- [ ] Planned but incomplete activities remain visible
+- [ ] History preserved in activity log
 
 ---
 
-# 7. Definition of Done (MVP)
+## 3.4 Goals View (Strategic Overview)
+
+### 3.4.1 Layout
+- [ ] Grouped by timeframe: Long-term / Medium-term / Short-term
+- [ ] Each goal shows: title, progress indicator, target date
+- [ ] Expandable to show sub-goals
+
+### 3.4.2 Interactions
+- [ ] Click goal → Goal Detail View
+- [ ] Right-click → Edit / Archive / AI Breakdown (Phase 3)
+- [ ] Drag to reorder within group (nice-to-have)
+
+---
+
+## 3.5 Dashboard View
+
+### 3.5.1 Content
+- [ ] Active goals summary (top 3-5)
+- [ ] This week's progress (activities completed)
+- [ ] Growth vs Maintenance ratio
+- [ ] Streak indicator (if applicable)
+- [ ] Consistency metrics summary
+
+### 3.5.2 Behavior
+- [ ] Default landing page after login
+- [ ] Refreshes on each visit
+- [ ] No auto-analysis (AI features are manual-trigger)
+
+---
+
+## 3.6 Planner View (Weekly Planning) — Phase 2
+
+### 3.6.1 Layout
+- [ ] Week selector
+- [ ] Day columns (Mon-Sun)
+- [ ] Activities shown per day
+
+### 3.6.2 Interactions
+- [ ] Drag activities between days
+- [ ] Add activities to specific days
+- [ ] View past weeks (read-only)
+- [ ] Duplicate last week's plan (manual confirmation)
+
+---
+
+## 3.7 Event Logging (Background)
+
+### 3.7.1 Automatic Logging
+- [ ] Log activity creation
+- [ ] Log activity completion
+- [ ] Log activity skip
+- [ ] Log goal creation/update/archive
+- [ ] Include timestamp and state snapshot
+
+### 3.7.2 Purpose
+- Serves as dataset for AI behavioral analysis (Phase 3+)
+- Enables undo/history features (future)
+- Preserves audit trail
+
+---
+
+# 4. AI-Assisted Features (Phase 3+)
+
+AI functionality is **optional, manual-trigger, and confirmation-required**.
+
+## 4.1 Natural Language Activity Entry
+
+**User input:** "I saved ₹500 by skipping lunch"
+
+**System behavior:**
+1. Parse intent with AI
+2. Suggest: Activity "Saved ₹500", type: quantity, value: 500, unit: ₹, goal: "Save money"
+3. Display preview for user confirmation
+4. Save only after explicit acceptance
+
+---
+
+## 4.2 Goal Decomposition
+
+**User action:** Right-click goal → "AI Breakdown"
+
+**System behavior:**
+1. Send goal context to AI
+2. Receive suggested sub-goals and activities
+3. Display editable preview
+4. User accepts/edits/rejects each suggestion
+5. Save only accepted items
+
+---
+
+## 4.3 Morning Planning
+
+**User action:** Click "Plan My Day"
+
+**System behavior:**
+1. AI receives: recent activities, active goals, patterns
+2. AI suggests: activities for today
+3. User reviews, accepts/rejects each
+4. Accepted activities added as "planned"
+
+---
+
+## 4.4 Pattern Detection
+
+**System behavior (Phase 4+):**
+1. AI detects recurring patterns ("You do yoga every Sunday")
+2. Prompts user: "Want to make this recurring?"
+3. If accepted, creates recurrence rule
+4. Future instances auto-created but user can skip/modify
+
+---
+
+## 4.5 Weekly Analysis
+
+**User action:** Click "Analyze Week"
+
+**System behavior:**
+1. Summarize last 7 days' activities
+2. Send to AI for analysis
+3. Receive structured insights
+4. Display:
+   - Summary paragraph
+   - Consistency score
+   - Strengths / Weaknesses
+   - Recommendations
+5. Persist insight for future reference
+
+---
+
+# 5. Recurrence System (Phase 3+)
+
+## 5.1 Recurrence Rules
+
+| Property | Description |
+|----------|-------------|
+| ID | Unique identifier |
+| Activity Template | Title, type, value, goal link |
+| Frequency | daily, weekly, custom |
+| Days | Specific days (e.g., Mon/Wed/Fri) |
+| Active | Boolean |
+| Source | `manual` or `ai_suggested` |
+
+## 5.2 Behavior
+
+- Recurrence rules generate planned activities
+- User must complete/skip each instance
+- Missing an instance does NOT break anything — it's just data
+- AI can suggest recurrence based on detected patterns (Phase 4)
+
+---
+
+# 6. Non-Functional Requirements
+
+## 6.1 Local-First Architecture
+
+- [ ] All data stored in local SQLite database
+- [ ] Core functionality works without internet
+- [ ] AI adapter supports both local (Ollama) and cloud providers
+- [ ] No mandatory cloud dependency in MVP
+
+## 6.2 Performance
+
+- [ ] UI remains responsive during AI calls
+- [ ] AI calls are asynchronous with loading indicators
+- [ ] Basic CRUD operations complete under 200ms
+- [ ] Page loads under 1 second
+
+## 6.3 Reliability
+
+- [ ] System functions fully when AI is unavailable
+- [ ] Invalid AI responses handled gracefully (no crashes)
+- [ ] Database operations are transactional
+- [ ] No data loss on unexpected shutdown
+
+## 6.4 Data Integrity
+
+- [ ] All schema changes via migrations
+- [ ] Soft delete preserves history
+- [ ] Foreign key constraints enforced
+- [ ] Timestamps in UTC
+
+## 6.5 PWA Readiness (Phase 2+)
+
+- [ ] Responsive design from day 1
+- [ ] Service worker hooks prepared
+- [ ] Offline-first data layer
+- [ ] Manifest file ready
+
+## 6.6 AI Provider Flexibility
+
+- [ ] AI adapter is provider-agnostic
+- [ ] Supports configuration swap (Ollama ↔ OpenAI ↔ Claude)
+- [ ] Provider selection in settings
+
+---
+
+# 7. Explicit Non-Requirements (MVP)
+
+| Feature | Status | Rationale |
+|---------|--------|-----------|
+| AI features | Phase 3 | Build solid manual foundation first |
+| Recurrence engine | Phase 3 | Wait for AI pattern detection |
+| Weekly planner view | Phase 2 | Today view is sufficient for MVP |
+| Push notifications | Never (browser) | PWA limitation |
+| Team collaboration | Never (scope) | Solo-first product |
+| Financial ledger | Never (scope) | Inspired by budget tracking, not a finance app |
+| Cloud sync | Phase 5+ | Local-first must be stable first |
+| Mobile app | Phase 5+ | PWA first, native later if needed |
+
+---
+
+# 8. Definition of Done (MVP — Phase 1)
 
 Polaris MVP is complete when:
 
-- Goals and tasks can be created, edited, deleted.
-- Hierarchy works correctly.
-- Progress rolls up correctly.
-- Weekly planning works.
-- Streaks calculate correctly.
-- AI breakdown works with confirmation flow.
-- AI weekly analysis persists insights.
-- System runs locally without internet.
+- [ ] Goals can be created, edited, archived, restored
+- [ ] Goals support optional numeric targets
+- [ ] Goals support optional parent linking
+- [ ] Activities can be logged with flexible types
+- [ ] Activities update goal progress automatically
+- [ ] Today view shows planned and completed activities
+- [ ] Goals view shows all goals grouped by timeframe
+- [ ] Goal detail view shows contributing activities
+- [ ] Dashboard shows basic progress summary
+- [ ] Event log captures all mutations
+- [ ] System runs locally without internet
+- [ ] Architecture supports future AI integration
+
+---
+
+# 9. Definition of Done (Phase 2)
+
+- [ ] Weekly planner view functional
+- [ ] Consistency metrics computed and displayed
+- [ ] Streak calculation working
+- [ ] Historical view (past weeks)
+- [ ] Archive view for soft-deleted items
+- [ ] PWA manifest and service worker basics
+
+---
+
+# 10. Definition of Done (Phase 3)
+
+- [ ] AI adapter integrated (OpenAI/Claude or Ollama)
+- [ ] Natural language activity parsing works
+- [ ] Goal decomposition works with confirmation flow
+- [ ] Weekly analysis generates and persists insights
+- [ ] AI errors handled gracefully ("Brain Offline" mode)
+- [ ] Manual system unaffected by AI failures
