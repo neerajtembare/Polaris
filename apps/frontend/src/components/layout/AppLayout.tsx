@@ -19,10 +19,10 @@ import { NavLink } from 'react-router-dom';
 // ---------------------------------------------------------------------------
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard',  icon: '⚡' },
-  { to: '/goals',     label: 'Goals',      icon: '🎯' },
-  // Future: { to: '/today',  label: 'Today',    icon: '📅' },
-  // Future: { to: '/log',    label: 'Log',      icon: '📝' },
+  { to: '/dashboard',  label: 'Dashboard',  icon: '⚡' },
+  { to: '/today',      label: 'Today',      icon: '📅' },
+  { to: '/goals',      label: 'Goals',      icon: '🎯' },
+  { to: '/activities', label: 'Activities', icon: '📋' },
 ] as const;
 
 // ---------------------------------------------------------------------------

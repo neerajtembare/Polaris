@@ -14,10 +14,12 @@
  */
 
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Dashboard }   from './pages/Dashboard.tsx';
-import { GoalsList }   from './pages/GoalsList.tsx';
-import { GoalCreate }  from './pages/GoalCreate.tsx';
-import { GoalDetail }  from './pages/GoalDetail.tsx';
+import { Dashboard }       from './pages/Dashboard.tsx';
+import { GoalsList }       from './pages/GoalsList.tsx';
+import { GoalCreate }      from './pages/GoalCreate.tsx';
+import { GoalDetail }      from './pages/GoalDetail.tsx';
+import { ActivitiesList }  from './pages/ActivitiesList.tsx';
+import { TodayView }       from './pages/TodayView.tsx';
 
 export default function App() {
   return (
@@ -26,11 +28,15 @@ export default function App() {
       <Route path="/dashboard" element={<Dashboard />} />
 
       {/* Goals */}
-      <Route path="/goals"      element={<GoalsList />} />
-      <Route path="/goals/new"  element={<GoalCreate />} />
+      <Route path="/goals"     element={<GoalsList />} />
+      <Route path="/goals/new" element={<GoalCreate />} />
       <Route path="/goals/:id" element={<GoalDetail />} />
 
-      {/* Future: /today, /log, /activities */}
+      {/* Activities */}
+      <Route path="/activities" element={<ActivitiesList />} />
+
+      {/* Today view */}
+      <Route path="/today" element={<TodayView />} />
     </Routes>
   );
 }

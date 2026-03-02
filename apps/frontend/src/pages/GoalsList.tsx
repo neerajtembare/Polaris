@@ -75,7 +75,7 @@ export function GoalsList() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-white">Goals</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Track what you're working toward</p>
+            <p className="text-sm text-gray-400 mt-0.5">Track what you&apos;re working toward</p>
           </div>
           <Link
             to="/goals/new"
