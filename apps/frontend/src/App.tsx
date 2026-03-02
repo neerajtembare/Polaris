@@ -19,7 +19,6 @@ import { GoalsList }       from './pages/GoalsList.tsx';
 import { GoalCreate }      from './pages/GoalCreate.tsx';
 import { GoalDetail }      from './pages/GoalDetail.tsx';
 import { ActivitiesList }  from './pages/ActivitiesList.tsx';
-import { TodayView }       from './pages/TodayView.tsx';
 
 export default function App() {
   return (
@@ -34,9 +33,6 @@ export default function App() {
 
       {/* Activities */}
       <Route path="/activities" element={<ActivitiesList />} />
-
-      {/* Today view */}
-      <Route path="/today" element={<TodayView />} />
     </Routes>
   );
 }
