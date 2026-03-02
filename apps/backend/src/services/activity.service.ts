@@ -16,11 +16,20 @@
 
 import prisma from '../lib/prisma.js';
 import { notFound, badRequest } from '../lib/errors.js';
+import type { Prisma } from '@prisma/client';
 import type { CreateActivityInput, UpdateActivityInput } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+/** Prisma payload type for an activity with its goal title included */
+type ActivityWithGoal = Prisma.ActivityGetPayload<{
+  include: { goal: { select: { title: true } } };
+}>;
+
+/** Shape of each activity item returned by listActivities */
+export type ListedActivity = Omit<ActivityWithGoal, 'goal'> & { goalTitle: string | null };
 
 export interface ListActivitiesFilter {
   date?: string;         // single day  YYYY-MM-DD
@@ -123,7 +132,7 @@ export async function listActivities(filter: ListActivitiesFilter = {}) {
   ]);
 
   // Flatten goal title onto activity for convenience
-  const data = activities.map(({ goal, ...a }) => ({
+  const data: ListedActivity[] = activities.map(({ goal, ...a }: ActivityWithGoal) => ({
     ...a,
     goalTitle: goal?.title ?? null,
   }));

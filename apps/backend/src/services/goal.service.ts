@@ -16,6 +16,7 @@
 
 import prisma from '../lib/prisma.js';
 import { notFound } from '../lib/errors.js';
+import type { Goal as PrismaGoal } from '@prisma/client';
 import type { CreateGoalInput, UpdateGoalInput } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
@@ -33,6 +34,9 @@ export interface GoalProgress {
   lastActivityDate: string | null;
   daysActive: number;
 }
+
+/** Row shape returned by computeProgress's activity query */
+type ActivityProgressRow = { value: number | null; activityDate: Date };
 
 /** Filters accepted by listGoals */
 export interface ListGoalsFilter {
@@ -62,14 +66,19 @@ async function computeProgress(goalId: string): Promise<GoalProgress> {
     orderBy: { activityDate: 'desc' },
   });
 
-  const currentValue = activities.reduce((sum, a) => sum + (a.value ?? 1), 0);
+  const currentValue = activities.reduce(
+    (sum: number, a: ActivityProgressRow) => sum + (a.value ?? 1),
+    0
+  );
   const targetValue = goal?.targetValue ?? null;
   const percentage =
     targetValue && targetValue > 0
       ? Math.min(Math.round((currentValue / targetValue) * 100), 100)
       : null;
 
-  const dates = activities.map((a) => a.activityDate.toISOString().split('T')[0] as string);
+  const dates = activities.map((a: ActivityProgressRow) =>
+    a.activityDate.toISOString().split('T')[0] as string
+  );
   const uniqueDates = new Set(dates);
 
   return {
@@ -134,7 +143,7 @@ export async function listGoals(filter: ListGoalsFilter = {}) {
 
   // Attach progress to each goal concurrently
   return Promise.all(
-    goals.map(async (goal) => ({
+    goals.map(async (goal: PrismaGoal) => ({
       ...goal,
       progress: await computeProgress(goal.id),
     }))
