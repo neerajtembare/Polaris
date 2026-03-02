@@ -8,17 +8,29 @@
  *
  * @relatedFiles
  * - src/pages/Dashboard.tsx
+ * - src/pages/GoalsList.tsx
+ * - src/pages/GoalCreate.tsx
+ * - src/pages/GoalDetail.tsx
  */
 
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Dashboard } from './pages/Dashboard.tsx';
+import { Dashboard }   from './pages/Dashboard.tsx';
+import { GoalsList }   from './pages/GoalsList.tsx';
+import { GoalCreate }  from './pages/GoalCreate.tsx';
+import { GoalDetail }  from './pages/GoalDetail.tsx';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={<Dashboard />} />
-      {/* Phase 1 routes added here */}
+
+      {/* Goals */}
+      <Route path="/goals"      element={<GoalsList />} />
+      <Route path="/goals/new"  element={<GoalCreate />} />
+      <Route path="/goals/:id" element={<GoalDetail />} />
+
+      {/* Future: /today, /log, /activities */}
     </Routes>
   );
 }
