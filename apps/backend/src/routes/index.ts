@@ -11,15 +11,18 @@
  */
 
 import type { FastifyPluginAsync } from 'fastify';
+import { goalsRoutes } from './goals.js';
 
 /**
- * Register all application routes as a Fastify plugin
+ * Register all application routes as a Fastify plugin.
+ * Add new route modules here as features are built.
  */
 export const registerRoutes: FastifyPluginAsync = async (app): Promise<void> => {
-  // Health check
+  // ------------------------------------------------------------------
+  // Health check — used by dev tooling and future monitoring
+  // ------------------------------------------------------------------
   app.get('/health', async (_request, reply) => {
     try {
-      // Dynamic import to avoid top-level prisma connection at startup
       const { default: prisma } = await import('../lib/prisma.js');
       await prisma.$queryRaw`SELECT 1`;
       return reply.send({ success: true, data: { status: 'healthy', database: 'connected' } });
@@ -30,7 +33,10 @@ export const registerRoutes: FastifyPluginAsync = async (app): Promise<void> => 
     }
   });
 
-  // Future route modules mounted here:
-  // app.register(goalsRoutes, { prefix: '/api/goals' });
-  // app.register(activitiesRoutes, { prefix: '/api/activities' });
-}
+  // ------------------------------------------------------------------
+  // Feature routes (add new modules below as each milestone is built)
+  // ------------------------------------------------------------------
+  app.register(goalsRoutes,      { prefix: '/api/goals' });
+  // app.register(activitiesRoutes, { prefix: '/api/activities' });  // Milestone 1.2
+  // app.register(metricsRoutes,    { prefix: '/api/metrics' });     // Milestone 1.3
+};
