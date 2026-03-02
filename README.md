@@ -19,15 +19,16 @@ nvm use 24
 
 ## Setup
 
-Install all dependencies from the repo root (installs backend, frontend, and shared packages):
+Run the setup script (handles everything below automatically):
+
+```bash
+./setup.sh
+```
+
+Or manually:
 
 ```bash
 npm install
-```
-
-Generate the Prisma client and run database migrations:
-
-```bash
 cd apps/backend
 npx prisma migrate deploy
 npx prisma generate
