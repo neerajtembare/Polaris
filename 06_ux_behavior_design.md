@@ -57,7 +57,7 @@ Not:
 | Insights | Yes | Phase 3 |
 | Settings | Yes | MVP |
 
-**Default landing page:** Today View
+**Default landing page:** Dashboard
 
 ---
 

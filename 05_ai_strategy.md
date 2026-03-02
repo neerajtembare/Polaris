@@ -400,14 +400,14 @@ Return JSON:
       "activity_type": "duration",
       "value": 60,
       "unit": "minutes",
-      "linked_goal_id": "g2",
+      "goal_id": "g2",
       "rationale": "You've studied Python 4 of last 5 Thursdays",
       "confidence": 0.85
     },
     {
       "title": "Review savings for this week",
       "activity_type": "completion",
-      "linked_goal_id": "g1",
+      "goal_id": "g1",
       "rationale": "Weekly savings check pattern detected",
       "confidence": 0.7
     }

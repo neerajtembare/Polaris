@@ -75,6 +75,7 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   - dotenv
   - zod
   - @prisma/client
+  - date-fns
 
 - [ ] **0.2.3** Install backend dev dependencies:
   - typescript
@@ -442,6 +443,10 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   - Update goal
   - Delete goal (soft)
 
+- [ ] **1.1.7** Create Goal progress endpoint (`routes/goals.ts`):
+  - GET /goals/:id/progress — computed progress from activities
+  - Returns current_value, percentage, activity_count, days_active
+
 ### Frontend: Goals
 
 - [ ] **1.1.8** Create Goal API hooks (`hooks/useGoals.ts`):
@@ -585,7 +590,7 @@ This document provides a granular, ordered checklist for implementing Polaris MV
 - [ ] **1.3.5** Implement skip activity action:
   - Mark planned activity as skipped
 
-- [ ] **1.3.6** Make Today View the default route (`/`)
+- [ ] **1.3.6** Make Dashboard the default route (`/`), Today View at `/today`
 
 - [ ] **1.3.7** Style Today View for readability:
   - Clear visual hierarchy

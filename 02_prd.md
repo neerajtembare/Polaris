@@ -70,7 +70,7 @@ Progress is **computed, not manually entered**.
 
 **For goals with numeric targets:**
 ```
-progress_value = SUM(activities.value) WHERE linked_goal_id = goal.id
+progress_value = SUM(activities.value) WHERE goal_id = goal.id
 progress_percentage = (progress_value / target_value) * 100
 ```
 

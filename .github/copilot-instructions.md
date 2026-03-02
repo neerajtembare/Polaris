@@ -183,11 +183,23 @@ Every new file should start with:
 
 Current phase: **Phase 0/1 (Foundation + MVP)**
 
+**Default landing page:** Dashboard
+
 Do NOT implement:
 - AI features (Phase 3)
 - Recurrence system (Phase 3)
 - Pattern detection (Phase 4)
 - Cloud sync (Phase 5)
+
+## Source of Truth Hierarchy
+
+When documents conflict, higher-ranked wins:
+1. `.github/copilot-instructions.md` — enforced by tooling
+2. `10_api_contract.md` — definitive API spec
+3. `04_data_model.md` — definitive schema
+4. `12_implementation_checklist.md` — build plan
+5. `03_sdd.md` — architecture reference
+6. All other docs — context/strategy
 
 ## Documentation References
 

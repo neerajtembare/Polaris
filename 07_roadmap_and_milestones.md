@@ -116,14 +116,13 @@ Environment stable. Ready to build features.
 
 ### Backend
 - [ ] Goal model with all fields (title, description, timeframe, target_value, target_unit, target_date, parent_id, status)
-- [ ] Goal repository (CRUD operations)
-- [ ] Goal service (validation, soft delete logic)
+- [ ] Goal service (CRUD operations, validation, soft delete logic)
 - [ ] Goal controller
 - [ ] Routes:
   - `GET /api/goals`
   - `GET /api/goals/:id`
   - `POST /api/goals`
-  - `PUT /api/goals/:id`
+  - `PATCH /api/goals/:id`
   - `DELETE /api/goals/:id` (soft delete)
 
 ### Frontend
@@ -148,7 +147,6 @@ Environment stable. Ready to build features.
 
 ### Backend
 - [ ] Activity model with all fields
-- [ ] Activity repository
 - [ ] Activity service (validation, goal linking, event logging)
 - [ ] Progress service (calculate goal progress from activities)
 - [ ] Activity controller
@@ -157,7 +155,7 @@ Environment stable. Ready to build features.
   - `GET /api/activities/today`
   - `GET /api/activities/:id`
   - `POST /api/activities`
-  - `PUT /api/activities/:id`
+  - `PATCH /api/activities/:id`
   - `DELETE /api/activities/:id`
   - `POST /api/activities/:id/complete`
   - `POST /api/activities/:id/skip`
@@ -210,8 +208,8 @@ Environment stable. Ready to build features.
 **Duration:** ~1 week
 
 ### Backend
-- [ ] `GET /api/dashboard/summary` endpoint
-- [ ] `GET /api/goals/:id/metrics` endpoint (basic metrics)
+- [ ] `GET /api/metrics/dashboard` endpoint
+- [ ] `GET /api/goals/:id/progress` endpoint (basic progress)
 
 ### Frontend
 - [ ] Dashboard page with summary cards
@@ -263,7 +261,7 @@ Environment stable. Ready to build features.
   - Current streak calculation
   - This week vs last week
   - Total duration sum
-- [ ] `GET /api/goals/:id/metrics` enhanced
+- [ ] `GET /api/goals/:id/progress` enhanced
 
 ### Frontend
 - [ ] Consistency metrics display on Goal Detail
@@ -283,7 +281,7 @@ Environment stable. Ready to build features.
 
 ### Backend
 - [ ] `GET /api/activities` with date range filter
-- [ ] `PUT /api/activities/:id` supports date change
+- [ ] `PATCH /api/activities/:id` supports date change
 
 ### Frontend
 - [ ] Planner page with week view

@@ -458,7 +458,9 @@ Need maintainable, testable backend.
 
 ## Decision
 
-Use strict layers: **Routes → Controllers → Services → Repositories → DB**
+Use strict layers: **Routes → Controllers → Services → Prisma Client → DB**
+
+No separate Repository layer — Prisma Client already provides type-safe, abstracted database access. Adding a Repository would be unnecessary indirection for a single-database, solo-developer project.
 
 ## Rationale
 
@@ -466,6 +468,7 @@ Use strict layers: **Routes → Controllers → Services → Repositories → DB
 - Each layer testable independently
 - Clear responsibilities
 - Scalable design
+- Prisma Client acts as the data access layer
 - Resume-grade architecture
 
 ## Consequences

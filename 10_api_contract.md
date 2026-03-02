@@ -15,7 +15,7 @@ All endpoints follow:
 # Base URL
 
 ```
-Development: http://localhost:3001/api/v1
+Development: http://localhost:3001/api
 Production:  TBD
 ```
 
@@ -58,8 +58,8 @@ Production:  TBD
   "data": [ ... ],
   "meta": {
     "total": 100,
-    "page": 1,
-    "limit": 20
+    "limit": 20,
+    "offset": 0
   }
 }
 ```
@@ -297,7 +297,7 @@ interface CreateActivityRequest {
   goal_id?: string;           // Link to goal (optional)
   activity_date: string;      // ISO date (YYYY-MM-DD)
   category?: 'growth' | 'maintenance';  // Default: growth
-  status?: 'planned' | 'completed' | 'skipped';  // Default: completed
+  status?: 'planned' | 'completed' | 'skipped';  // Default: planned
   notes?: string;             // Optional notes
   raw_input?: string;         // Original NLP input (Phase 3)
 }
@@ -407,10 +407,6 @@ interface UpdateActivityRequest {
   goal_id?: string | null;
   activity_date?: string;
   category?: 'growth' | 'maintenance';
-  status?: 'planned' | 'completed' | 'skipped';
-  notes?: string | null;
-}
-```
   status?: 'planned' | 'completed' | 'skipped';
   notes?: string | null;
 }
@@ -866,9 +862,9 @@ Not implemented in MVP. Future considerations:
 
 # Versioning
 
-API is versioned via URL path: `/api/v1/`
+API uses `/api/` prefix without version in the URL path for MVP.
 
-Breaking changes require new version (`/api/v2/`).
+If breaking changes are needed in the future, versioning will be introduced via URL path (`/api/v2/`).
 
 Non-breaking additions (new fields, new endpoints) don't require version bump.
 

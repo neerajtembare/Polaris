@@ -85,7 +85,7 @@ model Activity {
   rawInput     String?   @map("raw_input")
   
   // Linked goal (optional)
-  goalId       String?   @map("linked_goal_id")
+  goalId       String?   @map("goal_id")
   goal         Goal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
   
   // When it happened/is planned
@@ -184,7 +184,7 @@ model RecurrenceRule {
   activityType   String   @map("activity_type")
   defaultValue   Float?   @map("default_value")
   defaultUnit    String?  @map("default_unit")
-  linkedGoalId   String?  @map("linked_goal_id")
+  linkedGoalId   String?  @map("goal_id")
   category       String   @default("growth")
   
   // Recurrence pattern
@@ -331,7 +331,7 @@ CREATE TABLE activities (
   raw_input       TEXT,                                -- Original user text input
   
   -- Linked goal (optional)
-  linked_goal_id  TEXT REFERENCES goals(id) ON DELETE SET NULL,
+  goal_id         TEXT REFERENCES goals(id) ON DELETE SET NULL,
   
   -- Scheduling
   activity_date   DATE NOT NULL,                       -- When it happened/is planned
@@ -359,7 +359,7 @@ CREATE TABLE activities (
 
 -- Indexes
 CREATE INDEX idx_activities_activity_date ON activities(activity_date);
-CREATE INDEX idx_activities_linked_goal_id ON activities(linked_goal_id);
+CREATE INDEX idx_activities_goal_id ON activities(goal_id);
 CREATE INDEX idx_activities_category ON activities(category);
 CREATE INDEX idx_activities_status ON activities(status);
 CREATE INDEX idx_activities_is_deleted ON activities(is_deleted);
@@ -376,13 +376,13 @@ CREATE INDEX idx_activities_date_status ON activities(activity_date, status);
 
 ### Key Points:
 - `raw_input` stores original text for AI learning
-- `linked_goal_id` is **nullable** — maintenance activities may not link to goals
+- `goal_id` is **nullable** — maintenance activities may not link to goals
 - `value` is **nullable** for `completion` type activities
 - `completed_at` tracks when activity was marked done (for streak calculation)
 
 ### Examples:
 
-| title | activity_type | value | unit | linked_goal_id |
+| title | activity_type | value | unit | goal_id |
 |-------|---------------|-------|------|----------------|
 | Read 30 pages of Atomic Habits | quantity | 30 | pages | (goal: Finish Atomic Habits) |
 | Studied Python | duration | 60 | minutes | (goal: Learn Python) |
@@ -519,7 +519,7 @@ CREATE TABLE recurrence_rules (
   activity_type   TEXT NOT NULL,
   default_value   REAL,
   default_unit    TEXT,
-  linked_goal_id  TEXT REFERENCES goals(id) ON DELETE SET NULL,
+  goal_id         TEXT REFERENCES goals(id) ON DELETE SET NULL,
   category        TEXT NOT NULL DEFAULT 'growth',
   
   -- Recurrence pattern
@@ -541,7 +541,7 @@ CREATE TABLE recurrence_rules (
 
 -- Indexes
 CREATE INDEX idx_recurrence_rules_is_active ON recurrence_rules(is_active);
-CREATE INDEX idx_recurrence_rules_linked_goal_id ON recurrence_rules(linked_goal_id);
+CREATE INDEX idx_recurrence_rules_goal_id ON recurrence_rules(goal_id);
 ```
 
 ---

@@ -30,6 +30,16 @@ Ask the AI to read these files (in order):
 3. Relevant section of `04_data_model.md` - If touching database
 4. Relevant section of `10_api_contract.md` - If building API
 
+### Source of Truth Hierarchy
+
+When documents conflict, higher-ranked wins:
+1. `.github/copilot-instructions.md` — enforced by tooling
+2. `10_api_contract.md` — definitive API spec
+3. `04_data_model.md` — definitive schema
+4. `12_implementation_checklist.md` — build plan
+5. `03_sdd.md` — architecture reference
+6. All other docs — context/strategy
+
 ### Step 3: Define Session Scope
 
 Be explicit about what you want:

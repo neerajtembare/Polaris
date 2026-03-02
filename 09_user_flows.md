@@ -121,7 +121,7 @@ Each flow includes:
 5. User enters: "Read 25 pages of Atomic Habits"
    - Type: Quantity
    - Value: 25 pages
-   - Linked Goal: "Read 12 books this year" (auto-suggested)
+   - Linked Goal: "Read 12 books this year" (user selects manually; AI-assisted matching in Phase 3)
    ↓
 6. User taps "Save"
    ↓
@@ -348,7 +348,7 @@ Each flow includes:
 
 # Flow 9: Morning AI Suggestions
 
-**Trigger**: User opens app in morning, AI suggests plan  
+**Trigger**: User taps "AI Suggest" button in Today View (manual trigger only — no auto-popups)  
 **Phase**: Phase 3
 
 ## Steps
@@ -356,9 +356,7 @@ Each flow includes:
 ```
 1. User opens Today View (morning)
    ↓
-2. System detects:
-   - No activities planned for today
-   - AI feature enabled
+2. User taps "✨ Suggest Plan" button
    ↓
 3. System sends context to AI:
    - Recent activity patterns

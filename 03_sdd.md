@@ -103,7 +103,7 @@ All components run locally on the user's machine during MVP.
 ## 3.2 Backend Folder Structure
 
 ```
-/backend
+apps/backend/
 ├── src/
 │   ├── routes/
 │   │   ├── goals.routes.ts
@@ -211,7 +211,7 @@ All components run locally on the user's machine during MVP.
 ## 5.1 REST Principles
 
 - **Resource-oriented** URLs
-- **HTTP verbs** for actions (GET, POST, PUT, DELETE)
+- **HTTP verbs** for actions (GET, POST, PATCH, DELETE)
 - **Consistent response format**
 - **Meaningful status codes**
 - **Pagination** for list endpoints
@@ -222,10 +222,17 @@ All components run locally on the user's machine during MVP.
 // Success
 {
   success: true,
-  data: { ... },
+  data: { ... }
+}
+
+// Success with pagination
+{
+  success: true,
+  data: [ ... ],
   meta: {
-    timestamp: "2026-02-12T10:00:00Z",
-    pagination?: { page, limit, total }
+    total: 100,
+    limit: 20,
+    offset: 0
   }
 }
 
@@ -247,10 +254,10 @@ All components run locally on the user's machine during MVP.
 GET    /api/goals              # List all goals
 GET    /api/goals/:id          # Get goal with details
 POST   /api/goals              # Create goal
-PUT    /api/goals/:id          # Update goal
+PATCH  /api/goals/:id          # Update goal
 DELETE /api/goals/:id          # Soft delete goal
 GET    /api/goals/:id/activities  # Get activities for goal
-GET    /api/goals/:id/metrics  # Get consistency metrics
+GET    /api/goals/:id/progress  # Get progress & consistency metrics
 ```
 
 ### Activities
@@ -259,7 +266,7 @@ GET    /api/activities              # List activities (with filters)
 GET    /api/activities/today        # Today's activities
 GET    /api/activities/:id          # Get single activity
 POST   /api/activities              # Log activity
-PUT    /api/activities/:id          # Update activity
+PATCH  /api/activities/:id          # Update activity
 DELETE /api/activities/:id          # Soft delete
 POST   /api/activities/:id/complete # Mark complete
 POST   /api/activities/:id/skip     # Mark skipped
@@ -267,8 +274,8 @@ POST   /api/activities/:id/skip     # Mark skipped
 
 ### Dashboard
 ```
-GET    /api/dashboard/summary       # Dashboard data
-GET    /api/dashboard/week          # Week overview
+GET    /api/metrics/dashboard       # Dashboard data
+GET    /api/metrics/week            # Week overview
 ```
 
 ### AI (Phase 3)
@@ -489,7 +496,7 @@ try {
 ## 8.2 Folder Structure
 
 ```
-/frontend
+apps/frontend/
 ├── src/
 │   ├── components/
 │   │   ├── common/          # Reusable components
@@ -554,7 +561,7 @@ User → Creates activity in Today View
         1. Create activity record
         2. Update goal progress
         3. Log event
-        → Repository writes to DB
+        → Prisma Client writes to DB
     → Response returned
   → TanStack Query invalidates cache
 → UI updates immediately
@@ -567,7 +574,7 @@ User → Opens Goal Detail View
   → Frontend calls:
     - GET /api/goals/:id
     - GET /api/goals/:id/activities
-    - GET /api/goals/:id/metrics
+    - GET /api/goals/:id/progress
     → Backend computes metrics on demand
   → UI renders progress, activities, metrics
 ```
@@ -620,27 +627,30 @@ enum ErrorCode {
 | AI_PARSE_ERROR | 422 |
 | INTERNAL_ERROR | 500 |
 
-## 10.3 Error Middleware
+## 10.3 Error Handler
 
 ```typescript
-// middleware/error.middleware.ts
-const errorHandler = (err, req, res, next) => {
-  logger.error(err);
+// Fastify error handler — registered via app.setErrorHandler()
+// middleware/error.handler.ts
+import { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
+
+const errorHandler = (error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
+  request.log.error(error);
   
-  if (err instanceof ValidationError) {
-    return res.status(400).json({
+  if (error.validation) {
+    return reply.status(400).send({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: err.message,
-        details: err.details
+        message: error.message,
+        details: error.validation
       }
     });
   }
   
   // ... handle other error types
   
-  return res.status(500).json({
+  return reply.status(error.statusCode ?? 500).send({
     success: false,
     error: {
       code: 'INTERNAL_ERROR',
@@ -727,7 +737,7 @@ Architecture designed for:
 
 | Future Feature | Extension Point |
 |----------------|-----------------|
-| PostgreSQL | Repository layer + migration |
+| PostgreSQL | Prisma migration + config change |
 | Redis cache | Cache adapter interface |
 | Background jobs | Job queue layer |
 | Multiple AI models | AI adapter interface |
