@@ -1,0 +1,122 @@
+// This is your Prisma schema file
+// Docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Goal {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+
+  // Timeframe for UI grouping
+  timeframe   String    @default("short") // long, medium, short
+
+  // Optional numeric target
+  targetValue Float?    @map("target_value")
+  targetUnit  String?   @map("target_unit")
+  targetDate  DateTime? @map("target_date")
+
+  // Hierarchy (optional parent)
+  parentId String? @map("parent_id")
+  parent   Goal?   @relation("GoalHierarchy", fields: [parentId], references: [id])
+  children Goal[]  @relation("GoalHierarchy")
+
+  // Status
+  status String @default("active") // active, completed, paused, archived
+
+  // Soft delete
+  isDeleted Boolean @default(false) @map("is_deleted")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  activities Activity[]
+
+  @@index([parentId])
+  @@index([timeframe])
+  @@index([status])
+  @@index([isDeleted])
+  @@map("goals")
+}
+
+model Activity {
+  id    String  @id @default(uuid())
+  title String
+  notes String?
+
+  // Activity type and value
+  activityType String @map("activity_type") // quantity, duration, completion
+  value        Float? // NULL for completion type
+  unit         String?
+
+  // Raw input for AI parsing history
+  rawInput String? @map("raw_input")
+
+  // Linked goal (optional)
+  goalId String? @map("goal_id")
+  goal   Goal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  // When it happened / is planned
+  activityDate DateTime @map("activity_date")
+
+  // Classification
+  category String @default("growth") // growth, maintenance
+
+  // Status
+  status String @default("planned") // planned, completed, skipped
+
+  // AI tracking
+  aiGenerated   Boolean @default(false) @map("ai_generated")
+  aiCategorized Boolean @default(false) @map("ai_categorized")
+
+  // Soft delete
+  isDeleted Boolean @default(false) @map("is_deleted")
+
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@index([activityDate])
+  @@index([goalId])
+  @@index([category])
+  @@index([status])
+  @@index([isDeleted])
+  @@map("activities")
+}
+
+model Event {
+  id         String @id @default(uuid())
+
+  // What changed
+  entityType String @map("entity_type") // goal, activity
+  entityId   String @map("entity_id")
+
+  // What happened
+  eventType String @map("event_type") // created, updated, completed, skipped, etc.
+
+  // State snapshots (JSON strings)
+  previousState String? @map("previous_state")
+  newState      String  @map("new_state")
+
+  // Additional context
+  metadata String?
+
+  // Timestamp
+  timestamp DateTime @default(now())
+
+  @@index([entityId])
+  @@index([entityType])
+  @@index([eventType])
+  @@index([timestamp])
+  @@map("events")
+}
