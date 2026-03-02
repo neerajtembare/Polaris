@@ -11,8 +11,9 @@
  */
 
 import type { FastifyPluginAsync } from 'fastify';
-import { goalsRoutes } from './goals.js';
+import { goalsRoutes }      from './goals.js';
 import { activitiesRoutes } from './activities.js';
+import metricsRoutes        from './metrics.js';
 
 /**
  * Register all application routes as a Fastify plugin.
@@ -39,5 +40,5 @@ export const registerRoutes: FastifyPluginAsync = async (app): Promise<void> => 
   // ------------------------------------------------------------------
   app.register(goalsRoutes,      { prefix: '/api/goals' });
   app.register(activitiesRoutes, { prefix: '/api/activities' });
-  // app.register(metricsRoutes,    { prefix: '/api/metrics' });     // Milestone 1.3
+  app.register(metricsRoutes,    { prefix: '/api/metrics' });
 };
