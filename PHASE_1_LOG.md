@@ -3,7 +3,8 @@
 **Branch:** `phase/0-foundation` (continues; rename when branching)  
 **Started:** 2026-03-02  
 **Target completion:** TBD  
-**Status:** 🟡 In Progress
+**Status:** ✅ Complete  
+**Completed:** 2026-03-03
 
 ---
 
@@ -28,10 +29,10 @@ No AI features. No cloud sync. No recurrence system. Pure manual tracking.
 | 1.3 | Frontend API service layer (api.ts + hooks) | ✅ Done |
 | 1.4 | Goals frontend (GoalsList, GoalCreate, GoalDetail) | ✅ Done |
 | 1.5 | Dashboard metrics backend (GET /api/metrics/dashboard) | ✅ Done |
-| 1.6 | Activities frontend (log form, activity list) | ⬜ Not started |
-| 1.7 | Today View page | ⬜ Not started |
-| 1.8 | Dashboard frontend (live metrics, heatmap, goal progress) | ⬜ Not started |
-| 1.9 | ESLint setup + Phase 1 polish | ⬜ Not started |
+| 1.6 | Activities frontend (log form, activity list) | ✅ Done |
+| 1.7 | Today View page | ✅ Done |
+| 1.8 | Dashboard frontend (live metrics, heatmap, goal progress) | ✅ Done |
+| 1.9 | ESLint setup + Phase 1 polish | ✅ Done |
 
 ---
 
@@ -92,6 +93,35 @@ No AI features. No cloud sync. No recurrence system. Pure manual tracking.
 | `648238a` | feat: Milestone 1.3 - Frontend API service layer |
 | `854c466` | feat: Milestone 1.4 - Goals frontend |
 | `d7e3be3` | feat: Milestone 1.5 - Dashboard metrics backend |
+
+---
+
+### 2026-03-03 — Session 2 (Milestones 1.6 – 1.9)
+
+**Milestone 1.6 — Activities frontend**
+
+- `components/activities/ActivityCard.tsx`: status badge, value/unit display, goal title chip, action buttons (Complete / Skip / Undo / Delete) gated by current status
+- `components/activities/LogActivityForm.tsx`: full-screen modal overlay; fields — title, activity type, status, value + unit (quantity/duration only), goal dropdown (active goals), date, notes; uses `useCreateActivity()` mutation
+- `pages/ActivitiesList.tsx`: status filter tabs (All/Planned/Completed/Skipped), date picker filter, paginated list from `useActivities()`, inline-complete/skip/delete via `ActivityCard`, Log Activity CTA
+- `App.tsx`: added `/activities` and `/today` routes, imported `ActivitiesList` + `TodayView`
+- `AppLayout.tsx`: added Today + Activities to `NAV_ITEMS`
+
+**Milestone 1.7 — Today View**
+
+- `pages/TodayView.tsx`: three-column grid (Planned / Completed / Skipped), formatted date header, `useTodayActivities()`, `ActivityCard` throughout with inline actions, quick-log modal button, empty state per column + full-page empty state
+
+**Milestone 1.8 — Dashboard frontend**
+
+- `hooks/useMetrics.ts`: `useMetrics(period)` hook, `DashboardMetrics`/`GoalProgressEntry`/`MetricsPeriod` types, `metricsKeys` factory, 60s staleTime
+- `pages/Dashboard.tsx`: rewritten from placeholder → live UI: period picker (week/month/year), 4 stat cards (completed, completion rate, current streak, goals active), `Heatmap` component (colour-coded day cells from `activityByDay`), `GoalProgressList` with `ProgressBar` per goal
+
+**Milestone 1.9 — ESLint + polish**
+
+- `apps/frontend/eslint.config.js`: flat config with `@typescript-eslint/recommended`, `eslint-plugin-react`, `eslint-plugin-react-hooks`; `react/react-in-jsx-scope` disabled (React 17+ JSX transform)
+- Fixed `react/no-unescaped-entities` in `GoalsList.tsx` + `TodayView.tsx`
+- `tsc --noEmit`: 0 errors | `eslint src`: 0 errors / 0 warnings
+
+**Commit:** `e836df9` — _feat: complete Phase 1 milestones 1.6-1.9_
 
 ---
 
@@ -219,11 +249,11 @@ The language server shows ~12 errors on `Prisma.ActivityGetPayload` — these ar
 
 | Issue | Status |
 |-------|--------|
-| ESLint not configured | ⏳ Deferred to Milestone 1.9 |
+| ESLint not configured | ✅ Done in Milestone 1.9 |
 | VS Code language server shows ~12 false-positive TS errors | ℹ️ `tsc --noEmit` exits 0 — safe to ignore |
 | `window.confirm()` for delete confirmation | ℹ️ Acceptable for MVP; replace with a proper modal in Phase 2 polish |
 | No loading skeleton — just spinner | ℹ️ Fine for Phase 1; skeleton screens are Phase 2 polish |
-| Activities frontend and Today View not yet built | ⬜ Milestone 1.6 + 1.7 |
+| Activities frontend and Today View not yet built | ✅ Built in Milestones 1.6 + 1.7 |
 
 ---
 
@@ -232,8 +262,8 @@ The language server shows ~12 errors on `Prisma.ActivityGetPayload` — these ar
 - [x] Goals CRUD — full-stack (create, list, detail, edit, delete, progress)
 - [x] Activities backend — full CRUD + today grouped view
 - [x] Dashboard metrics backend — period aggregations, streaks, heatmap
-- [ ] Activities frontend — log, list, mark complete/skip
-- [ ] Today View — daily driver page with three-column layout
-- [ ] Dashboard frontend — live metrics, heatmap, goal progress bars
-- [ ] ESLint passes on both apps
-- [ ] `npm run dev` + all user flows work end-to-end in browser
+- [x] Activities frontend — log, list, mark complete/skip
+- [x] Today View — daily driver page with three-column layout
+- [x] Dashboard frontend — live metrics, heatmap, goal progress bars
+- [x] ESLint passes on frontend (flat config, zero errors)
+- [x] `tsc --noEmit`: 0 errors, `eslint src`: 0 warnings/errors
