@@ -18,7 +18,6 @@
  */
 
 import { useState } from 'react';
-import { AppLayout } from '../components/layout/AppLayout.tsx';
 import { ActivityCard } from '../components/activities/ActivityCard.tsx';
 import { LogActivityForm } from '../components/activities/LogActivityForm.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
@@ -29,6 +28,7 @@ import {
   useDeleteActivity,
   type ListedActivity,
 } from '../hooks/useActivities.ts';
+import { useMetrics } from '../hooks/useMetrics.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -50,10 +50,11 @@ interface ColumnProps {
   heading:    string;
   badge?:     string | number;
   activities: ListedActivity[];
-  onComplete: (id: string) => void;
+  onComplete: (id: string, value?: number) => void;
   onSkip:     (id: string) => void;
+  onUndo:     (id: string) => void;
   onDelete:   (id: string) => void;
-  isPending:  boolean;
+  pendingIds: Set<string>;
   emptyText:  string;
 }
 
@@ -63,8 +64,9 @@ function Column({
   activities,
   onComplete,
   onSkip,
+  onUndo,
   onDelete,
-  isPending,
+  pendingIds,
   emptyText,
 }: ColumnProps) {
   return (
@@ -91,8 +93,9 @@ function Column({
                 activity={activity}
                 onComplete={onComplete}
                 onSkip={onSkip}
+                onUndo={onUndo}
                 onDelete={onDelete}
-                isPending={isPending}
+                isPending={pendingIds.has(activity.id)}
               />
             </li>
           ))}
@@ -110,39 +113,71 @@ function Column({
  * Today view — grouped by status with quick-log CTA.
  */
 export function TodayView() {
-  const [showForm, setShowForm] = useState(false);
+  const [showForm,    setShowForm]    = useState(false);
+  const [pendingIds,  setPendingIds]  = useState<Set<string>>(new Set());
 
   const { data, isLoading, isError } = useTodayActivities();
   const updateActivity = useUpdateActivity();
   const deleteActivity = useDeleteActivity();
+  const { data: metrics } = useMetrics('week');
 
   const planned   = data?.planned   ?? [];
   const completed = data?.completed ?? [];
   const skipped   = data?.skipped   ?? [];
   const todayDate = data?.date ?? new Date().toISOString().split('T')[0] as string;
 
-  function handleComplete(id: string) {
-    updateActivity.mutate({ id, data: { status: 'completed' } });
+  function addPending(id: string) {
+    setPendingIds((prev) => new Set(prev).add(id));
   }
-  function handleSkip(id: string) {
-    updateActivity.mutate({ id, data: { status: 'skipped' } });
-  }
-  function handleDelete(id: string) {
-    deleteActivity.mutate(id);
+  function removePending(id: string) {
+    setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
   }
 
-  const isPending = updateActivity.isPending || deleteActivity.isPending;
+  function handleComplete(id: string, value?: number) {
+    addPending(id);
+    updateActivity.mutate(
+      { id, data: { status: 'completed', ...(value !== undefined && { value }) } },
+      { onSettled: () => removePending(id) }
+    );
+  }
+  function handleSkip(id: string) {
+    addPending(id);
+    updateActivity.mutate(
+      { id, data: { status: 'skipped' } },
+      { onSettled: () => removePending(id) }
+    );
+  }
+  function handleUndo(id: string) {
+    addPending(id);
+    updateActivity.mutate(
+      { id, data: { status: 'planned' } },
+      { onSettled: () => removePending(id) }
+    );
+  }
+  function handleDelete(id: string) {
+    addPending(id);
+    deleteActivity.mutate(id, { onSettled: () => removePending(id) });
+  }
   const totalToday = planned.length + completed.length + skipped.length;
 
   // ——— Render ———
   return (
-    <AppLayout>
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Today</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white">Today</h1>
+              {metrics && metrics.currentStreak > 0 && (
+                <span
+                  title={`${metrics.currentStreak}-day streak`}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-orange-900/50 border border-orange-700/50 text-orange-300 text-xs font-semibold"
+                >
+                  🔥 {metrics.currentStreak}d streak
+                </span>
+              )}
+            </div>
             {data && (
               <p className="text-sm text-gray-400 mt-0.5">{formatTodayHeading(todayDate)}</p>
             )}
@@ -195,8 +230,9 @@ export function TodayView() {
               activities={planned}
               onComplete={handleComplete}
               onSkip={handleSkip}
+              onUndo={handleUndo}
               onDelete={handleDelete}
-              isPending={isPending}
+              pendingIds={pendingIds}
               emptyText="Nothing left to do today 🎉"
             />
             <Column
@@ -205,8 +241,9 @@ export function TodayView() {
               activities={completed}
               onComplete={handleComplete}
               onSkip={handleSkip}
+              onUndo={handleUndo}
               onDelete={handleDelete}
-              isPending={isPending}
+              pendingIds={pendingIds}
               emptyText="No completions yet — keep going!"
             />
             <Column
@@ -215,8 +252,9 @@ export function TodayView() {
               activities={skipped}
               onComplete={handleComplete}
               onSkip={handleSkip}
+              onUndo={handleUndo}
               onDelete={handleDelete}
-              isPending={isPending}
+              pendingIds={pendingIds}
               emptyText="Nothing skipped"
             />
           </div>
@@ -231,6 +269,6 @@ export function TodayView() {
           onSuccess={() => setShowForm(false)}
         />
       )}
-    </AppLayout>
+    </div>
   );
 }

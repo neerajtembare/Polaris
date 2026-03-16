@@ -24,24 +24,16 @@ import type {
   UpdateActivityInput,
   ActivityStatus,
   ActivityType,
+  ListedActivity,
+  TodayActivities,
 } from '@polaris/shared';
+
+// Re-export so existing page-level imports from this file still work
+export type { ListedActivity, TodayActivities };
 
 // ---------------------------------------------------------------------------
 // API response shapes (matching backend exactly)
 // ---------------------------------------------------------------------------
-
-/** Activity with goalTitle flattened (returned by list/today endpoints) */
-export interface ListedActivity extends Activity {
-  goalTitle: string | null;
-}
-
-/** Grouped shape returned by GET /api/activities/today */
-export interface TodayActivities {
-  date: string;
-  planned: ListedActivity[];
-  completed: ListedActivity[];
-  skipped: ListedActivity[];
-}
 
 interface ActivityResponse {
   success: true;
@@ -91,22 +83,27 @@ export interface ActivityListFilter {
 
 /**
  * Fetch a paginated list of activities with optional filters.
+ * Pass `{ enabled: false }` as the second argument to skip the query entirely.
  */
-export function useActivities(filter: ActivityListFilter = {}) {
+export function useActivities(
+  filter: ActivityListFilter = {},
+  options: { enabled?: boolean } = {}
+) {
   return useQuery({
     queryKey: activityKeys.list(filter),
     queryFn: () =>
       api.get<PaginatedResponse<ListedActivity>>('/activities', {
         ...(filter.date         && { date:         filter.date }),
-        ...(filter.startDate    && { start_date:   filter.startDate }),
-        ...(filter.endDate      && { end_date:     filter.endDate }),
-        ...(filter.goalId       && { goal_id:      filter.goalId }),
+        ...(filter.startDate    && { startDate:    filter.startDate }),
+        ...(filter.endDate      && { endDate:      filter.endDate }),
+        ...(filter.goalId       && { goalId:       filter.goalId }),
         ...(filter.status       && { status:       filter.status }),
-        ...(filter.activityType && { activity_type: filter.activityType }),
-        ...(filter.limit        !== undefined && { limit:  filter.limit }),
-        ...(filter.offset       !== undefined && { offset: filter.offset }),
+        ...(filter.activityType && { activityType: filter.activityType }),
+        ...(filter.limit        !== undefined && { limit:   filter.limit }),
+        ...(filter.offset       !== undefined && { offset:  filter.offset }),
       }),
     staleTime: 60_000,
+    enabled:   options.enabled ?? true,
   });
 }
 
@@ -147,14 +144,7 @@ export function useTodayActivities() {
 
 /**
  * Log a new activity.
- * Note: body fields use camelCase here — the controller maps them to snake_case
- * before passing to the service. The snake_case mapping happens IN the controller
- * because the API contract specifies snake_case bodies; this hook sends camelCase
- * and relies on the api.ts serialization being transparent.
- *
- * Wait — actually the API contract uses snake_case for request bodies
- * (activity_type, goal_id, etc.). This hook sends the camelCase input and
- * maps to snake_case before posting to match the contract.
+ * Body is sent as camelCase — matches the API contract and shared CreateActivityInput.
  */
 export function useCreateActivity() {
   const queryClient = useQueryClient();
@@ -162,7 +152,7 @@ export function useCreateActivity() {
   return useMutation({
     mutationFn: (input: CreateActivityInput) =>
       api
-        .post<ActivityResponse>('/activities', toSnakeCase(input))
+        .post<ActivityResponse>('/activities', input)
         .then((res) => res.data),
     onSuccess: (_data, input) => {
       void queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
@@ -177,6 +167,7 @@ export function useCreateActivity() {
 
 /**
  * Partial-update an activity (e.g., mark completed, edit notes).
+ * Body is sent as camelCase — matches the API contract and shared UpdateActivityInput.
  */
 export function useUpdateActivity() {
   const queryClient = useQueryClient();
@@ -184,7 +175,7 @@ export function useUpdateActivity() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateActivityInput }) =>
       api
-        .patch<ActivityResponse>(`/activities/${id}`, toUpdateSnakeCase(data))
+        .patch<ActivityResponse>(`/activities/${id}`, data)
         .then((res) => res.data),
     onSuccess: (activity, { id }) => {
       void queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
@@ -215,38 +206,3 @@ export function useDeleteActivity() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Internal snake_case mappers (API contract uses snake_case for request bodies)
-// ---------------------------------------------------------------------------
-
-/** Map camelCase CreateActivityInput to the snake_case body the API expects */
-function toSnakeCase(input: CreateActivityInput): Record<string, unknown> {
-  return {
-    title:         input.title,
-    activity_type: input.activityType,
-    activity_date: input.activityDate,
-    ...(input.notes        !== undefined && { notes:       input.notes }),
-    ...(input.value        !== undefined && { value:       input.value }),
-    ...(input.unit         !== undefined && { unit:        input.unit }),
-    ...(input.rawInput     !== undefined && { raw_input:   input.rawInput }),
-    ...(input.goalId       !== undefined && { goal_id:     input.goalId }),
-    ...(input.category     !== undefined && { category:    input.category }),
-    ...(input.status       !== undefined && { status:      input.status }),
-  };
-}
-
-/** Map camelCase UpdateActivityInput to the snake_case body the API expects */
-function toUpdateSnakeCase(input: UpdateActivityInput): Record<string, unknown> {
-  return {
-    ...(input.title        !== undefined && { title:         input.title }),
-    ...(input.notes        !== undefined && { notes:         input.notes }),
-    ...(input.activityType !== undefined && { activity_type: input.activityType }),
-    ...(input.value        !== undefined && { value:         input.value }),
-    ...(input.unit         !== undefined && { unit:          input.unit }),
-    ...(input.goalId       !== undefined && { goal_id:       input.goalId }),
-    ...(input.activityDate !== undefined && { activity_date: input.activityDate }),
-    ...(input.category     !== undefined && { category:      input.category }),
-    ...(input.status       !== undefined && { status:        input.status }),
-    ...(input.completedAt  !== undefined && { completed_at:  input.completedAt }),
-  };
-}

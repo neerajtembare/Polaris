@@ -16,7 +16,6 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AppLayout } from '../components/layout/AppLayout.tsx';
 import { ProgressBar } from '../components/ui/ProgressBar.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import {
@@ -122,7 +121,7 @@ function GoalProgressList({ metrics }: { metrics: DashboardMetrics }) {
                 : `${g.currentValue}${g.unit ? ` ${g.unit}` : ''}`}
             </span>
           </div>
-          <ProgressBar percentage={g.percentage} heightClass="h-1.5" />
+          <ProgressBar percentage={g.percentage ?? 0} heightClass="h-1.5" />
         </div>
       ))}
     </div>
@@ -152,8 +151,7 @@ export function Dashboard() {
       : 0;
 
   return (
-    <AppLayout>
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -230,34 +228,6 @@ export function Dashboard() {
           </>
         )}
 
-        {/* Quick-nav cards (empty state fallback) */}
-        {!isLoading && !data && !isError && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <DashCard icon="📅" title="Today" description="See and track today's activities" to="/today" />
-            <DashCard icon="🎯" title="Goals" description="Create and track your goals" to="/goals" />
-          </div>
-        )}
-
       </div>
-    </AppLayout>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Mini helper
-// ---------------------------------------------------------------------------
-
-function DashCard({ icon, title, description, to }: {
-  icon: string; title: string; description: string; to: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="block bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-colors"
-    >
-      <span className="text-2xl" aria-hidden="true">{icon}</span>
-      <p className="mt-3 font-semibold text-white">{title}</p>
-      <p className="mt-1 text-sm text-gray-400">{description}</p>
-    </Link>
   );
 }

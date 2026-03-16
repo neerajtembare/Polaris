@@ -7,6 +7,7 @@
  *
  * @dependencies
  * - @tanstack/react-query
+ * - @polaris/shared (DashboardMetrics, MetricsPeriod)
  * - services/api.ts
  *
  * @relatedFiles
@@ -15,43 +16,14 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import type { ApiSuccess } from '@polaris/shared';
+import type { DashboardMetrics, MetricsPeriod } from '@polaris/shared';
 import { api } from '../services/api.js';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// Re-export for consumers (e.g. Dashboard, which uses MetricsPeriod and GoalProgressEntry via DashboardMetrics)
+export type { DashboardMetrics, GoalProgressEntry, MetricsPeriod } from '@polaris/shared';
 
-export type MetricsPeriod = 'week' | 'month' | 'year';
-
-export interface GoalProgressEntry {
-  goalId:       string;
-  goalTitle:    string;
-  targetValue:  number | null;
-  unit:         string | null;
-  currentValue: number;
-  percentage:   number;
-}
-
-export interface DashboardMetrics {
-  period:              MetricsPeriod;
-  startDate:           string;
-  endDate:             string;
-  totalActivities:     number;
-  completedActivities: number;
-  plannedActivities:   number;
-  goalsTouched:        number;
-  currentStreak:       number;
-  longestStreak:       number;
-  /** Map from "YYYY-MM-DD" → activity count */
-  activityByDay:       Record<string, number>;
-  /** Top goals with accumulated progress */
-  goalProgress:        GoalProgressEntry[];
-}
-
-interface MetricsResponse {
-  success: true;
-  data:    DashboardMetrics;
-}
+type MetricsResponse = ApiSuccess<DashboardMetrics>;
 
 // ---------------------------------------------------------------------------
 // Query key factory

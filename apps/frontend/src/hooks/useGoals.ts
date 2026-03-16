@@ -29,26 +29,16 @@ import type {
   UpdateGoalInput,
   GoalStatus,
   GoalTimeframe,
+  GoalProgress,
+  GoalWithProgress,
 } from '@polaris/shared';
+
+// Re-export so existing page-level imports from this file still work
+export type { GoalProgress, GoalWithProgress };
 
 // ---------------------------------------------------------------------------
 // API response shapes (matching backend exactly)
 // ---------------------------------------------------------------------------
-
-interface GoalWithProgress extends Goal {
-  progress?: GoalProgress;
-}
-
-export interface GoalProgress {
-  goalId: string;
-  currentValue: number;
-  targetValue: number | null;
-  unit: string | null;
-  percentage: number | null;
-  activityCount: number;
-  lastActivityDate: string | null;
-  daysActive: number;
-}
 
 interface GoalListResponse {
   success: true;
@@ -109,11 +99,9 @@ export function useGoals(
     queryKey: goalKeys.list(filter),
     queryFn: async () => {
       const res = await api.get<GoalListResponse>('/goals', {
-        ...(filter.status      && { status:          filter.status }),
-        ...(filter.timeframe   && { timeframe:        filter.timeframe }),
-        ...(filter.includeProgress !== undefined && {
-          includeProgress: filter.includeProgress,
-        }),
+        ...(filter.status             && { status:          filter.status }),
+        ...(filter.timeframe          && { timeframe:       filter.timeframe }),
+        ...(filter.includeProgress !== undefined && { includeProgress: filter.includeProgress }),
       });
       return res.data;
     },
@@ -131,11 +119,11 @@ export function useGoal(
   opts: { includeProgress?: boolean; includeChildren?: boolean } = {}
 ) {
   return useQuery({
-    queryKey: goalKeys.detail(id),
+    queryKey: [...goalKeys.detail(id), opts],
     queryFn: async () => {
       const res = await api.get<GoalResponse>(`/goals/${id}`, {
-        ...(opts.includeProgress  && { includeProgress:  true }),
-        ...(opts.includeChildren  && { includeChildren:  true }),
+        ...(opts.includeProgress && { includeProgress: true }),
+        ...(opts.includeChildren && { includeChildren: true }),
       });
       return res.data;
     },

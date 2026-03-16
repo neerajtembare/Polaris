@@ -21,7 +21,6 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AppLayout } from '../components/layout/AppLayout.tsx';
 import { GoalCard } from '../components/goals/GoalCard.tsx';
 import { EmptyState } from '../components/ui/EmptyState.tsx';
 import { LoadingScreen } from '../components/ui/Spinner.tsx';
@@ -68,8 +67,7 @@ export function GoalsList() {
 
   // ——— Render ———
   return (
-    <AppLayout>
-      <div className="max-w-3xl mx-auto px-6 py-8">
+    <div className="max-w-3xl mx-auto px-6 py-8">
 
         {/* Page header */}
         <div className="flex items-center justify-between mb-6">
@@ -163,6 +161,5 @@ export function GoalsList() {
         )}
 
       </div>
-    </AppLayout>
   );
 }

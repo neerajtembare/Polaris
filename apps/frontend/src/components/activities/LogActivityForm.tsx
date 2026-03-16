@@ -1,40 +1,39 @@
 /**
  * @file components/activities/LogActivityForm.tsx
  * @description Modal form for quickly logging a new activity.
- *   Used from TodayView (quick-log button) and ActivitiesList.
- *   Covers all activity types: quantity, duration, completion.
+ *   Supports:
+ *   - AI parse via rawInput → AiSuggestionPanel review → one-click apply
+ *   - Goal selection with auto-fill of unit + activity type
+ *   - Recent activity title chips (per goal)
+ *   - Unit picker with preset chips
+ *
  * @module @polaris/frontend/components/activities
  *
- * @dependencies
- * - hooks/useActivities (useCreateActivity)
- * - hooks/useGoals (useGoals — for goal dropdown)
- * - services/api (ApiRequestError)
- *
  * @relatedFiles
- * - src/pages/TodayView.tsx
- * - src/hooks/useActivities.ts
- * - src/hooks/useGoals.ts
+ *   - src/pages/TodayView.tsx
+ *   - src/hooks/useActivities.ts
+ *   - src/hooks/useGoals.ts
+ *   - src/components/activities/AiSuggestionPanel.tsx
  */
 
 import { useState, type FormEvent } from 'react';
-import { useCreateActivity } from '../../hooks/useActivities.ts';
+import { useCreateActivity, useActivities } from '../../hooks/useActivities.ts';
 import { useGoals } from '../../hooks/useGoals.ts';
-import { ApiRequestError } from '../../services/api.ts';
-import type { ActivityType, ActivityStatus } from '@polaris/shared';
+import { api, ApiRequestError } from '../../services/api.ts';
+import { UnitPicker } from '../ui/UnitPicker.tsx';
+import { inferActivityType } from '../../lib/units.ts';
+import { AiSuggestionPanel } from './AiSuggestionPanel.tsx';
+import type { ActivityType, ActivityStatus, ApiSuccess, AIActivityParse } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface LogActivityFormProps {
-  /** Pre-fill the activity date (YYYY-MM-DD). Defaults to today. */
-  defaultDate?: string;
-  /** Pre-fill status. Defaults to 'completed' (most common for quick-log). */
+  defaultDate?:   string;
   defaultStatus?: ActivityStatus;
-  /** Called when form is dismissed without saving */
-  onClose: () => void;
-  /** Called after successful submission */
-  onSuccess?: () => void;
+  onClose:        () => void;
+  onSuccess?:     () => void;
 }
 
 interface FormState {
@@ -42,10 +41,11 @@ interface FormState {
   activityType: ActivityType;
   value:        string;
   unit:         string;
-  goalId:       string;   // '' = no goal
+  goalId:       string;
   activityDate: string;
   status:       ActivityStatus;
   notes:        string;
+  rawInput:     string;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,13 +88,82 @@ export function LogActivityForm({
     activityDate: defaultDate,
     status:       defaultStatus,
     notes:        '',
+    rawInput:     '',
   });
-  const [error, setError] = useState<string | null>(null);
+  const [error,       setError]       = useState<string | null>(null);
+  const [aiParsing,   setAiParsing]   = useState(false);
+  const [aiError,     setAiError]     = useState<string | null>(null);
+  const [aiSuggestion, setAiSuggestion] = useState<AIActivityParse | null>(null);
+
+  // Fetch recent completed activities for the selected goal to show title chips.
+  // Only fires when a goal is selected — avoids a full-scan on modal open.
+  const { data: recentActivitiesData } = useActivities(
+    { goalId: form.goalId || undefined, status: 'completed', limit: 20 },
+    { enabled: Boolean(form.goalId) }
+  );
+  const recentTitles: string[] = form.goalId
+    ? [...new Set(
+        (recentActivitiesData?.data ?? []).map((a) => a.title)
+      )].slice(0, 5)
+    : [];
 
   function set(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (error) setError(null);
   }
+
+  /** When user picks a goal, auto-fill unit + infer activityType from goal's targetUnit */
+  function handleGoalChange(goalId: string) {
+    const selectedGoal = goals.find((g) => g.id === goalId);
+    const unit = selectedGoal?.targetUnit ?? '';
+    const inferredType = inferActivityType(unit);
+    setForm((prev) => ({ ...prev, goalId, unit, activityType: inferredType }));
+    if (error) setError(null);
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI parse
+  // ---------------------------------------------------------------------------
+
+  async function handleAiParse() {
+    if (!form.rawInput.trim()) return;
+    setAiParsing(true);
+    setAiError(null);
+    setAiSuggestion(null);
+
+    try {
+      const res = await api.post<ApiSuccess<AIActivityParse>>(
+        '/ai/parse-activity',
+        { rawInput: form.rawInput.trim() }
+      );
+      setAiSuggestion(res.data);
+    } catch (err) {
+      setAiError(
+        err instanceof ApiRequestError
+          ? err.message
+          : 'AI unavailable — fill the form manually.'
+      );
+    } finally {
+      setAiParsing(false);
+    }
+  }
+
+  /** Apply AI suggestion to form fields */
+  function handleAiApply(suggestion: AIActivityParse) {
+    setForm((prev) => ({
+      ...prev,
+      title:        suggestion.title,
+      activityType: suggestion.activityType,
+      value:        suggestion.value !== null ? String(suggestion.value) : prev.value,
+      unit:         suggestion.unit ?? prev.unit,
+      goalId:       suggestion.suggestedGoalId ?? prev.goalId,
+    }));
+    setAiSuggestion(null);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Submit
+  // ---------------------------------------------------------------------------
 
   const needsValue = form.activityType !== 'completion';
 
@@ -114,9 +183,10 @@ export function LogActivityForm({
         activityDate: form.activityDate,
         status:       form.status,
         ...(needsValue && form.value && { value: Number(form.value) }),
-        ...(form.unit.trim()   && { unit:   form.unit.trim() }),
-        ...(form.goalId        && { goalId: form.goalId }),
-        ...(form.notes.trim()  && { notes:  form.notes.trim() }),
+        ...(form.unit.trim()     && { unit:     form.unit.trim() }),
+        ...(form.goalId          && { goalId:   form.goalId }),
+        ...(form.notes.trim()    && { notes:    form.notes.trim() }),
+        ...(form.rawInput.trim() && { rawInput: form.rawInput.trim() }),
       });
       onSuccess?.();
       onClose();
@@ -125,15 +195,16 @@ export function LogActivityForm({
     }
   }
 
-  // ——— Render ———
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
   return (
-    /* Backdrop */
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-4 pb-4 sm:pb-0"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      {/* Panel */}
-      <div className="w-full max-w-md bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl">
+      <div className="w-full max-w-md bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-y-auto max-h-[95vh]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-800">
@@ -147,7 +218,6 @@ export function LogActivityForm({
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={(e) => void handleSubmit(e)} className="px-5 py-4 space-y-4">
 
           {error && (
@@ -156,7 +226,63 @@ export function LogActivityForm({
             </div>
           )}
 
-          {/* Title */}
+          {/* ── Raw input + AI parse button ── */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-400" htmlFor="la-raw">
+                Describe what you did{' '}
+                <span className="text-gray-600 font-normal">(optional)</span>
+              </label>
+              {form.rawInput.trim() && (
+                <button
+                  type="button"
+                  onClick={() => void handleAiParse()}
+                  disabled={aiParsing}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-900/60 hover:bg-indigo-800/60 border border-indigo-700/60 text-indigo-300 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {aiParsing ? (
+                    <>
+                      <span className="inline-block w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                      Parsing…
+                    </>
+                  ) : (
+                    <>✨ Parse with AI</>
+                  )}
+                </button>
+              )}
+            </div>
+            <textarea
+              id="la-raw"
+              value={form.rawInput}
+              onChange={(e) => set('rawInput', e.target.value)}
+              rows={2}
+              placeholder='e.g. "ran 5km in the park this morning"'
+              className={`${inputCls} resize-none`}
+            />
+            {!form.rawInput.trim() && (
+              <p className="mt-1 text-xs text-gray-600">
+                Type naturally — ✨ AI parse button appears when you start typing.
+              </p>
+            )}
+          </div>
+
+          {/* ── AI error ── */}
+          {aiError && (
+            <div className="rounded-lg bg-yellow-950/60 border border-yellow-800/60 px-3 py-2 text-xs text-yellow-300">
+              {aiError}
+            </div>
+          )}
+
+          {/* ── AI suggestion review panel ── */}
+          {aiSuggestion && (
+            <AiSuggestionPanel
+              suggestion={aiSuggestion}
+              onApply={handleAiApply}
+              onDismiss={() => setAiSuggestion(null)}
+            />
+          )}
+
+          {/* ── Title ── */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-title">
               What did you do? <span className="text-red-400">*</span>
@@ -171,9 +297,28 @@ export function LogActivityForm({
               autoFocus
               className={inputCls}
             />
+
+            {/* Recent title chips */}
+            {recentTitles.length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-600 mb-1.5">Recent:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {recentTitles.map((title) => (
+                    <button
+                      key={title}
+                      type="button"
+                      onClick={() => set('title', title)}
+                      className="px-2.5 py-1 rounded-md text-xs font-medium border bg-gray-800 border-gray-700 text-gray-300 hover:border-indigo-500 hover:text-white transition-colors"
+                    >
+                      {title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Activity type */}
+          {/* ── Activity type + Status ── */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-type">
@@ -190,8 +335,6 @@ export function LogActivityForm({
                 ))}
               </select>
             </div>
-
-            {/* Status */}
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-status">
                 Status
@@ -209,9 +352,9 @@ export function LogActivityForm({
             </div>
           </div>
 
-          {/* Value + Unit (quantity / duration only) */}
+          {/* ── Value + Unit ── */}
           {needsValue && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-value">
                   {form.activityType === 'duration' ? 'Duration' : 'Amount'}
@@ -223,60 +366,61 @@ export function LogActivityForm({
                   step="any"
                   value={form.value}
                   onChange={(e) => set('value', e.target.value)}
-                  placeholder="e.g. 5.2"
+                  placeholder="e.g. 5"
                   className={inputCls}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-unit">
-                  Unit
-                </label>
-                <input
-                  id="la-unit"
-                  type="text"
+                <label className="block text-xs font-medium text-gray-400 mb-1">Unit</label>
+                <UnitPicker
                   value={form.unit}
-                  onChange={(e) => set('unit', e.target.value)}
-                  placeholder={form.activityType === 'duration' ? 'min, hrs' : 'km, pages'}
-                  maxLength={50}
-                  className={inputCls}
+                  onChange={(unit) => {
+                    const inferred = inferActivityType(unit);
+                    setForm((prev) => ({ ...prev, unit, activityType: inferred }));
+                  }}
                 />
               </div>
             </div>
           )}
 
-          {/* Goal + Date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-goal">
-                Goal <span className="text-gray-600">(optional)</span>
-              </label>
-              <select
-                id="la-goal"
-                value={form.goalId}
-                onChange={(e) => set('goalId', e.target.value)}
-                className={inputCls}
-              >
-                <option value="">— none —</option>
-                {goals.map((g) => (
-                  <option key={g.id} value={g.id}>{g.title}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-date">
-                Date
-              </label>
-              <input
-                id="la-date"
-                type="date"
-                value={form.activityDate}
-                onChange={(e) => set('activityDate', e.target.value)}
-                className={`${inputCls} [color-scheme:dark]`}
-              />
-            </div>
+          {/* ── Goal ── */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-goal">
+              Goal <span className="text-gray-600">(optional)</span>
+            </label>
+            <select
+              id="la-goal"
+              value={form.goalId}
+              onChange={(e) => handleGoalChange(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">— none —</option>
+              {goals.map((g) => (
+                <option key={g.id} value={g.id}>{g.title}</option>
+              ))}
+            </select>
+            {form.goalId && goals.find((g) => g.id === form.goalId)?.targetUnit && (
+              <p className="mt-1 text-xs text-indigo-400">
+                Unit and type pre-filled from goal
+              </p>
+            )}
           </div>
 
-          {/* Notes */}
+          {/* ── Date ── */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-date">
+              Date
+            </label>
+            <input
+              id="la-date"
+              type="date"
+              value={form.activityDate}
+              onChange={(e) => set('activityDate', e.target.value)}
+              className={`${inputCls} [color-scheme:dark]`}
+            />
+          </div>
+
+          {/* ── Notes ── */}
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1" htmlFor="la-notes">
               Notes <span className="text-gray-600">(optional)</span>
@@ -291,7 +435,7 @@ export function LogActivityForm({
             />
           </div>
 
-          {/* Actions */}
+          {/* ── Actions ── */}
           <div className="flex justify-end gap-3 pt-1">
             <button
               type="button"

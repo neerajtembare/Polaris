@@ -42,3 +42,33 @@ export interface UpdateGoalInput {
   parentId?: string | null;
   status?: GoalStatus;
 }
+
+// ---------------------------------------------------------------------------
+// API response shapes
+// ---------------------------------------------------------------------------
+
+/**
+ * Computed progress metrics for a single goal.
+ * Returned by GET /api/goals/:id/progress and optionally embedded in
+ * GET /api/goals and GET /api/goals/:id when include_progress=true.
+ */
+export interface GoalProgress {
+  goalId:           string;
+  currentValue:     number;
+  targetValue:      number | null;
+  unit:             string | null;
+  percentage:       number | null;
+  activityCount:    number;
+  lastActivityDate: string | null;  // ISO date string or null
+  daysActive:       number;
+}
+
+/**
+ * A Goal with an optionally embedded progress object.
+ * Matches the shape returned by the goals list/detail endpoints
+ * when include_progress=true.
+ */
+export interface GoalWithProgress extends Goal {
+  progress?: GoalProgress;
+  children?: GoalWithProgress[];
+}

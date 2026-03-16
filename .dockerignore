@@ -1,0 +1,23 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs (we build inside Docker)
+dist
+**/dist
+apps/backend/data/*.db
+apps/backend/data/*.db-journal
+
+# Git and IDE
+.git
+.gitignore
+.vscode
+.cursor
+*.log
+npm-debug.log*
+
+# Docs and misc (optional; keep if you want them in image)
+# Docs
+# archive
+# *.md
+# !README.md

@@ -9,14 +9,17 @@ export interface ApiSuccess<T> {
   data: T;
 }
 
+/** Meta shape for list endpoints (matches backend: total, limit, offset) */
+export interface PaginatedMeta {
+  total:  number;
+  limit:  number;
+  offset: number;
+}
+
 export interface ApiSuccessPaginated<T> {
   success: true;
   data: T[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-  };
+  meta: PaginatedMeta;
 }
 
 export interface ApiError {

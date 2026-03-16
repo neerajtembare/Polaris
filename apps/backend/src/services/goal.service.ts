@@ -16,24 +16,32 @@
 
 import prisma from '../lib/prisma.js';
 import { notFound } from '../lib/errors.js';
-import type { Goal as PrismaGoal } from '@prisma/client';
-import type { CreateGoalInput, UpdateGoalInput } from '@polaris/shared';
+import type { CreateGoalInput, UpdateGoalInput, GoalProgress } from '@polaris/shared';
+
+export type { GoalProgress };
+
+/**
+ * Plain Goal row shape — avoids depending on Prisma namespace helpers
+ * that require `prisma generate` to have run before TypeScript compilation.
+ */
+interface PrismaGoal {
+  id: string;
+  title: string;
+  description: string | null;
+  timeframe: string;
+  targetValue: number | null;
+  targetUnit: string | null;
+  targetDate: Date | null;
+  parentId: string | null;
+  status: string;
+  isDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // ---------------------------------------------------------------------------
 // Types returned by this service
 // ---------------------------------------------------------------------------
-
-/** Computed progress metrics derived from linked activities */
-export interface GoalProgress {
-  goalId: string;
-  currentValue: number;
-  targetValue: number | null;
-  unit: string | null;
-  percentage: number | null;
-  activityCount: number;
-  lastActivityDate: string | null;
-  daysActive: number;
-}
 
 /** Row shape returned by computeProgress's activity query */
 type ActivityProgressRow = { value: number | null; activityDate: Date };

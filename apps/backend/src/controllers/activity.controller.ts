@@ -17,7 +17,7 @@
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import * as ActivityService from '../services/activity.service.js';
-import { AppError } from '../lib/errors.js';
+import { handleError } from '../lib/handleError.js';
 
 // ---------------------------------------------------------------------------
 // Query / param shapes
@@ -29,58 +29,41 @@ interface ActivityParams {
 
 interface ListActivitiesQuery {
   date?: string;
-  start_date?: string;
-  end_date?: string;
-  goal_id?: string;
+  startDate?: string;
+  endDate?: string;
+  goalId?: string;
   status?: string;
-  activity_type?: string;
+  activityType?: string;
   limit?: number;
   offset?: number;
 }
 
-/** Raw request body shape (snake_case per API contract) */
+/** Request body for POST /activities (camelCase — matches shared CreateActivityInput) */
 interface CreateActivityBody {
   title: string;
-  activity_type: string;
-  activity_date: string;
+  activityType: string;
+  activityDate: string;
   value?: number;
   unit?: string;
-  goal_id?: string;
+  goalId?: string;
   category?: string;
   status?: string;
   notes?: string;
-  raw_input?: string;
+  rawInput?: string;
 }
 
+/** Request body for PATCH /activities/:id (camelCase — matches shared UpdateActivityInput) */
 interface UpdateActivityBody {
   title?: string;
-  activity_type?: string;
+  activityType?: string;
   value?: number | null;
   unit?: string | null;
-  goal_id?: string | null;
-  activity_date?: string;
+  goalId?: string | null;
+  activityDate?: string;
   category?: string;
   status?: string;
   notes?: string | null;
-  completed_at?: string | null;
-}
-
-// ---------------------------------------------------------------------------
-// Error formatter (mirrors goal.controller — keep consistent)
-// ---------------------------------------------------------------------------
-
-function handleError(err: unknown, reply: FastifyReply) {
-  if (err instanceof AppError) {
-    return reply.status(err.statusCode).send({
-      success: false,
-      error: { code: err.code, message: err.message, details: err.details },
-    });
-  }
-  console.error('[ActivityController] Unexpected error:', err);
-  return reply.status(500).send({
-    success: false,
-    error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
-  });
+  completedAt?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -96,23 +79,23 @@ export async function getActivities(
   reply: FastifyReply
 ) {
   try {
-    const { date, start_date, end_date, goal_id, status, activity_type, limit, offset } =
+    const { date, startDate, endDate, goalId, status, activityType, limit, offset } =
       request.query;
 
     const result = await ActivityService.listActivities({
-      ...(date !== undefined && { date }),
-      ...(start_date !== undefined && { startDate: start_date }),
-      ...(end_date !== undefined && { endDate: end_date }),
-      ...(goal_id !== undefined && { goalId: goal_id }),
-      ...(status !== undefined && { status }),
-      ...(activity_type !== undefined && { activityType: activity_type }),
-      ...(limit !== undefined && { limit }),
-      ...(offset !== undefined && { offset }),
+      ...(date         !== undefined && { date }),
+      ...(startDate    !== undefined && { startDate }),
+      ...(endDate      !== undefined && { endDate }),
+      ...(goalId       !== undefined && { goalId }),
+      ...(status       !== undefined && { status }),
+      ...(activityType !== undefined && { activityType }),
+      ...(limit        !== undefined && { limit }),
+      ...(offset       !== undefined && { offset }),
     });
 
     return reply.send({ success: true, ...result });
   } catch (err) {
-    return handleError(err, reply);
+    return handleError('ActivityController', err, reply);
   }
 }
 
@@ -126,7 +109,7 @@ export async function getTodayActivities(_request: FastifyRequest, reply: Fastif
     const data = await ActivityService.getTodayActivities();
     return reply.send({ success: true, data });
   } catch (err) {
-    return handleError(err, reply);
+    return handleError('ActivityController', err, reply);
   }
 }
 
@@ -142,13 +125,13 @@ export async function getActivity(
     const activity = await ActivityService.getActivityById(request.params.id);
     return reply.send({ success: true, data: activity });
   } catch (err) {
-    return handleError(err, reply);
+    return handleError('ActivityController', err, reply);
   }
 }
 
 /**
  * POST /api/activities
- * Log a new activity. Maps snake_case body → camelCase service input.
+ * Log a new activity. Body is camelCase — passed directly to the service.
  */
 export async function createActivity(
   request: FastifyRequest<{ Body: CreateActivityBody }>,
@@ -157,26 +140,26 @@ export async function createActivity(
   try {
     const b = request.body;
     const activity = await ActivityService.createActivity({
-      title: b.title,
-      activityType: b.activity_type as 'quantity' | 'duration' | 'completion',
-      activityDate: b.activity_date,
-      ...(b.value !== undefined && { value: b.value }),
-      ...(b.unit !== undefined && { unit: b.unit }),
-      ...(b.goal_id !== undefined && { goalId: b.goal_id }),
+      title:        b.title,
+      activityType: b.activityType as 'quantity' | 'duration' | 'completion',
+      activityDate: b.activityDate,
+      ...(b.value    !== undefined && { value: b.value }),
+      ...(b.unit     !== undefined && { unit: b.unit }),
+      ...(b.goalId   !== undefined && { goalId: b.goalId }),
       ...(b.category !== undefined && { category: b.category as 'growth' | 'maintenance' }),
-      ...(b.status !== undefined && { status: b.status as 'planned' | 'completed' | 'skipped' }),
-      ...(b.notes !== undefined && { notes: b.notes }),
-      ...(b.raw_input !== undefined && { rawInput: b.raw_input }),
+      ...(b.status   !== undefined && { status: b.status as 'planned' | 'completed' | 'skipped' }),
+      ...(b.notes    !== undefined && { notes: b.notes }),
+      ...(b.rawInput !== undefined && { rawInput: b.rawInput }),
     });
     return reply.status(201).send({ success: true, data: activity });
   } catch (err) {
-    return handleError(err, reply);
+    return handleError('ActivityController', err, reply);
   }
 }
 
 /**
  * PATCH /api/activities/:id
- * Update an activity. Maps snake_case body → camelCase service input.
+ * Update an activity. Body is camelCase — passed directly to the service.
  */
 export async function updateActivity(
   request: FastifyRequest<{ Params: ActivityParams; Body: UpdateActivityBody }>,
@@ -185,20 +168,20 @@ export async function updateActivity(
   try {
     const b = request.body;
     const activity = await ActivityService.updateActivity(request.params.id, {
-      ...(b.title !== undefined && { title: b.title }),
-      ...(b.activity_type !== undefined && { activityType: b.activity_type as 'quantity' | 'duration' | 'completion' }),
-      ...(b.value !== undefined && { value: b.value }),
-      ...(b.unit !== undefined && { unit: b.unit }),
-      ...(b.goal_id !== undefined && { goalId: b.goal_id }),
-      ...(b.activity_date !== undefined && { activityDate: b.activity_date }),
-      ...(b.category !== undefined && { category: b.category as 'growth' | 'maintenance' }),
-      ...(b.status !== undefined && { status: b.status as 'planned' | 'completed' | 'skipped' }),
-      ...(b.notes !== undefined && { notes: b.notes }),
-      ...(b.completed_at !== undefined && { completedAt: b.completed_at }),
+      ...(b.title        !== undefined && { title: b.title }),
+      ...(b.activityType !== undefined && { activityType: b.activityType as 'quantity' | 'duration' | 'completion' }),
+      ...(b.value        !== undefined && { value: b.value }),
+      ...(b.unit         !== undefined && { unit: b.unit }),
+      ...(b.goalId       !== undefined && { goalId: b.goalId }),
+      ...(b.activityDate !== undefined && { activityDate: b.activityDate }),
+      ...(b.category     !== undefined && { category: b.category as 'growth' | 'maintenance' }),
+      ...(b.status       !== undefined && { status: b.status as 'planned' | 'completed' | 'skipped' }),
+      ...(b.notes        !== undefined && { notes: b.notes }),
+      ...(b.completedAt  !== undefined && { completedAt: b.completedAt }),
     });
     return reply.send({ success: true, data: activity });
   } catch (err) {
-    return handleError(err, reply);
+    return handleError('ActivityController', err, reply);
   }
 }
 
@@ -214,6 +197,6 @@ export async function deleteActivity(
     const result = await ActivityService.deleteActivity(request.params.id);
     return reply.send({ success: true, data: result });
   } catch (err) {
-    return handleError(err, reply);
+    return handleError('ActivityController', err, reply);
   }
 }

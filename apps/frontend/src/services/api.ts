@@ -9,13 +9,15 @@
  * @module @polaris/frontend/services
  *
  * @dependencies
- * - @polaris/shared (ApiSuccess, ApiError types)
+ * - @polaris/shared (ApiSuccess, ApiSuccessPaginated, ApiError types)
  *
  * @relatedFiles
  * - src/hooks/useGoals.ts
  * - src/hooks/useActivities.ts
  * - vite.config.ts (proxy config)
  */
+
+import type { ApiError, ApiSuccess, ApiSuccessPaginated } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
 // Error class
@@ -40,37 +42,16 @@ export class ApiRequestError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Response shapes
+// Response shapes (use shared types; re-export for hooks)
 // ---------------------------------------------------------------------------
 
-/** Standard single-item success response */
-interface SuccessResponse<T> {
-  success: true;
-  data: T;
-}
-
-/** Paginated list success response (matches backend meta shape) */
-export interface PaginatedResponse<T> {
-  success: true;
-  data: T[];
-  meta: {
-    total: number;
-    limit: number;
-    offset: number;
-  };
-}
+/** Paginated list response (matches backend: data + meta.total/limit/offset) */
+export type PaginatedResponse<T> = ApiSuccessPaginated<T>;
 
 /** Standard error response */
-interface ErrorResponse {
-  success: false;
-  error: {
-    code: string;
-    message: string;
-    details?: unknown;
-  };
-}
+interface ErrorResponse extends ApiError {}
 
-type AnyResponse<T> = SuccessResponse<T> | PaginatedResponse<T> | ErrorResponse;
+type AnyResponse<T> = ApiSuccess<T> | ApiSuccessPaginated<T> | ErrorResponse;
 
 // ---------------------------------------------------------------------------
 // Core request helper

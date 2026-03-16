@@ -19,7 +19,6 @@
  */
 
 import { useState } from 'react';
-import { AppLayout } from '../components/layout/AppLayout.tsx';
 import { ActivityCard } from '../components/activities/ActivityCard.tsx';
 import { LogActivityForm } from '../components/activities/LogActivityForm.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
@@ -76,12 +75,19 @@ export function ActivitiesList() {
   const updateActivity = useUpdateActivity();
   const deleteActivity = useDeleteActivity();
 
-  function handleComplete(id: string) {
-    updateActivity.mutate({ id, data: { status: 'completed' } });
+  function handleComplete(id: string, value?: number) {
+    updateActivity.mutate({
+      id,
+      data: { status: 'completed', ...(value !== undefined && { value }) },
+    });
   }
 
   function handleSkip(id: string) {
     updateActivity.mutate({ id, data: { status: 'skipped' } });
+  }
+
+  function handleUndo(id: string) {
+    updateActivity.mutate({ id, data: { status: 'planned' } });
   }
 
   function handleDelete(id: string) {
@@ -92,8 +98,7 @@ export function ActivitiesList() {
 
   // ——— Render ———
   return (
-    <AppLayout>
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
 
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -189,6 +194,7 @@ export function ActivitiesList() {
                   activity={activity}
                   onComplete={handleComplete}
                   onSkip={handleSkip}
+                  onUndo={handleUndo}
                   onDelete={handleDelete}
                   isPending={isPending}
                 />
@@ -206,6 +212,6 @@ export function ActivitiesList() {
           onSuccess={() => setShowForm(false)}
         />
       )}
-    </AppLayout>
+    </div>
   );
 }

@@ -18,10 +18,10 @@
 
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AppLayout } from '../components/layout/AppLayout.tsx';
 import { TimeframeBadge, StatusBadge } from '../components/ui/Badge.tsx';
 import { ProgressBar } from '../components/ui/ProgressBar.tsx';
 import { LoadingScreen } from '../components/ui/Spinner.tsx';
+import { UnitPicker } from '../components/ui/UnitPicker.tsx';
 import { useGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoals.ts';
 import { ApiRequestError } from '../services/api.ts';
 import type { GoalTimeframe, GoalStatus, UpdateGoalInput } from '@polaris/shared';
@@ -121,25 +121,28 @@ export function GoalDetail() {
   async function handleDelete() {
     if (!goal) return;
     if (!window.confirm(`Delete "${goal.title}"? This cannot be undone.`)) return;
-    await deleteGoal.mutateAsync(goal.id);
-    navigate('/goals');
+    try {
+      await deleteGoal.mutateAsync(goal.id);
+      navigate('/goals');
+    } catch (err) {
+      const msg = err instanceof ApiRequestError ? err.message : 'Failed to delete goal. Please try again.';
+      setEditError(msg);
+    }
   }
 
   // ——— States ———
-  if (isLoading) return <AppLayout><LoadingScreen /></AppLayout>;
+  if (isLoading) return <LoadingScreen />;
 
   if (isError || !goal) {
     return (
-      <AppLayout>
-        <div className="max-w-2xl mx-auto px-6 py-8">
-          <Link to="/goals" className="text-sm text-gray-400 hover:text-white transition-colors">
-            ← Back to goals
-          </Link>
-          <div className="mt-8 rounded-lg bg-red-950 border border-red-800 px-4 py-3 text-sm text-red-300">
-            Goal not found or failed to load.
-          </div>
+      <div className="max-w-2xl mx-auto px-6 py-8">
+        <Link to="/goals" className="text-sm text-gray-400 hover:text-white transition-colors">
+          ← Back to goals
+        </Link>
+        <div className="mt-8 rounded-lg bg-red-950 border border-red-800 px-4 py-3 text-sm text-red-300">
+          Goal not found or failed to load.
         </div>
-      </AppLayout>
+      </div>
     );
   }
 
@@ -147,8 +150,7 @@ export function GoalDetail() {
 
   // ——— Render ———
   return (
-    <AppLayout>
-      <div className="max-w-2xl mx-auto px-6 py-8">
+    <div className="max-w-2xl mx-auto px-6 py-8">
 
         {/* Back link */}
         <Link to="/goals" className="text-sm text-gray-400 hover:text-white transition-colors">
@@ -304,30 +306,26 @@ export function GoalDetail() {
               </Field>
             </div>
 
-            {/* Target value + unit */}
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Target value">
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={editForm.targetValue}
-                  onChange={(e) => handleEditChange('targetValue', e.target.value)}
-                  placeholder="e.g. 100"
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Unit">
-                <input
-                  type="text"
-                  value={editForm.targetUnit}
-                  onChange={(e) => handleEditChange('targetUnit', e.target.value)}
-                  placeholder="e.g. km, pages"
-                  maxLength={50}
-                  className={inputCls}
-                />
-              </Field>
-            </div>
+            {/* Target value */}
+            <Field label="Target value">
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={editForm.targetValue}
+                onChange={(e) => handleEditChange('targetValue', e.target.value)}
+                placeholder="e.g. 100"
+                className={inputCls}
+              />
+            </Field>
+
+            {/* Unit picker */}
+            <Field label="Unit">
+              <UnitPicker
+                value={editForm.targetUnit}
+                onChange={(unit) => handleEditChange('targetUnit', unit)}
+              />
+            </Field>
 
             {/* Target date */}
             <Field label="Target date">
@@ -360,7 +358,6 @@ export function GoalDetail() {
         )}
 
       </div>
-    </AppLayout>
   );
 }
 

@@ -21,6 +21,23 @@ Production:  TBD
 
 ---
 
+# Casing Convention
+
+**All API field names use `camelCase` — for request bodies, query parameters, and response payloads.**
+
+This applies consistently across every endpoint (Goals, Activities, AI, Metrics). There are no snake_case fields anywhere in the live API.
+
+| Layer | Convention | Example |
+|-------|-----------|---------|
+| Request body (POST/PATCH) | camelCase | `activityType`, `goalId`, `rawInput` |
+| Query parameters (GET) | camelCase | `includeProgress`, `startDate`, `goalId` |
+| Response fields | camelCase | `activityDate`, `completedAt`, `targetUnit` |
+| Shared TypeScript types | camelCase | `CreateActivityInput`, `GoalWithProgress` |
+
+The shared types in `packages/shared/src/types/` are the single source of truth. Route schemas must match them. No conversion layer is needed anywhere.
+
+---
+
 # Common Headers
 
 ## Request Headers
@@ -51,6 +68,8 @@ Production:  TBD
 ```
 
 ## List Response
+
+Paginated list endpoints (e.g. `GET /activities`) return `data` plus `meta` with **total**, **limit**, and **offset** (no `page`). Type in shared: `ApiSuccessPaginated<T>` / `PaginatedMeta` (`packages/shared/src/types/api.ts`).
 
 ```json
 {
@@ -291,15 +310,15 @@ Logs a new activity.
 ```typescript
 interface CreateActivityRequest {
   title: string;              // Required, 1-500 chars
-  activity_type: 'quantity' | 'duration' | 'completion';
+  activityType: 'quantity' | 'duration' | 'completion';
   value?: number;             // Required for quantity/duration
   unit?: string;              // e.g., "pages", "minutes", "km"
-  goal_id?: string;           // Link to goal (optional)
-  activity_date: string;      // ISO date (YYYY-MM-DD)
+  goalId?: string;            // Link to goal (optional)
+  activityDate: string;       // ISO date (YYYY-MM-DD)
   category?: 'growth' | 'maintenance';  // Default: growth
   status?: 'planned' | 'completed' | 'skipped';  // Default: planned
   notes?: string;             // Optional notes
-  raw_input?: string;         // Original NLP input (Phase 3)
+  rawInput?: string;          // Original NLP input (for AI plumbing)
 }
 ```
 
@@ -401,14 +420,15 @@ Updates activity.
 ```typescript
 interface UpdateActivityRequest {
   title?: string;
-  activity_type?: 'quantity' | 'duration' | 'completion';
+  activityType?: 'quantity' | 'duration' | 'completion';
   value?: number | null;
   unit?: string | null;
-  goal_id?: string | null;
-  activity_date?: string;
+  goalId?: string | null;
+  activityDate?: string;
   category?: 'growth' | 'maintenance';
   status?: 'planned' | 'completed' | 'skipped';
   notes?: string | null;
+  completedAt?: string | null;
 }
 ```
 
@@ -497,30 +517,32 @@ Returns computed progress for a goal.
 
 **GET** `/metrics/dashboard`
 
-Returns aggregated metrics for dashboard.
+Returns aggregated metrics for the dashboard. Response shape is defined in `@polaris/shared` as `DashboardMetrics` (see `packages/shared/src/types/api-responses.ts`).
 
 ### Query Parameters
 
 | Param | Type | Description |
 |-------|------|-------------|
-| period | string | week, month, year (default: week) |
+| period | string | `week`, `month`, or `year` (default: week) |
 
 ### Response (200 OK)
+
+Response body uses **camelCase** (matches backend/Prisma).
 
 ```json
 {
   "success": true,
   "data": {
     "period": "week",
-    "start_date": "2025-01-13",
-    "end_date": "2025-01-19",
-    "total_activities": 24,
-    "completed_activities": 20,
-    "planned_activities": 4,
-    "goals_touched": 5,
-    "current_streak": 5,
-    "longest_streak": 12,
-    "activity_by_day": {
+    "startDate": "2025-01-13",
+    "endDate": "2025-01-19",
+    "totalActivities": 24,
+    "completedActivities": 20,
+    "plannedActivities": 4,
+    "goalsTouched": 5,
+    "currentStreak": 5,
+    "longestStreak": 12,
+    "activityByDay": {
       "2025-01-13": 4,
       "2025-01-14": 3,
       "2025-01-15": 5,
@@ -529,16 +551,28 @@ Returns aggregated metrics for dashboard.
       "2025-01-18": 4,
       "2025-01-19": 2
     },
-    "goal_progress": [
+    "goalProgress": [
       {
-        "goal_id": "uuid-123",
-        "title": "Read 12 books",
+        "goalId": "uuid-123",
+        "goalTitle": "Read 12 books",
+        "currentValue": 3,
+        "targetValue": 12,
+        "unit": "books",
         "percentage": 25
       }
     ]
   }
 }
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| goalProgress[].goalId | string | Goal UUID |
+| goalProgress[].goalTitle | string | Goal title |
+| goalProgress[].currentValue | number | Sum of completed activity values |
+| goalProgress[].targetValue | number \| null | Target (null if no target) |
+| goalProgress[].unit | string \| null | Unit (e.g. "books", "km") |
+| goalProgress[].percentage | number \| null | 0–100 when target set, else null |
 
 ---
 

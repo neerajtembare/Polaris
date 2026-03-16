@@ -53,3 +53,26 @@ export interface UpdateActivityInput {
   status?: ActivityStatus;
   completedAt?: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// API response shapes
+// ---------------------------------------------------------------------------
+
+/**
+ * Activity with goalTitle flattened from the linked goal.
+ * Returned by GET /api/activities and GET /api/activities/today.
+ */
+export interface ListedActivity extends Activity {
+  goalTitle: string | null;
+}
+
+/**
+ * Activities grouped by status for a single day.
+ * Returned by GET /api/activities/today.
+ */
+export interface TodayActivities {
+  date:      string;
+  planned:   ListedActivity[];
+  completed: ListedActivity[];
+  skipped:   ListedActivity[];
+}

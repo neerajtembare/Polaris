@@ -1,0 +1,41 @@
+# Polaris — run with: docker compose up --build
+# Frontend: http://localhost:5173   Backend API: http://localhost:3001
+
+services:
+  backend:
+    build: .
+    command: >
+      sh -c "cd apps/backend &&
+        npx prisma migrate deploy &&
+        npx prisma generate &&
+        node dist/index.js"
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      # SQLite file inside the container; use a volume so data persists
+      DATABASE_URL: file:./data/polaris.db
+    volumes:
+      - polaris_data:/app/apps/backend/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build: .
+    command: npm run dev --workspace=apps/frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # So Vite proxies /api and /health to the backend container
+      VITE_PROXY_TARGET: http://backend:3001
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  polaris_data:

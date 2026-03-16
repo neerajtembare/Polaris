@@ -6,6 +6,10 @@ Personal activity tracker. Log activities, track goals, see your streaks.
 
 ## Prerequisites
 
+**Option A — Docker (no Node/npm needed)**  
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine + Docker Compose). Use the section **Running with Docker** below.
+
+**Option B — Local Node**  
 - **Node.js** v20+ (project uses v24 via nvm)
 - **npm** v10+
 
@@ -17,7 +21,32 @@ nvm use 24
 
 ---
 
-## Setup
+## Running with Docker
+
+No need to install Node or npm.
+
+**Option 1 — Start script (easiest)**
+
+- **Windows (PowerShell):** `.\start.ps1` then choose 1, or `.\start.ps1 docker`
+- **Mac/Linux / Git Bash:** `./start.sh` then choose 1, or `./start.sh docker`
+
+**Option 2 — Compose directly**
+
+```bash
+docker compose up --build
+```
+
+- **Frontend:** http://localhost:5173  
+- **Backend API:** http://localhost:3001  
+- **Health:** http://localhost:3001/health  
+
+The first run builds the image and runs DB migrations. Data is stored in a Docker volume (`polaris_data`) so it persists between runs.
+
+To stop: `Ctrl+C` then `docker compose down` (or `./start.sh stop` / `.\start.ps1 stop`).
+
+---
+
+## Setup (local Node only)
 
 Run the setup script (handles everything below automatically):
 
@@ -39,7 +68,7 @@ cd ../..
 
 ---
 
-## Running the app
+## Running the app (local Node)
 
 ### Both at once (recommended)
 

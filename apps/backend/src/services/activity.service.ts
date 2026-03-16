@@ -16,20 +16,44 @@
 
 import prisma from '../lib/prisma.js';
 import { notFound, badRequest } from '../lib/errors.js';
-import type { Prisma } from '@prisma/client';
 import type { CreateActivityInput, UpdateActivityInput } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/** Prisma payload type for an activity with its goal title included */
-type ActivityWithGoal = Prisma.ActivityGetPayload<{
-  include: { goal: { select: { title: true } } };
-}>;
+/**
+ * Shape of a Prisma Activity row with an optional nested goal (title only).
+ * Defined manually so it doesn't rely on generated Prisma namespace helpers
+ * that are only available after `prisma generate`.
+ */
+interface ActivityWithGoal {
+  id: string;
+  title: string;
+  notes: string | null;
+  activityType: string;
+  value: number | null;
+  unit: string | null;
+  rawInput: string | null;
+  goalId: string | null;
+  activityDate: Date;
+  category: string;
+  status: string;
+  aiGenerated: boolean;
+  aiCategorized: boolean;
+  isDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt: Date | null;
+  goal: { title: string } | null;
+}
 
-/** Shape of each activity item returned by listActivities */
-export type ListedActivity = Omit<ActivityWithGoal, 'goal'> & { goalTitle: string | null };
+/**
+ * Internal shape of each activity item with Prisma Date types.
+ * Not exported — consumers use the shared ListedActivity type (string dates)
+ * which is what the HTTP API actually returns after JSON serialization.
+ */
+type ListedActivity = Omit<ActivityWithGoal, 'goal'> & { goalTitle: string | null };
 
 export interface ListActivitiesFilter {
   date?: string;         // single day  YYYY-MM-DD
@@ -42,24 +66,33 @@ export interface ListActivitiesFilter {
   offset?: number;
 }
 
-export interface TodayActivities {
+/** Internal grouping type — uses Prisma Date types; mirrors shared TodayActivities after serialization */
+interface TodayActivities {
   date: string;
-  planned: unknown[];
-  completed: unknown[];
-  skipped: unknown[];
+  planned:   ListedActivity[];
+  completed: ListedActivity[];
+  skipped:   ListedActivity[];
 }
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/** Parse a YYYY-MM-DD string into start/end DateTime boundaries for a full day */
+/** Parse a YYYY-MM-DD string into start/end DateTime boundaries for a full day (UTC-safe) */
 function dayBounds(dateStr: string): { gte: Date; lt: Date } {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) throw badRequest(`Invalid date: "${dateStr}"`);
   const next = new Date(d);
-  next.setDate(next.getDate() + 1);
+  next.setUTCDate(next.getUTCDate() + 1);
   return { gte: d, lt: next };
+}
+
+/** Return the last millisecond of a UTC day for an inclusive end-date range */
+function endOfDay(dateStr: string): Date {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) throw badRequest(`Invalid date: "${dateStr}"`);
+  d.setUTCHours(23, 59, 59, 999);
+  return d;
 }
 
 /**
@@ -108,7 +141,7 @@ export async function listActivities(filter: ListActivitiesFilter = {}) {
   } else if (startDate ?? endDate) {
     dateFilter = {
       ...(startDate && { gte: new Date(startDate) }),
-      ...(endDate && { lte: new Date(endDate) }),
+      ...(endDate   && { lte: endOfDay(endDate) }),
     };
   }
 
@@ -170,6 +203,7 @@ export async function createActivity(data: CreateActivityInput) {
   }
 
   const isCompleted = (data.status ?? 'planned') === 'completed';
+  const activityDate = new Date(data.activityDate);
 
   const activity = await prisma.activity.create({
     data: {
@@ -180,10 +214,12 @@ export async function createActivity(data: CreateActivityInput) {
       unit: data.unit ?? null,
       rawInput: data.rawInput ?? null,
       goalId: data.goalId ?? null,
-      activityDate: new Date(data.activityDate),
+      activityDate,
       category: data.category ?? 'growth',
       status: data.status ?? 'planned',
-      completedAt: isCompleted ? new Date() : null,
+      // For historical entries, stamp completedAt on the activity's own date
+      // rather than today's server time (avoids misleading future audit queries)
+      completedAt: isCompleted ? activityDate : null,
     },
   });
 

@@ -38,9 +38,33 @@ const goalProperties = {
   updatedAt:   { type: 'string' },
 } as const;
 
+/** Progress sub-object returned when include_progress=true */
+const progressSchema = {
+  type: 'object',
+  properties: {
+    goalId:           { type: 'string' },
+    currentValue:     { type: 'number' },
+    targetValue:      { type: ['number', 'null'] },
+    unit:             { type: ['string', 'null'] },
+    percentage:       { type: ['number', 'null'] },
+    activityCount:    { type: 'number' },
+    lastActivityDate: { type: ['string', 'null'] },
+    daysActive:       { type: 'number' },
+  },
+};
+
 const goalSchema = {
   type: 'object',
-  properties: goalProperties,
+  properties: {
+    ...goalProperties,
+    /** Populated when include_progress=true */
+    progress: { ...progressSchema, nullable: true },
+    /** Populated when include_children=true */
+    children: {
+      type: 'array',
+      items: { type: 'object', properties: goalProperties },
+    },
+  },
 };
 
 /** Schema for POST /goals request body */
@@ -91,10 +115,10 @@ export const goalsRoutes: FastifyPluginAsync = async (app) => {
         querystring: {
           type: 'object',
           properties: {
-            status:           { type: 'string' },
-            timeframe:        { type: 'string' },
-            parent_id:        { type: 'string' },
-            include_progress: { type: 'boolean' },
+            status:          { type: 'string' },
+            timeframe:       { type: 'string' },
+            parentId:        { type: 'string' },
+            includeProgress: { type: 'boolean' },
           },
         },
         response: {
@@ -137,8 +161,8 @@ export const goalsRoutes: FastifyPluginAsync = async (app) => {
         querystring: {
           type: 'object',
           properties: {
-            include_progress: { type: 'boolean' },
-            include_children: { type: 'boolean' },
+            includeProgress: { type: 'boolean' },
+            includeChildren: { type: 'boolean' },
           },
         },
         response: {

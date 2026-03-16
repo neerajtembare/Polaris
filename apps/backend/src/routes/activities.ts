@@ -47,19 +47,19 @@ const activitySchema = { type: 'object', properties: activityProperties };
 /** Schema for POST /activities request body */
 const createActivityBodySchema = {
   type: 'object',
-  required: ['title', 'activity_type', 'activity_date'],
+  required: ['title', 'activityType', 'activityDate'],
   additionalProperties: false,
   properties: {
-    title:         { type: 'string', minLength: 1, maxLength: 500 },
-    activity_type: { type: 'string', enum: ['quantity', 'duration', 'completion'] },
-    value:         { type: 'number' },
-    unit:          { type: 'string', maxLength: 50 },
-    goal_id:       { type: 'string' },
-    activity_date: { type: 'string' },   // YYYY-MM-DD
-    category:      { type: 'string', enum: ['growth', 'maintenance'] },
-    status:        { type: 'string', enum: ['planned', 'completed', 'skipped'] },
-    notes:         { type: 'string', maxLength: 2000 },
-    raw_input:     { type: 'string', maxLength: 2000 },
+    title:        { type: 'string', minLength: 1, maxLength: 500 },
+    activityType: { type: 'string', enum: ['quantity', 'duration', 'completion'] },
+    value:        { type: 'number' },
+    unit:         { type: 'string', maxLength: 50 },
+    goalId:       { type: 'string' },
+    activityDate: { type: 'string' },   // YYYY-MM-DD
+    category:     { type: 'string', enum: ['growth', 'maintenance'] },
+    status:       { type: 'string', enum: ['planned', 'completed', 'skipped'] },
+    notes:        { type: 'string', maxLength: 2000 },
+    rawInput:     { type: 'string', maxLength: 2000 },
   },
 };
 
@@ -68,16 +68,16 @@ const updateActivityBodySchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    title:         { type: 'string', minLength: 1, maxLength: 500 },
-    activity_type: { type: 'string', enum: ['quantity', 'duration', 'completion'] },
-    value:         { type: ['number', 'null'] },
-    unit:          { type: ['string', 'null'] },
-    goal_id:       { type: ['string', 'null'] },
-    activity_date: { type: 'string' },
-    category:      { type: 'string', enum: ['growth', 'maintenance'] },
-    status:        { type: 'string', enum: ['planned', 'completed', 'skipped'] },
-    notes:         { type: ['string', 'null'] },
-    completed_at:  { type: ['string', 'null'] },
+    title:        { type: 'string', minLength: 1, maxLength: 500 },
+    activityType: { type: 'string', enum: ['quantity', 'duration', 'completion'] },
+    value:        { type: ['number', 'null'] },
+    unit:         { type: ['string', 'null'] },
+    goalId:       { type: ['string', 'null'] },
+    activityDate: { type: 'string' },
+    category:     { type: 'string', enum: ['growth', 'maintenance'] },
+    status:       { type: 'string', enum: ['planned', 'completed', 'skipped'] },
+    notes:        { type: ['string', 'null'] },
+    completedAt:  { type: ['string', 'null'] },
   },
 };
 
@@ -101,14 +101,14 @@ export const activitiesRoutes: FastifyPluginAsync = async (app) => {
         querystring: {
           type: 'object',
           properties: {
-            date:          { type: 'string' },
-            start_date:    { type: 'string' },
-            end_date:      { type: 'string' },
-            goal_id:       { type: 'string' },
-            status:        { type: 'string' },
-            activity_type: { type: 'string' },
-            limit:         { type: 'integer', minimum: 1, maximum: 200 },
-            offset:        { type: 'integer', minimum: 0 },
+            date:         { type: 'string' },
+            startDate:    { type: 'string' },
+            endDate:      { type: 'string' },
+            goalId:       { type: 'string' },
+            status:       { type: 'string' },
+            activityType: { type: 'string' },
+            limit:        { type: 'integer', minimum: 1, maximum: 200 },
+            offset:       { type: 'integer', minimum: 0 },
           },
         },
         response: {

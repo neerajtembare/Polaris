@@ -18,11 +18,12 @@
  * - src/App.tsx
  */
 
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AppLayout } from '../components/layout/AppLayout.tsx';
+import { UnitPicker } from '../components/ui/UnitPicker.tsx';
 import { useCreateGoal } from '../hooks/useGoals.ts';
 import { ApiRequestError } from '../services/api.ts';
+import { matchGoalTemplate } from '../lib/goalTemplates.ts';
 import type { GoalTimeframe } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
@@ -58,10 +59,39 @@ export function GoalCreate() {
   const [form,  setForm]  = useState<FormState>(DEFAULT_FORM);
   const [error, setError] = useState<string | null>(null);
 
+  // Suggestion strip state: null = hidden, object = suggestion to show
+  const [suggestion,         setSuggestion]         = useState<ReturnType<typeof matchGoalTemplate>>(null);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+
+  // Debounced title → keyword match
+  useEffect(() => {
+    if (suggestionDismissed) return;
+    const t = setTimeout(() => {
+      setSuggestion(matchGoalTemplate(form.title));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [form.title, suggestionDismissed]);
+
   /** Update a single form field */
   function handleChange(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (error) setError(null);
+    // Reset dismissal when title changes substantially
+    if (field === 'title') setSuggestionDismissed(false);
+  }
+
+  /** Accept the template suggestion — pre-fills targetUnit */
+  function acceptSuggestion() {
+    if (!suggestion) return;
+    setForm((prev) => ({ ...prev, targetUnit: suggestion.suggestedUnit }));
+    setSuggestion(null);
+    setSuggestionDismissed(true);
+  }
+
+  /** Dismiss without accepting */
+  function dismissSuggestion() {
+    setSuggestion(null);
+    setSuggestionDismissed(true);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -94,8 +124,7 @@ export function GoalCreate() {
 
   // ——— Render ———
   return (
-    <AppLayout>
-      <div className="max-w-xl mx-auto px-6 py-8">
+    <div className="max-w-xl mx-auto px-6 py-8">
 
         {/* Header */}
         <div className="mb-6">
@@ -131,6 +160,30 @@ export function GoalCreate() {
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               autoFocus
             />
+
+            {/* Keyword suggestion strip */}
+            {suggestion && (
+              <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-indigo-950 border border-indigo-800 px-3 py-2">
+                <p className="text-xs text-indigo-300 flex-1">{suggestion.description}</p>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={acceptSuggestion}
+                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-md transition-colors"
+                  >
+                    Use &ldquo;{suggestion.suggestedUnit}&rdquo;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={dismissSuggestion}
+                    aria-label="Dismiss suggestion"
+                    className="text-indigo-500 hover:text-indigo-300 transition-colors text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Description */}
@@ -165,37 +218,38 @@ export function GoalCreate() {
             </select>
           </div>
 
-          {/* Target row: value + unit */}
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="targetValue">
-                Target value <span className="text-gray-600 font-normal">(optional)</span>
-              </label>
-              <input
-                id="targetValue"
-                type="number"
-                min={0}
-                step="any"
-                value={form.targetValue}
-                onChange={(e) => handleChange('targetValue', e.target.value)}
-                placeholder="e.g. 100"
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="targetUnit">
-                Unit <span className="text-gray-600 font-normal">(optional)</span>
-              </label>
-              <input
-                id="targetUnit"
-                type="text"
-                value={form.targetUnit}
-                onChange={(e) => handleChange('targetUnit', e.target.value)}
-                placeholder="e.g. km, pages, reps"
-                maxLength={50}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-            </div>
+          {/* Target value */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="targetValue">
+              Target value <span className="text-gray-600 font-normal">(optional)</span>
+            </label>
+            <input
+              id="targetValue"
+              type="number"
+              min={0}
+              step="any"
+              value={form.targetValue}
+              onChange={(e) => handleChange('targetValue', e.target.value)}
+              placeholder="e.g. 100"
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Unit picker */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              Unit <span className="text-gray-600 font-normal">(optional — pick one or type your own)</span>
+            </label>
+            <UnitPicker
+              value={form.targetUnit}
+              onChange={(unit) => handleChange('targetUnit', unit)}
+            />
+            {form.targetUnit && (
+              <p className="mt-1.5 text-xs text-gray-500">
+                Selected: <span className="text-indigo-400 font-medium">{form.targetUnit}</span>
+                {' '}—{' '}activities against this goal will default to this unit.
+              </p>
+            )}
           </div>
 
           {/* Target date */}
@@ -231,6 +285,5 @@ export function GoalCreate() {
 
         </form>
       </div>
-    </AppLayout>
   );
 }
