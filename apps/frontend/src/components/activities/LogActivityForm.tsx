@@ -256,7 +256,7 @@ export function LogActivityForm({
               value={form.rawInput}
               onChange={(e) => set('rawInput', e.target.value)}
               rows={2}
-              placeholder='e.g. "ran 5km in the park this morning"'
+              placeholder='Try: read 30 pages, ran 5km, saved ₹500'
               className={`${inputCls} resize-none`}
             />
             {!form.rawInput.trim() && (

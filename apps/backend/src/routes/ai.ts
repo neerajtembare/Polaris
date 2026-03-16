@@ -61,6 +61,59 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
     },
     AIController.parseActivityHandler
   );
+
+  /**
+   * POST /api/ai/breakdown
+   * Decompose a goal into sub-goals and suggested activities.
+   * Body: { goalId: string }
+   */
+  app.post(
+    '/breakdown',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['goalId'],
+          additionalProperties: false,
+          properties: {
+            goalId: { type: 'string' },
+          },
+        },
+      },
+    },
+    AIController.breakdownHandler
+  );
+
+  /**
+   * POST /api/ai/analyze-week
+   * Generate behavioral insights from the past week's dashboard metrics.
+   * No body required.
+   */
+  app.post(
+    '/analyze-week',
+    {
+      schema: {
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: {
+                type: 'object',
+                properties: {
+                  summary:    { type: 'string' },
+                  insights:   { type: 'array', items: { type: 'string' } },
+                  suggestions: { type: 'array', items: { type: 'string' } },
+                  provider:   { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    AIController.analyzeWeekHandler
+  );
 };
 
 export default aiRoutes;

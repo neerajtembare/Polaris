@@ -18,6 +18,7 @@
  */
 
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ActivityCard } from '../components/activities/ActivityCard.tsx';
 import { LogActivityForm } from '../components/activities/LogActivityForm.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
@@ -28,6 +29,7 @@ import {
   useDeleteActivity,
   type ListedActivity,
 } from '../hooks/useActivities.ts';
+import { useGoals } from '../hooks/useGoals.ts';
 import { useMetrics } from '../hooks/useMetrics.ts';
 
 // ---------------------------------------------------------------------------
@@ -159,6 +161,7 @@ export function TodayView() {
     deleteActivity.mutate(id, { onSettled: () => removePending(id) });
   }
   const totalToday = planned.length + completed.length + skipped.length;
+  const { data: goals = [] } = useGoals({ status: 'active' });
 
   // ——— Render ———
   return (
@@ -209,14 +212,28 @@ export function TodayView() {
           <EmptyState
             icon="📅"
             title="Nothing planned for today"
-            description="Log an activity to start tracking your day."
+            description={
+              goals.length === 0
+                ? 'Create a goal first to link activities, then log your first activity.'
+                : 'Log an activity to start tracking your day.'
+            }
             action={
-              <button
-                onClick={() => setShowForm(true)}
-                className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                Log activity
-              </button>
+              <div className="flex flex-wrap justify-center gap-3 mt-4">
+                {goals.length === 0 && (
+                  <Link
+                    to="/goals/new"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Create a goal
+                  </Link>
+                )}
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Log activity
+                </button>
+              </div>
             }
           />
         )}

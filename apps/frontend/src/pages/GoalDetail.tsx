@@ -23,8 +23,9 @@ import { ProgressBar } from '../components/ui/ProgressBar.tsx';
 import { LoadingScreen } from '../components/ui/Spinner.tsx';
 import { UnitPicker } from '../components/ui/UnitPicker.tsx';
 import { useGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoals.ts';
-import { ApiRequestError } from '../services/api.ts';
-import type { GoalTimeframe, GoalStatus, UpdateGoalInput } from '@polaris/shared';
+import { api, ApiRequestError } from '../services/api.ts';
+import type { ApiSuccess } from '@polaris/shared';
+import type { GoalTimeframe, GoalStatus, UpdateGoalInput, AIGoalBreakdown } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
 // Edit form state (separate from Goal type so all fields are strings for inputs)
@@ -53,6 +54,10 @@ export function GoalDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm,  setEditForm]  = useState<EditFormState | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [breakdownResult, setBreakdownResult] = useState<AIGoalBreakdown | null>(null);
+  const [breakdownError, setBreakdownError] = useState<string | null>(null);
 
   const { data: goal, isLoading, isError } = useGoal(id, { includeProgress: true });
 
@@ -75,6 +80,24 @@ export function GoalDetail() {
     setIsEditing(false);
     setEditForm(null);
     setEditError(null);
+  }
+
+  async function handleAiBreakdown() {
+    if (!goal) return;
+    setShowBreakdown(true);
+    setBreakdownLoading(true);
+    setBreakdownResult(null);
+    setBreakdownError(null);
+    try {
+      const res = await api.post<ApiSuccess<AIGoalBreakdown>>('/ai/breakdown', { goalId: goal.id });
+      setBreakdownResult(res.data);
+    } catch (err) {
+      setBreakdownError(
+        err instanceof ApiRequestError ? err.message : 'AI breakdown unavailable.'
+      );
+    } finally {
+      setBreakdownLoading(false);
+    }
   }
 
   /** Update a field in the inline edit form */
@@ -165,6 +188,13 @@ export function GoalDetail() {
             <div className="flex items-start justify-between gap-4">
               <h1 className="text-2xl font-bold text-white leading-tight">{goal.title}</h1>
               <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={() => void handleAiBreakdown()}
+                  disabled={breakdownLoading}
+                  className="px-3 py-1.5 text-sm font-medium text-indigo-400 hover:text-indigo-300 bg-indigo-950/50 hover:bg-indigo-900/50 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {breakdownLoading ? '…' : '✨ AI Breakdown'}
+                </button>
                 <button
                   onClick={startEdit}
                   className="px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
@@ -356,6 +386,88 @@ export function GoalDetail() {
             </div>
           </form>
         )}
+
+      {/* AI Breakdown modal */}
+      {showBreakdown && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowBreakdown(false); }}
+        >
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">✨ AI Breakdown</h3>
+              <button
+                onClick={() => setShowBreakdown(false)}
+                aria-label="Close"
+                className="text-gray-500 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            {breakdownLoading && (
+              <p className="text-sm text-gray-400">Analyzing goal…</p>
+            )}
+            {breakdownError && (
+              <div className="rounded-lg bg-red-950 border border-red-800 px-3 py-2 text-sm text-red-300">
+                {breakdownError}
+              </div>
+            )}
+            {breakdownResult && !breakdownLoading && (
+              <div className="space-y-4">
+                {breakdownResult.subGoals.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">
+                      Suggested sub-goals
+                    </p>
+                    <ul className="space-y-2">
+                      {breakdownResult.subGoals.map((sg, i) => (
+                        <li
+                          key={i}
+                          className="rounded-lg bg-gray-800 border border-gray-700 px-3 py-2 text-sm"
+                        >
+                          <p className="text-white font-medium">{sg.title}</p>
+                          {sg.rationale && (
+                            <p className="mt-0.5 text-xs text-gray-500">{sg.rationale}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {breakdownResult.suggestedActivities.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">
+                      Suggested activities
+                    </p>
+                    <ul className="space-y-2">
+                      {breakdownResult.suggestedActivities.map((a, i) => (
+                        <li
+                          key={i}
+                          className="rounded-lg bg-gray-800 border border-gray-700 px-3 py-2 text-sm"
+                        >
+                          <p className="text-white font-medium">{a.title}</p>
+                          {(a.value != null || a.unit) && (
+                            <p className="text-xs text-gray-400">
+                              {a.value != null && `${a.value} `}{a.unit ?? ''}
+                              {a.frequency && ` • ${a.frequency}`}
+                            </p>
+                          )}
+                          {a.rationale && (
+                            <p className="mt-0.5 text-xs text-gray-500">{a.rationale}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <p className="text-xs text-gray-600">
+                  Create these manually from the Goals and Activities pages.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       </div>
   );

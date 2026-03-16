@@ -24,3 +24,39 @@ export interface AIActivityParse {
   /** Which provider produced this result — shown in the review panel */
   provider:            string;
 }
+
+/** Suggested sub-goal from AI goal breakdown */
+export interface AISubGoal {
+  title:       string;
+  timeframe?:  'long' | 'medium' | 'short';
+  targetDate?: string;
+  targetValue?: number;
+  targetUnit?:  string;
+  rationale?:   string;
+}
+
+/** Suggested activity from AI goal breakdown */
+export interface AISuggestedActivity {
+  title:            string;
+  activityType:     ActivityType;
+  value?:           number;
+  unit?:            string;
+  frequency?:       string;
+  suggestedDuration?: number;
+  rationale?:       string;
+}
+
+/** Goal breakdown result — sub-goals and suggested activities */
+export interface AIGoalBreakdown {
+  subGoals:          AISubGoal[];
+  suggestedActivities: AISuggestedActivity[];
+  provider:         string;
+}
+
+/** Weekly analysis result — behavioral insights from activity data */
+export interface AIWeeklyAnalysis {
+  summary:       string;
+  insights:      string[];
+  suggestions:   string[];
+  provider:      string;
+}

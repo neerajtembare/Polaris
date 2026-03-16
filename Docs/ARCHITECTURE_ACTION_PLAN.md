@@ -197,8 +197,8 @@
 
 | ID | Task | Done |
 |----|------|------|
-| S4.1 | Use a **layout route**: wrap `Routes` in a parent route that renders `AppLayout` + `<Outlet />` so every page gets the layout without repeating `<AppLayout>` in each page. | [ ] |
-| S4.2 | (Optional) Document in README or a short dev doc: how to add a new API endpoint (backend route → controller → service) and a new frontend page/hook. | [ ] |
+| S4.1 | Use a **layout route**: wrap `Routes` in a parent route that renders `AppLayout` + `<Outlet />` so every page gets the layout without repeating `<AppLayout>` in each page. | [x] |
+| S4.2 | (Optional) Document in README or a short dev doc: how to add a new API endpoint (backend route → controller → service) and a new frontend page/hook. | [x] |
 
 **Done when:** New pages automatically get `AppLayout`; optional doc is in place.
 
@@ -211,8 +211,8 @@
 
 | ID | Task | Done |
 |----|------|------|
-| S5.1 | Metrics: Refactor goal progress so it doesn’t run one `aggregate` per goal. E.g. fetch all activities for the top goal IDs in one or two queries and aggregate in memory. | [ ] |
-| S5.2 | Metrics: Consider capping streak computation (e.g. last 2 years) or batching if activity count grows. | [ ] |
+| S5.1 | Metrics: Refactor goal progress so it doesn’t run one `aggregate` per goal. E.g. fetch all activities for the top goal IDs in one or two queries and aggregate in memory. | [x] |
+| S5.2 | Metrics: Consider capping streak computation (e.g. last 2 years) or batching if activity count grows. | [x] |
 | S5.3 | (Optional) Backend: Centralize or generate JSON Schema from shared types so route validation and TypeScript stay aligned. | [ ] |
 
 **Done when:** Dashboard metrics avoid N+1; streak logic is bounded or documented.
@@ -245,10 +245,10 @@
 | C | AI parse beta + seed data | ✅ Done |
 | D | Critical bug fixes (runtime crashes, data loss, broken features) | ✅ Done |
 | E | Shared types cleanup | ✅ Done |
-| 2 | API casing & consistency | [ ] |
+| 2 | API casing & consistency | [x] |
 | 3 | Testing | [ ] |
-| 4 | Frontend structure & DX | [ ] |
-| 5 | Backend performance (optional) | [ ] |
+| 4 | Frontend structure & DX | [x] |
+| 5 | Backend performance (optional) | [x] |
 | 6 | Future prep | [ ] |
 
 ---
@@ -287,3 +287,4 @@ These are systemic issues that are accepted as intentional deferral for MVP. Doc
 - **2026-03:** Sprint 2 complete. Standardised entire API to **camelCase** (query params + request bodies + responses). Removed `toSnakeCase`/`toUpdateSnakeCase` mappers from `useActivities.ts`. Updated route schemas in `activities.ts` and `goals.ts`. Simplified controllers (no more manual field-name mapping). Updated `Docs/10_api_contract.md` with casing convention section.
 - **2026-03:** Sprint 4 complete. Extracted shared `handleError(context, err, reply)` to `apps/backend/src/lib/handleError.ts` — all three controllers (goal, activity, AI) now import from one place. Added layout route in `App.tsx` using `<Layout />` + `<Outlet />`; removed `<AppLayout>` import and wrapper from all 6 page components.
 - **2026-03:** Sprint 5 complete. Replaced 10× `prisma.activity.aggregate` N+1 loop in `metrics.service.ts` with a single `prisma.activity.groupBy` query. Capped streak computation to a 2-year lookback window (prevents full table scan growing unboundedly with usage).
+- **2026-03:** AI folder refactor + Phase 3 expansion. Created `apps/backend/src/ai/` with prompts, providers, utils. Added Goal Decomposition (`POST /api/ai/breakdown`) and Weekly Analysis (`POST /api/ai/analyze-week`). Renamed `PROMPTS.md` → `CURSOR_SESSION_PROMPTS.md`. Added `Docs/06_ai_implementation.md`.

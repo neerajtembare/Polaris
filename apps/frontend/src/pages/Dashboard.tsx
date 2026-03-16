@@ -23,6 +23,9 @@ import {
   type MetricsPeriod,
   type DashboardMetrics,
 } from '../hooks/useMetrics.ts';
+import { api, ApiRequestError } from '../services/api.ts';
+import type { ApiSuccess } from '@polaris/shared';
+import type { AIWeeklyAnalysis } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -87,6 +90,75 @@ function Heatmap({ activityByDay }: { activityByDay: Record<string, number> }) {
   );
 }
 
+// ——— Weekly analysis modal ———
+
+interface WeeklyAnalysisModalProps {
+  onClose: () => void;
+  analysis: AIWeeklyAnalysis | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+function WeeklyAnalysisModal({ onClose, analysis, isLoading, error }: WeeklyAnalysisModalProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="bg-gray-900 border border-gray-700 rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">Weekly Analysis</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          {isLoading && (
+            <div className="flex justify-center py-8">
+              <Spinner />
+            </div>
+          )}
+          {error && (
+            <p className="text-sm text-red-400">{error}</p>
+          )}
+          {analysis && !isLoading && (
+            <>
+              <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">
+                {analysis.provider}
+              </span>
+              <p className="text-sm text-gray-300">{analysis.summary}</p>
+              {analysis.insights.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Insights</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-gray-300">
+                    {analysis.insights.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {analysis.suggestions.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Suggestions</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-gray-300">
+                    {analysis.suggestions.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ——— Goal progress list ———
 
 function GoalProgressList({ metrics }: { metrics: DashboardMetrics }) {
@@ -144,6 +216,27 @@ const PERIOD_TABS: { label: string; value: MetricsPeriod }[] = [
 export function Dashboard() {
   const [period, setPeriod] = useState<MetricsPeriod>('week');
   const { data, isLoading, isError } = useMetrics(period);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AIWeeklyAnalysis | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  async function handleAnalyzeWeek() {
+    setShowAnalysis(true);
+    setAnalysisLoading(true);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    try {
+      const res = await api.post<ApiSuccess<AIWeeklyAnalysis>>('/ai/analyze-week', {});
+      setAnalysisResult(res.data);
+    } catch (err) {
+      setAnalysisError(
+        err instanceof ApiRequestError ? err.message : 'AI analysis unavailable.'
+      );
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
 
   const completionRate =
     data && data.totalActivities > 0
@@ -160,8 +253,15 @@ export function Dashboard() {
             <p className="text-sm text-gray-400 mt-0.5">Overview of your tracking activity</p>
           </div>
 
-          {/* Period picker */}
-          <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+          {/* Period picker + Analyze Week */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleAnalyzeWeek}
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+            >
+              Analyze Week
+            </button>
+            <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
             {PERIOD_TABS.map(({ label, value }) => (
               <button
                 key={value}
@@ -176,8 +276,19 @@ export function Dashboard() {
                 {label}
               </button>
             ))}
+            </div>
           </div>
         </div>
+
+        {/* Weekly analysis modal */}
+        {showAnalysis && (
+          <WeeklyAnalysisModal
+            onClose={() => setShowAnalysis(false)}
+            analysis={analysisResult}
+            isLoading={analysisLoading}
+            error={analysisError}
+          />
+        )}
 
         {/* Loading */}
         {isLoading && (

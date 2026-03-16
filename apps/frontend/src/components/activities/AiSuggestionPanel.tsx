@@ -15,7 +15,7 @@
  *   - Docs/05_ai_strategy.md (AI suggests, user confirms)
  */
 
-import type { AIActivityParse } from '@polaris/shared';
+import type { AIActivityParse, ActivityType } from '@polaris/shared';
 
 export type { AIActivityParse };
 
@@ -77,8 +77,11 @@ export function AiSuggestionPanel({
           <p className="text-xs font-semibold text-indigo-300 uppercase tracking-wide">
             AI suggests
           </p>
-          <span className="text-xs text-gray-500">
-            via {suggestion.provider === 'mock' ? 'smart matching' : suggestion.provider}
+          <span
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-800 text-gray-400 border border-gray-700"
+            title={suggestion.provider === 'mock' ? 'Keyword-based matching (no API)' : 'OpenAI GPT-4o-mini'}
+          >
+            {suggestion.provider === 'mock' ? 'Mock' : 'OpenAI'}
           </span>
         </div>
         <span className={`text-xs font-semibold tabular-nums ${confidenceStyle(suggestion.confidence)}`}>
@@ -89,7 +92,7 @@ export function AiSuggestionPanel({
       {/* Low-confidence warning */}
       {isLowConfidence && (
         <div className="rounded-lg bg-yellow-950/60 border border-yellow-800/60 px-3 py-2 text-xs text-yellow-300">
-          Low confidence — review carefully before applying.
+          Low confidence — edit before applying if needed.
         </div>
       )}
 
