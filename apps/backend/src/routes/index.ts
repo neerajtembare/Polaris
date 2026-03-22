@@ -15,6 +15,7 @@ import { goalsRoutes }      from './goals.js';
 import { activitiesRoutes } from './activities.js';
 import metricsRoutes        from './metrics.js';
 import aiRoutes             from './ai.js';
+import voiceRoutes          from './voice.js';
 
 /**
  * Register all application routes as a Fastify plugin.
@@ -43,4 +44,5 @@ export const registerRoutes: FastifyPluginAsync = async (app): Promise<void> => 
   app.register(activitiesRoutes, { prefix: '/api/activities' });
   app.register(metricsRoutes,    { prefix: '/api/metrics' });
   app.register(aiRoutes,         { prefix: '/api/ai' });
+  app.register(voiceRoutes,      { prefix: '/api/voice' });
 };

@@ -7,6 +7,7 @@
 import type { AIProvider, GoalContext } from '../types.js';
 import { MockProvider } from './mock.js';
 import { OpenAIProvider } from './openai.js';
+import { OllamaProvider } from './ollama.js';
 
 export type { AIProvider, GoalContext };
 
@@ -19,6 +20,7 @@ const mock = new MockProvider();
 export function getProvider(): AIProvider {
   const providerName = process.env['AI_PROVIDER'] ?? 'mock';
   if (providerName === 'openai') return new OpenAIProvider();
+  if (providerName === 'ollama') return new OllamaProvider();
   return mock;
 }
 

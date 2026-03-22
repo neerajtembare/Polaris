@@ -1,7 +1,16 @@
 # Polaris — run with: docker compose up --build
 # Frontend: http://localhost:5173   Backend API: http://localhost:3001
+# Whisper Service: http://localhost:8001  Ollama: http://localhost:11434
+#
+# GPU support requires the NVIDIA Container Toolkit on the host:
+#   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+# If you don't have a GPU, remove the `runtime: nvidia` and `deploy:` sections
+# from the `whisper` and `ollama` services — they will fall back to CPU (slower).
 
 services:
+  # ──────────────────────────────────────────────────────────
+  # Backend (Node.js / Fastify)
+  # ──────────────────────────────────────────────────────────
   backend:
     build: .
     command: >
@@ -14,17 +23,27 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
-      # SQLite file inside the container; use a volume so data persists
+      # SQLite file inside the container; volume keeps data across restarts
       DATABASE_URL: file:./data/polaris.db
+      # Point backend at the whisper service (Docker service DNS name)
+      WHISPER_URL: http://whisper:8001
     volumes:
       - polaris_data:/app/apps/backend/data
+    depends_on:
+      whisper:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
+  # ──────────────────────────────────────────────────────────
+  # Frontend (React / Vite)
+  # ──────────────────────────────────────────────────────────
   frontend:
     build: .
     command: npm run dev --workspace=apps/frontend
@@ -37,5 +56,70 @@ services:
       backend:
         condition: service_healthy
 
+  # ──────────────────────────────────────────────────────────
+  # Whisper STT Service (Python FastAPI + faster-whisper)
+  # ──────────────────────────────────────────────────────────
+  whisper:
+    build: ./services/whisper
+    ports:
+      - "8001:8001"
+    environment:
+      WHISPER_MODEL: large-v3
+      WHISPER_DEVICE: cuda
+      WHISPER_COMPUTE_TYPE: float16
+    # GPU passthrough — requires NVIDIA Container Toolkit
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      # Cache downloaded model weights across container rebuilds
+      - whisper_models:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # Model loading takes 30-60s on first start (downloads weights if needed)
+      start_period: 90s
+
+  # ──────────────────────────────────────────────────────────
+  # Ollama (LLM inference for AI parsing)
+  # ──────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    # GPU passthrough — requires NVIDIA Container Toolkit
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      # Cache pulled models across container restarts
+      - polaris_models:/root/.ollama
+    # Pull the model on first start if not already cached
+    entrypoint: >
+      sh -c "ollama serve &
+        sleep 5 &&
+        ollama pull llama3.2:3b &&
+        wait"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
 volumes:
   polaris_data:
+  polaris_models:
+  whisper_models:
