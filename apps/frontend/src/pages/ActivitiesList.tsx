@@ -203,7 +203,7 @@ export function ActivitiesList() {
           </ul>
         )}
 
-      </div>
+
 
       {/* Log-activity modal */}
       {showForm && (

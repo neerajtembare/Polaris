@@ -277,7 +277,7 @@ export function TodayView() {
           </div>
         )}
 
-      </div>
+
 
       {/* Quick-log modal */}
       {showForm && (

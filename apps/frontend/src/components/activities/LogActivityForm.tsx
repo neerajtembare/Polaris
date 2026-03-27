@@ -2,6 +2,7 @@
  * @file components/activities/LogActivityForm.tsx
  * @description Modal form for quickly logging a new activity.
  *   Supports:
+ *   - Voice input via mic button → Whisper transcription → AI parse → pre-fill
  *   - AI parse via rawInput → AiSuggestionPanel review → one-click apply
  *   - Goal selection with auto-fill of unit + activity type
  *   - Recent activity title chips (per goal)
@@ -16,13 +17,15 @@
  *   - src/components/activities/AiSuggestionPanel.tsx
  */
 
-import { useState, type FormEvent } from 'react';
+import { useState, useCallback, type FormEvent } from 'react';
 import { useCreateActivity, useActivities } from '../../hooks/useActivities.ts';
 import { useGoals } from '../../hooks/useGoals.ts';
 import { api, ApiRequestError } from '../../services/api.ts';
 import { UnitPicker } from '../ui/UnitPicker.tsx';
 import { inferActivityType } from '../../lib/units.ts';
 import { AiSuggestionPanel } from './AiSuggestionPanel.tsx';
+import { VoiceButton } from '../ui/VoiceButton.tsx';
+import { useVoiceStatus } from '../../hooks/useVoiceActivity.ts';
 import type { ActivityType, ActivityStatus, ApiSuccess, AIActivityParse } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
@@ -78,6 +81,7 @@ export function LogActivityForm({
 }: LogActivityFormProps) {
   const createActivity = useCreateActivity();
   const { data: goals = [] } = useGoals({ status: 'active' });
+  const { data: voiceStatus } = useVoiceStatus();
 
   const [form,  setForm]  = useState<FormState>({
     title:        '',
@@ -161,6 +165,20 @@ export function LogActivityForm({
     setAiSuggestion(null);
   }
 
+  /**
+   * Called by VoiceButton when voice → transcribe → AI parse completes.
+   * Populates rawInput with the transcript so it's visible, then applies
+   * the parsed fields to the form (same result as clicking "Parse with AI").
+   */
+  const handleVoiceResult = useCallback(
+    (transcript: string, parsed: AIActivityParse) => {
+      set('rawInput', transcript);
+      handleAiApply(parsed);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   // ---------------------------------------------------------------------------
   // Submit
   // ---------------------------------------------------------------------------
@@ -233,23 +251,30 @@ export function LogActivityForm({
                 Describe what you did{' '}
                 <span className="text-gray-600 font-normal">(optional)</span>
               </label>
-              {form.rawInput.trim() && (
-                <button
-                  type="button"
-                  onClick={() => void handleAiParse()}
-                  disabled={aiParsing}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-900/60 hover:bg-indigo-800/60 border border-indigo-700/60 text-indigo-300 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {aiParsing ? (
-                    <>
-                      <span className="inline-block w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                      Parsing…
-                    </>
-                  ) : (
-                    <>✨ Parse with AI</>
-                  )}
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {/* Voice button — always shown; disabled with tooltip if Whisper not running */}
+                <VoiceButton
+                  onResult={handleVoiceResult}
+                  available={voiceStatus?.available ?? false}
+                />
+                {form.rawInput.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => void handleAiParse()}
+                    disabled={aiParsing}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-900/60 hover:bg-indigo-800/60 border border-indigo-700/60 text-indigo-300 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {aiParsing ? (
+                      <>
+                        <span className="inline-block w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                        Parsing…
+                      </>
+                    ) : (
+                      <>✨ Parse with AI</>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
             <textarea
               id="la-raw"
@@ -258,6 +283,7 @@ export function LogActivityForm({
               rows={2}
               placeholder='Try: read 30 pages, ran 5km, saved ₹500'
               className={`${inputCls} resize-none`}
+              autoFocus
             />
             {!form.rawInput.trim() && (
               <p className="mt-1 text-xs text-gray-600">
@@ -294,7 +320,6 @@ export function LogActivityForm({
               onChange={(e) => set('title', e.target.value)}
               placeholder="e.g. Morning run, Read, Meditate"
               maxLength={200}
-              autoFocus
               className={inputCls}
             />
 

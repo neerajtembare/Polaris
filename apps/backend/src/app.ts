@@ -7,6 +7,7 @@
  * - fastify
  * - @fastify/cors
  * - @fastify/helmet
+ * - @fastify/multipart
  *
  * @relatedFiles
  * - src/index.ts
@@ -17,6 +18,7 @@ import Fastify from 'fastify';
 import type { FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import { registerRoutes } from './routes/index.js';
 import { config } from './config/index.js';
 
@@ -68,6 +70,10 @@ export async function buildApp() {
     origin: config.isDev ? ['http://localhost:5173'] : false,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
+
+  // Multipart — required for voice transcription audio file uploads
+  // 25 MB limit covers ~10 minutes of compressed webm audio
+  await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });
 
   // Routes (registered as a Fastify plugin)
   await app.register(registerRoutes);
