@@ -19,7 +19,7 @@ export class MockProvider implements AIProvider {
   async parse(rawInput: string, goals: GoalContext[]): Promise<AIActivityParse> {
     const lower = rawInput.toLowerCase();
 
-    type ParsedFields = { activityType: ActivityType; value: number | null; unit: string | null };
+    type _ParsedFields = { activityType: ActivityType; value: number | null; unit: string | null };
     const fields = this.extractFields(lower);
 
     const { goalId, goalTitle, confidence } = this.matchGoal(lower, goals, fields.unit);

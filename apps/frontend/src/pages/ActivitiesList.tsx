@@ -53,6 +53,8 @@ const STATUS_TABS: FilterTab[] = [
   { label: 'Skipped',   value: 'skipped' },
 ];
 
+const PAGE_SIZE = 50;
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -64,16 +66,32 @@ export function ActivitiesList() {
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   const [dateFilter,   setDateFilter]   = useState('');
   const [showForm,     setShowForm]     = useState(false);
+  const [page,         setPage]         = useState(0);
 
   const queryFilter = {
     ...(statusFilter !== 'all' && { status: statusFilter as ActivityStatus }),
     ...(dateFilter              && { date:   dateFilter }),
+    limit:  PAGE_SIZE,
+    offset: page * PAGE_SIZE,
   };
 
   const { data: activitiesRes, isLoading, isError } = useActivities(queryFilter);
   const activities: ListedActivity[] = activitiesRes?.data ?? [];
+  const total = activitiesRes?.meta?.total ?? 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
   const updateActivity = useUpdateActivity();
   const deleteActivity = useDeleteActivity();
+
+  // Reset to page 0 when filters change
+  function applyStatusFilter(value: FilterStatus) {
+    setStatusFilter(value);
+    setPage(0);
+  }
+
+  function applyDateFilter(value: string) {
+    setDateFilter(value);
+    setPage(0);
+  }
 
   function handleComplete(id: string, value?: number) {
     updateActivity.mutate({
@@ -122,7 +140,7 @@ export function ActivitiesList() {
             {STATUS_TABS.map(({ label, value }) => (
               <button
                 key={value}
-                onClick={() => setStatusFilter(value)}
+                onClick={() => applyStatusFilter(value)}
                 className={[
                   'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
                   statusFilter === value
@@ -139,13 +157,13 @@ export function ActivitiesList() {
           <input
             type="date"
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
+            onChange={(e) => applyDateFilter(e.target.value)}
             title="Filter by date"
             className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:dark]"
           />
           {dateFilter && (
             <button
-              onClick={() => setDateFilter('')}
+              onClick={() => applyDateFilter('')}
               className="text-xs text-gray-500 hover:text-gray-200 transition-colors"
             >
               Clear date
@@ -187,23 +205,53 @@ export function ActivitiesList() {
         )}
 
         {!isLoading && !isError && activities.length > 0 && (
-          <ul className="space-y-3">
-            {activities.map((activity) => (
-              <li key={activity.id}>
-                <ActivityCard
-                  activity={activity}
-                  onComplete={handleComplete}
-                  onSkip={handleSkip}
-                  onUndo={handleUndo}
-                  onDelete={handleDelete}
-                  isPending={isPending}
-                />
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="space-y-3">
+              {activities.map((activity) => (
+                <li key={activity.id}>
+                  <ActivityCard
+                    activity={activity}
+                    onComplete={handleComplete}
+                    onSkip={handleSkip}
+                    onUndo={handleUndo}
+                    onDelete={handleDelete}
+                    isPending={isPending}
+                  />
+                </li>
+              ))}
+            </ul>
+
+            {/* Pagination footer */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+                <span className="text-xs text-gray-500">
+                  Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    aria-label="Previous page"
+                  >
+                    ← Prev
+                  </button>
+                  <span className="px-3 py-1.5 text-xs text-gray-400">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    aria-label="Next page"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
-
-
 
       {/* Log-activity modal */}
       {showForm && (

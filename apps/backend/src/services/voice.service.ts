@@ -71,7 +71,7 @@ export async function transcribeAudio(
       // No explicit Content-Type — fetch sets multipart boundary automatically
       signal: AbortSignal.timeout(60_000), // 60 second timeout for long recordings
     });
-  } catch (err) {
+  } catch (_err) {
     throw new Error(
       `Whisper service unreachable at ${WHISPER_URL}. ` +
         'Make sure it is running (Docker: whisper service | Local: uvicorn in services/whisper).',

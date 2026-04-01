@@ -45,6 +45,8 @@ model Goal {
   @@index([timeframe])
   @@index([status])
   @@index([isDeleted])
+  // Composite: common query pattern — active goals list
+  @@index([isDeleted, status])
   @@map("goals")
 }
 
@@ -91,6 +93,10 @@ model Activity {
   @@index([category])
   @@index([status])
   @@index([isDeleted])
+  // Composite: common query patterns — activities by goal + date range filters
+  @@index([goalId, isDeleted])
+  @@index([activityDate, isDeleted])
+  @@index([status, isDeleted])
   @@map("activities")
 }
 

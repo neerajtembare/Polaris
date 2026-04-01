@@ -8,6 +8,7 @@
  * - @fastify/cors
  * - @fastify/helmet
  * - @fastify/multipart
+ * - @fastify/rate-limit
  *
  * @relatedFiles
  * - src/index.ts
@@ -19,6 +20,7 @@ import type { FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import { registerRoutes } from './routes/index.js';
 import { config } from './config/index.js';
 
@@ -27,8 +29,18 @@ import { config } from './config/index.js';
  */
 export async function buildApp() {
   const loggerOptions = config.isDev
-    ? ({ level: 'info', transport: { target: 'pino-pretty', options: { colorize: true } } } as const)
-    : ({ level: 'warn' } as const);
+    ? ({
+        level: 'info',
+        transport: { target: 'pino-pretty', options: { colorize: true } },
+      } as const)
+    : ({
+        level: 'info',
+        // Structured JSON logs in production — incl. method, url, statusCode, responseTime
+        serializers: {
+          req: (req: { method: string; url: string }) => ({ method: req.method, url: req.url }),
+          res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
+        },
+      } as const);
 
   const app = Fastify({ logger: loggerOptions });
 
@@ -65,10 +77,26 @@ export async function buildApp() {
   // Security headers
   await app.register(helmet, { contentSecurityPolicy: false });
 
-  // CORS — allow frontend dev server
+  // CORS — configure via CORS_ORIGIN env var in production; dev defaults to Vite dev server
   await app.register(cors, {
-    origin: config.isDev ? ['http://localhost:5173'] : false,
+    origin: config.isDev
+      ? ['http://localhost:5173']
+      : (config.corsOrigin ? config.corsOrigin.split(',').map((o) => o.trim()) : false),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  });
+
+  // Rate limiting — global cap; AI endpoints get a stricter per-route override
+  await app.register(rateLimit, {
+    global: true,
+    max: 100,
+    timeWindow: '1 minute',
+    errorResponseBuilder: (_request, context) => ({
+      success: false,
+      error: {
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: `Too many requests. Please slow down (limit: ${context.max} per ${context.after}).`,
+      },
+    }),
   });
 
   // Multipart — required for voice transcription audio file uploads

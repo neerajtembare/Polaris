@@ -12,4 +12,12 @@
   body {
     @apply bg-gray-950 text-gray-100;
   }
+
+  /*
+   * Visible focus ring for keyboard navigation (WCAG AA).
+   * Only shown on :focus-visible (not clicked), so it doesn't affect mouse users.
+   */
+  :focus-visible {
+    @apply outline-none ring-2 ring-indigo-500 ring-offset-2 ring-offset-gray-950;
+  }
 }

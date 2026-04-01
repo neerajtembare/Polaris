@@ -102,7 +102,7 @@ export function LogActivityForm({
   // Fetch recent completed activities for the selected goal to show title chips.
   // Only fires when a goal is selected — avoids a full-scan on modal open.
   const { data: recentActivitiesData } = useActivities(
-    { goalId: form.goalId || undefined, status: 'completed', limit: 20 },
+    { ...(form.goalId ? { goalId: form.goalId } : {}), status: 'completed', limit: 20 },
     { enabled: Boolean(form.goalId) }
   );
   const recentTitles: string[] = form.goalId
@@ -221,12 +221,15 @@ export function LogActivityForm({
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-4 pb-4 sm:pb-0"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="log-activity-title"
     >
       <div className="w-full max-w-md bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-y-auto max-h-[95vh]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-800">
-          <h2 className="text-base font-semibold text-white">Log activity</h2>
+          <h2 id="log-activity-title" className="text-base font-semibold text-white">Log activity</h2>
           <button
             onClick={onClose}
             aria-label="Close"

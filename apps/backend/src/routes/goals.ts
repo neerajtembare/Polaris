@@ -83,10 +83,11 @@ const createGoalBodySchema = {
   },
 };
 
-/** Schema for PATCH /goals/:id request body */
+/** Schema for PATCH /goals/:id request body — at least one field is required */
 const updateGoalBodySchema = {
   type: 'object',
   additionalProperties: false,
+  minProperties: 1,
   properties: {
     title:       { type: 'string', minLength: 1, maxLength: 500 },
     description: { type: ['string', 'null'] },

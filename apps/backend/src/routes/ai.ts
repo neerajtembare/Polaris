@@ -16,8 +16,21 @@ import * as AIController from '../controllers/ai.controller.js';
 
 /**
  * AI routes — mounted at `/api/ai` in routes/index.ts
+ * Rate limit: 10 requests/minute (stricter than global 100/min — protects LLM quota)
  */
 const aiRoutes: FastifyPluginAsync = async (app) => {
+  // Stricter rate limit for all AI endpoints
+  await app.register((await import('@fastify/rate-limit')).default, {
+    max: 10,
+    timeWindow: '1 minute',
+    errorResponseBuilder: (_request, context) => ({
+      success: false,
+      error: {
+        code: 'RATE_LIMIT_EXCEEDED',
+        message: `AI endpoint rate limit reached. Please wait before retrying (limit: ${context.max} per ${context.after}).`,
+      },
+    }),
+  });
   /**
    * POST /api/ai/parse-activity
    * Parse a natural-language activity description into structured fields.
