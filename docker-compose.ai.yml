@@ -1,0 +1,91 @@
+# Polaris — AI service overlay (GPU required)
+#
+# This file extends docker-compose.yml with Whisper STT and Ollama LLM services.
+# Use it with the overlay flag — do NOT use it alone:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ai.yml up --build
+#
+# Prerequisites:
+#   - NVIDIA GPU with CUDA support
+#   - NVIDIA Container Toolkit installed on the host:
+#     https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+#
+# Services added:
+#   Whisper:  http://localhost:8001  (Speech-to-Text, large-v3 model, CUDA)
+#   Ollama:   http://localhost:11434 (LLM inference, llama3.2:3b)
+
+services:
+  # Override backend to point at AI services via Docker DNS names
+  backend:
+    environment:
+      WHISPER_URL: http://whisper:8001
+      OLLAMA_URL: http://ollama:11434
+    depends_on:
+      whisper:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+  # ──────────────────────────────────────────────────────────
+  # Whisper STT (Python FastAPI + faster-whisper, GPU)
+  # ──────────────────────────────────────────────────────────
+  whisper:
+    build: ./services/whisper
+    ports:
+      - "8001:8001"
+    environment:
+      WHISPER_MODEL: large-v3
+      WHISPER_DEVICE: cuda
+      WHISPER_COMPUTE_TYPE: float16
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      # Cache model weights across container rebuilds (~3GB for large-v3)
+      - whisper_models:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # Model loading takes 30–90s on first start (downloads weights if not cached)
+      start_period: 90s
+
+  # ──────────────────────────────────────────────────────────
+  # Ollama (LLM inference for AI activity parsing)
+  # ──────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      # Cache pulled models across container restarts (~2GB for llama3.2:3b)
+      - polaris_models:/root/.ollama
+    entrypoint: >
+      sh -c "ollama serve &
+        sleep 5 &&
+        ollama pull llama3.2:3b &&
+        wait"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+volumes:
+  whisper_models:
+  polaris_models:

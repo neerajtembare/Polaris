@@ -7,6 +7,7 @@ node_modules/
 venv/
 .venv/
 __pycache__/
+services/whisper/venv/
 
 # Build outputs
 dist/
@@ -31,6 +32,8 @@ apps/backend/node_modules/.prisma
 logs/
 *.log
 npm-debug.log*
+/tmp/polaris-*.log
+/tmp/polaris-*.pid
 
 # OS
 .DS_Store
@@ -43,3 +46,7 @@ Thumbs.db
 
 # Coverage
 coverage/
+
+# Scripts that should never be committed (contain credentials or auto-sudo)
+install_ollama_auto.sh
+

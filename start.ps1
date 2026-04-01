@@ -1,89 +1,97 @@
-# Polaris — start / stop (Windows, PowerShell)
-# Usage: .\start.ps1 [docker|up|local|stop|logs|models]
+# Polaris — start / stop / check (Windows PowerShell)
 #
-# GPU support requires NVIDIA Container Toolkit for Docker services.
-# Local mode requires Node 20+, Python 3.10+ and Ollama installed on Windows.
+# Usage:
+#   .\start.ps1                    start locally (Node.js + npm run dev)
+#   .\start.ps1 local              same as above
+#   .\start.ps1 local --with-ai    also start Ollama LLM + Whisper STT (CPU)
+#   .\start.ps1 docker             start with Docker — core services only
+#   .\start.ps1 docker:ai          start with Docker + GPU AI overlay
+#   .\start.ps1 stop               stop local background processes
+#   .\start.ps1 seed               seed sample data into the database
+#   .\start.ps1 check              health-check all services
+#   .\start.ps1 logs               tail Docker logs
+#
+# First run?  .\setup.sh
 
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
+function Write-Ok   { param($msg) Write-Host "✓ $msg" -ForegroundColor Green }
+function Write-Warn { param($msg) Write-Host "! $msg" -ForegroundColor Yellow }
+function Write-Err  { param($msg) Write-Host "✗ $msg" -ForegroundColor Red }
+function Write-Info { param($msg) Write-Host "→ $msg" -ForegroundColor Cyan }
 
-function Write-Ok    { param($msg) Write-Host "✓ $msg" -ForegroundColor Green }
-function Write-Warn  { param($msg) Write-Host "! $msg" -ForegroundColor Yellow }
-function Write-Info  { param($msg) Write-Host "→ $msg" -ForegroundColor Cyan }
-function Write-Hdr   { param($msg) Write-Host "`n$msg`n" -ForegroundColor White }
+# ─── prerequisite checks ────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AI service checks (local mode only)
-# ─────────────────────────────────────────────────────────────────────────────
-
-function Check-Ollama {
-    $ollamaCmd = Get-Command ollama -ErrorAction SilentlyContinue
-    if (-not $ollamaCmd) {
-        Write-Warn "Ollama not found — AI activity parsing will be unavailable."
-        Write-Warn "Install from https://ollama.ai and run: ollama pull llama3.2:3b"
-        return
+function Ensure-LocalDeps {
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        Write-Err "Node not found. Run .\setup.sh first, or use: .\start.ps1 docker"; exit 1
     }
+    if (-not (Test-Path "node_modules")) {
+        Write-Info "Installing dependencies…"; npm install
+    }
+    Write-Ok "Node $(node -v)"
+}
 
-    # Start Ollama if not already running
+function Ensure-Env {
+    if (-not (Test-Path "apps\backend\.env")) {
+        Write-Warn "apps/backend/.env not found — creating defaults. Run .\setup.sh for full setup."
+        Set-Content "apps\backend\.env" "DATABASE_URL=`"file:./data/polaris.db`"`nPORT=3001`nNODE_ENV=development"
+        Write-Ok "Created apps/backend/.env"
+    }
+    New-Item -ItemType Directory -Force "apps\backend\data" | Out-Null
+}
+
+# ─── optional AI services (local mode, non-blocking) ────────────────────────
+
+function Start-Ollama {
+    if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
+        Write-Warn "Ollama not installed — AI parsing unavailable (https://ollama.ai)"; return
+    }
     try { Invoke-RestMethod http://localhost:11434/api/tags -TimeoutSec 2 | Out-Null }
     catch {
-        Write-Info "Starting Ollama server..."
+        Write-Info "Starting Ollama server…"
         Start-Process ollama -ArgumentList "serve" -WindowStyle Hidden
         Start-Sleep 3
     }
-
-    # Pull model if missing
-    $models = ollama list 2>$null
+    $models = & ollama list 2>$null
     if (-not ($models -match "llama3.2:3b")) {
-        Write-Info "Pulling llama3.2:3b model (~2GB, first run only)..."
-        ollama pull llama3.2:3b
+        Write-Info "Pulling llama3.2:3b model (~2GB, first run only)…"
+        & ollama pull llama3.2:3b
     }
-
     Write-Ok "Ollama ready (llama3.2:3b)"
 }
 
-function Check-Whisper {
+function Start-Whisper {
     $pyCmd = Get-Command python -ErrorAction SilentlyContinue
     if (-not $pyCmd) { $pyCmd = Get-Command python3 -ErrorAction SilentlyContinue }
-    if (-not $pyCmd) {
-        Write-Warn "Python not found — Voice input will be unavailable."
-        Write-Warn "Install Python 3.10+ or use Docker mode for full voice support."
-        return
-    }
-
-    $python = $pyCmd.Source
-
+    if (-not $pyCmd) { Write-Warn "Python not found — voice input unavailable (install Python 3.10+)"; return }
+    $python  = $pyCmd.Source
     $venvDir = Join-Path $PSScriptRoot "services\whisper\venv"
     if (-not (Test-Path $venvDir)) {
-        Write-Info "Creating Python virtual environment for Whisper..."
+        Write-Info "Creating Python venv for Whisper…"
         & $python -m venv $venvDir
     }
+    $venvPy = if (Test-Path "$venvDir\Scripts\python.exe") { "$venvDir\Scripts\python.exe" } else { "$venvDir\bin\python" }
 
-    $venvPython = if (Test-Path (Join-Path $venvDir "Scripts\python.exe")) { Join-Path $venvDir "Scripts\python.exe" } else { Join-Path $venvDir "bin\python" }
-    if (-not (Test-Path $venvPython)) { $venvPython = $python }
-
-    # Install dependencies if needed
-    try { & $venvPython -c "import uvicorn" 2>$null | Out-Null }
-    catch {
-        Write-Info "Installing Whisper service dependencies..."
-        & $venvPython -m pip install -r services/whisper/requirements.txt --quiet
-        Write-Ok "Whisper dependencies installed"
+    $importCheck = & $venvPy -c "import uvicorn" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Info "Installing Whisper dependencies…"
+        & $venvPy -m pip install -r services\whisper\requirements.txt --quiet
     }
 
-    # Check if already running
     try {
-        $resp = Invoke-RestMethod http://localhost:8001/health -TimeoutSec 2
-        if ($resp.status -eq "ok") { Write-Ok "Whisper service already running"; return }
+        $h = Invoke-RestMethod http://localhost:8001/health -TimeoutSec 2
+        if ($h.status -eq "ok") { Write-Ok "Whisper already running (port 8001)"; return }
     } catch {}
 
-    Write-Info "Starting Whisper service in background (port 8001)..."
+    Write-Info "Starting Whisper service in background (CPU, base model)…"
+    $logFile = "$env:TEMP\polaris-whisper.log"
     $whisperDir = Join-Path $PSScriptRoot "services\whisper"
-    $logFile    = "$env:TEMP\polaris-whisper.log"
-    $proc = Start-Process $venvPython `
+    $env:WHISPER_MODEL = "base"
+    $env:WHISPER_DEVICE = "cpu"
+    $env:WHISPER_COMPUTE_TYPE = "int8"
+    $proc = Start-Process $venvPy `
         -ArgumentList "-m uvicorn main:app --host 0.0.0.0 --port 8001" `
         -WorkingDirectory $whisperDir `
         -WindowStyle Hidden `
@@ -91,147 +99,126 @@ function Check-Whisper {
         -PassThru
     $proc.Id | Out-File "$env:TEMP\polaris-whisper.pid"
 
-    Write-Info "Waiting for Whisper model to load (may take up to 60s on first run)..."
     $retries = 0
-    while ($retries -lt 30) {
+    while ($retries -lt 15) {
         try {
-            $resp = Invoke-RestMethod http://localhost:8001/health -TimeoutSec 2
-            if ($resp.status -eq "ok") { Write-Ok "Whisper service ready"; return }
+            if ((Invoke-RestMethod http://localhost:8001/health -TimeoutSec 2).status -eq "ok") {
+                Write-Ok "Whisper ready (base model, CPU)"; return
+            }
         } catch {}
-        Start-Sleep 2
-        $retries++
+        Start-Sleep 2; $retries++
     }
-    Write-Warn "Whisper service is slow to start — voice may not work yet."
-    Write-Warn "Check $logFile for details."
+    Write-Warn "Whisper slow to start — check $logFile"
 }
 
-function Pull-Models {
-    Write-Hdr "Pulling AI Models (first run)"
-    Check-Ollama
-    Write-Info "Whisper model (large-v3) downloads on first voice use."
-    Write-Ok "Models ready."
-}
+# ─── commands ────────────────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Run modes
-# ─────────────────────────────────────────────────────────────────────────────
-
-function Start-Docker {
-    Write-Hdr "Polaris — Docker (includes GPU Whisper + Ollama)"
-    docker compose up --build
-}
-
-function Start-DockerDetached {
-    docker compose up -d --build
+function Invoke-Local {
+    param([string]$Flag = "")
+    Ensure-LocalDeps
+    Ensure-Env
+    if ($Flag -eq "--with-ai") {
+        Write-Host ""
+        Write-Info "Starting optional AI services…"
+        Start-Ollama
+        Start-Whisper
+    }
     Write-Host ""
-    Write-Ok "Running."
-    Write-Host "  Frontend: http://localhost:5173"
-    Write-Host "  Backend:  http://localhost:3001"
-    Write-Host "  Whisper:  http://localhost:8001"
-    Write-Host "  Ollama:   http://localhost:11434"
-    Write-Info "Stop: .\start.ps1 stop   |   Logs: .\start.ps1 logs"
-}
-
-function Start-Local {
-    Write-Hdr "Polaris — Local"
-
-    # Check Node
-    try { node --version | Out-Null } catch {
-        Write-Host "Node not found. Install Node 20+ or use: .\start.ps1 docker" -ForegroundColor Red; exit 1
-    }
-
-    # Install Node deps if needed
-    if (-not (Test-Path "node_modules")) {
-        Write-Info "Installing dependencies..."
-        npm install
-    }
-
-    # Ensure backend .env exists
-    if (-not (Test-Path "apps\backend\.env")) {
-        Set-Content -Path "apps\backend\.env" -Value "DATABASE_URL=`"file:../data/polaris.db`"`nAI_PROVIDER=`"ollama`""
-        Write-Ok "Created apps/backend/.env"
-    }
-
-    # Set up DB unconditionally
-    if (-not (Test-Path "apps\backend\data")) {
-        New-Item -ItemType Directory -Force "apps\backend\data" | Out-Null
-    }
-    Push-Location apps\backend
-    npx prisma db push --skip-generate 2>$null | Out-Null
-    npx prisma generate 2>$null | Out-Null
-    Pop-Location
-    Write-Ok "Database schema synced"
-
-    # Start AI services (non-blocking — app works without them)
-    Check-Ollama
-    Check-Whisper
-
-    Write-Info "Starting backend + frontend..."
-    Write-Host ""
+    Write-Info "Starting backend + frontend…"
     npm run dev
 }
 
-function Stop-All {
-    Write-Hdr "Stopping Polaris"
-    docker compose down 2>$null
-    Write-Ok "Docker containers stopped (if running)"
+function Invoke-Docker {
+    Write-Info "Starting core services (backend + frontend)…"
+    Write-Info "Voice/AI features disabled in core mode. Use 'docker:ai' for GPU support."
+    Write-Host ""
+    docker compose up --build
+}
 
-    # Stop local Whisper service
+function Invoke-DockerAi {
+    Write-Info "Starting all services with GPU AI support (Whisper + Ollama)…"
+    Write-Info "Requires NVIDIA Container Toolkit — see docker-compose.ai.yml for details."
+    Write-Host ""
+    docker compose -f docker-compose.yml -f docker-compose.ai.yml up --build
+}
+
+function Invoke-Stop {
+    Write-Info "Stopping local Polaris processes…"
+    Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -match "tsx|vite" -or (Get-WmiObject Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).CommandLine -match "tsx|vite"
+    } | ForEach-Object { Stop-Process $_ -Force -ErrorAction SilentlyContinue }
     $pidFile = "$env:TEMP\polaris-whisper.pid"
     if (Test-Path $pidFile) {
-        $pid = Get-Content $pidFile
-        try { Stop-Process -Id $pid -Force; Write-Ok "Whisper service stopped" } catch {}
+        $whisperPid = Get-Content $pidFile
+        Stop-Process -Id $whisperPid -Force -ErrorAction SilentlyContinue
         Remove-Item $pidFile -Force
+        Write-Ok "Whisper stopped"
     }
-
-    Write-Ok "Done."
+    Write-Ok "Done. (To stop Docker containers: docker compose down)"
 }
 
-function Show-Logs {
-    docker compose logs -f
+function Invoke-Seed {
+    Ensure-LocalDeps
+    Write-Info "Seeding sample data…"
+    Push-Location apps\backend
+    npx tsx prisma/seed.ts
+    Pop-Location
+    Write-Ok "Sample data seeded"
 }
 
-function Show-Menu {
-    Write-Host ""
-    Write-Host "Polaris" -ForegroundColor Cyan
-    Write-Host "  1) Start (Docker)      — recommended, includes GPU AI services"
-    Write-Host "  2) Start (Docker -d)   — run in background"
-    Write-Host "  3) Start (local)       — needs Node/npm + Python"
-    Write-Host "  4) Stop"
-    Write-Host "  5) Logs"
-    Write-Host "  6) Seed sample data"
-    Write-Host "  7) Pull AI models      — Ollama llama3.2:3b + Whisper"
-    Write-Host "  0) Exit"
-    Write-Host ""
-    $choice = Read-Host "  Choice [0-7]"
-    switch ($choice) {
-        "1" { Start-Docker }
-        "2" { Start-DockerDetached }
-        "3" { Start-Local }
-        "4" { Stop-All }
-        "5" { Show-Logs }
-        "6" {
-            Write-Info "Seeding sample data..."
-            docker compose exec backend sh -c "cd apps/backend && npx tsx prisma/seed.ts"
-            Write-Ok "Done. Refresh the dashboard to see data."
+function Invoke-Check {
+    function Test-Service { param($url, $label, [bool]$required)
+        try {
+            Invoke-RestMethod $url -TimeoutSec 3 | Out-Null
+            Write-Ok "$label"
+        } catch {
+            if ($required) { Write-Err "$label (not running)" }
+            else { Write-Warn "$label (optional — not running)" }
         }
-        "7" { Pull-Models }
-        "0" { exit 0 }
-        default { Write-Host "Invalid." -ForegroundColor Yellow; Show-Menu }
     }
+    Write-Host ""
+    Write-Host "  Service health:"
+    Test-Service "http://localhost:3001/health"    "Backend  http://localhost:3001" $true
+    Test-Service "http://localhost:5173"            "Frontend http://localhost:5173" $true
+    Test-Service "http://localhost:8001/health"     "Whisper  http://localhost:8001" $false
+    Test-Service "http://localhost:11434/api/tags"  "Ollama   http://localhost:11434" $false
+    Write-Host ""
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Entry point
-# ─────────────────────────────────────────────────────────────────────────────
+function Invoke-Logs { docker compose logs -f }
 
-$cmd = $args[0]
+function Show-Usage {
+    Write-Host ""
+    Write-Host "  Usage: .\start.ps1 [command] [flags]"
+    Write-Host ""
+    Write-Host "  Commands:"
+    Write-Host "    (none)              Start locally (same as 'local')"
+    Write-Host "    local               Start with Node.js + npm run dev"
+    Write-Host "    local --with-ai     Also start Ollama LLM + Whisper STT (CPU, base model)"
+    Write-Host "    docker              Docker — core services (backend + frontend) only"
+    Write-Host "    docker:ai           Docker — core + GPU AI services (needs NVIDIA Toolkit)"
+    Write-Host "    stop                Stop local background processes"
+    Write-Host "    seed                Seed 90 days of sample data"
+    Write-Host "    check               Health-check all services"
+    Write-Host "    logs                Tail Docker logs"
+    Write-Host ""
+    Write-Host "  First run?  .\setup.sh"
+    Write-Host ""
+}
+
+# ─── entry point ─────────────────────────────────────────────────────────────
+
+$cmd  = if ($args.Count -gt 0) { $args[0] } else { "local" }
+$flag = if ($args.Count -gt 1) { $args[1] } else { "" }
+
 switch ($cmd) {
-    "docker" { Start-Docker }
-    "up"     { Start-DockerDetached }
-    "local"  { Start-Local }
-    "stop"   { Stop-All }
-    "logs"   { Show-Logs }
-    "models" { Pull-Models }
-    default  { Show-Menu }
+    "local"      { Invoke-Local $flag }
+    "docker"     { Invoke-Docker }
+    "docker:ai"  { Invoke-DockerAi }
+    "stop"       { Invoke-Stop }
+    "seed"       { Invoke-Seed }
+    "check"      { Invoke-Check }
+    "logs"       { Invoke-Logs }
+    { $_ -in "help", "--help", "-h" } { Show-Usage }
+    default      { Write-Err "Unknown command: $cmd"; Show-Usage; exit 1 }
 }
