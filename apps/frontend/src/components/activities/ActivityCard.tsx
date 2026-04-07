@@ -32,6 +32,8 @@ interface ActivityCardProps {
   onUndo: (id: string) => void;
   /** Called when user deletes the activity */
   onDelete: (id: string) => void;
+  /** Called when user wants to edit the activity — opens the edit form */
+  onEdit?: (activity: ListedActivity) => void;
   /** Whether mutation is in flight (disables buttons) */
   isPending?: boolean;
 }
@@ -55,6 +57,7 @@ export function ActivityCard({
   onSkip,
   onUndo,
   onDelete,
+  onEdit,
   isPending = false,
 }: ActivityCardProps) {
   const isPlanned   = activity.status === 'planned';
@@ -114,15 +117,28 @@ export function ActivityCard({
           )}
         </div>
 
-        {/* Delete */}
-        <button
-          onClick={() => onDelete(activity.id)}
-          disabled={isPending}
-          aria-label={`Delete: ${activity.title}`}
-          className="text-gray-600 hover:text-red-400 transition-colors p-1 -mr-1 flex-shrink-0 disabled:opacity-40"
-        >
-          ✕
-        </button>
+        {/* Actions: edit + delete */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {onEdit && (
+            <button
+              onClick={() => onEdit(activity)}
+              disabled={isPending}
+              aria-label={`Edit: ${activity.title}`}
+              className="text-gray-600 hover:text-indigo-400 transition-colors p-1 disabled:opacity-40"
+            >
+              ✎
+            </button>
+          )}
+          {/* Delete */}
+          <button
+            onClick={() => onDelete(activity.id)}
+            disabled={isPending}
+            aria-label={`Delete: ${activity.title}`}
+            className="text-gray-600 hover:text-red-400 transition-colors p-1 -mr-1 disabled:opacity-40"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       {/* Inline value prompt */}

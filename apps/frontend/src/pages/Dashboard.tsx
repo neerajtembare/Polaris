@@ -101,13 +101,19 @@ interface WeeklyAnalysisModalProps {
 
 function WeeklyAnalysisModal({ onClose, analysis, isLoading, error }: WeeklyAnalysisModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="weekly-analysis-title"
+    >
       <div
         className="bg-gray-900 border border-gray-700 rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Weekly Analysis</h2>
+          <h2 id="weekly-analysis-title" className="text-lg font-semibold text-white">Weekly Analysis</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors"

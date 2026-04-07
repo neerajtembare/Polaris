@@ -392,10 +392,13 @@ export function GoalDetail() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
           onClick={(e) => { if (e.target === e.currentTarget) setShowBreakdown(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="goal-breakdown-title"
         >
           <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">✨ AI Breakdown</h3>
+              <h3 id="goal-breakdown-title" className="text-lg font-semibold text-white">✨ AI Breakdown</h3>
               <button
                 onClick={() => setShowBreakdown(false)}
                 aria-label="Close"

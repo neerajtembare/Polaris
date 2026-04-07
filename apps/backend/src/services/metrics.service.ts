@@ -78,7 +78,7 @@ function computeStreaks(activeDates: Set<string>): {
   const yesterday = subtractDays(today, 1);
 
   // Current streak: walk backward from today (include yesterday if today has none yet)
-  let streakStart = activeDates.has(today) ? today : yesterday;
+  const streakStart = activeDates.has(today) ? today : yesterday;
   let currentStreak = 0;
   let cursor = streakStart;
   while (activeDates.has(cursor)) {

@@ -14,6 +14,7 @@
 
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { FloatingLogButton } from '../activities/FloatingLogButton.tsx';
 
 // ---------------------------------------------------------------------------
 // Nav items — add future routes here
@@ -144,6 +145,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </div>
+
+      {/* Global floating log button — visible on all pages */}
+      <FloatingLogButton />
 
     </div>
   );

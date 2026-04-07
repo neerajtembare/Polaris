@@ -22,6 +22,7 @@ import {
   useQueryClient,
   type UseQueryOptions,
 } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { api } from '../services/api.js';
 import type {
   Goal,
@@ -161,8 +162,12 @@ export function useCreateGoal() {
   return useMutation({
     mutationFn: (input: CreateGoalInput) =>
       api.post<GoalResponse>('/goals', input).then((res) => res.data),
-    onSuccess: () => {
+    onSuccess: (goal) => {
       void queryClient.invalidateQueries({ queryKey: goalKeys.lists() });
+      toast.success(`Goal "${goal.title}" created`);
+    },
+    onError: () => {
+      toast.error('Failed to create goal');
     },
   });
 }
@@ -180,6 +185,10 @@ export function useUpdateGoal() {
     onSuccess: (_data, { id }) => {
       void queryClient.invalidateQueries({ queryKey: goalKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: goalKeys.detail(id) });
+      toast.success('Goal updated');
+    },
+    onError: () => {
+      toast.error('Failed to update goal');
     },
   });
 }
@@ -197,6 +206,10 @@ export function useDeleteGoal() {
     onSuccess: (_data, id) => {
       void queryClient.invalidateQueries({ queryKey: goalKeys.lists() });
       queryClient.removeQueries({ queryKey: goalKeys.detail(id) });
+      toast.success('Goal deleted');
+    },
+    onError: () => {
+      toast.error('Failed to delete goal');
     },
   });
 }

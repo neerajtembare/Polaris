@@ -63,10 +63,11 @@ const createActivityBodySchema = {
   },
 };
 
-/** Schema for PATCH /activities/:id request body */
+/** Schema for PATCH /activities/:id request body — at least one field is required */
 const updateActivityBodySchema = {
   type: 'object',
   additionalProperties: false,
+  minProperties: 1,
   properties: {
     title:        { type: 'string', minLength: 1, maxLength: 500 },
     activityType: { type: 'string', enum: ['quantity', 'duration', 'completion'] },
@@ -101,14 +102,16 @@ export const activitiesRoutes: FastifyPluginAsync = async (app) => {
         querystring: {
           type: 'object',
           properties: {
-            date:         { type: 'string' },
-            startDate:    { type: 'string' },
-            endDate:      { type: 'string' },
+            date:         { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+            startDate:    { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+            endDate:      { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+            // maxDays caps date-range queries at 366 days to prevent full table scans
+            maxDays:      { type: 'integer', minimum: 1, maximum: 366 },
             goalId:       { type: 'string' },
-            status:       { type: 'string' },
-            activityType: { type: 'string' },
-            limit:        { type: 'integer', minimum: 1, maximum: 200 },
-            offset:       { type: 'integer', minimum: 0 },
+            status:       { type: 'string', enum: ['planned', 'completed', 'skipped'] },
+            activityType: { type: 'string', enum: ['quantity', 'duration', 'completion'] },
+            limit:        { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+            offset:       { type: 'integer', minimum: 0, default: 0 },
           },
         },
         response: {

@@ -6,93 +6,98 @@ Personal activity tracker. Log activities, track goals, see your streaks.
 
 ## Prerequisites
 
-**Option A — Docker (no Node/npm needed)**  
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine + Docker Compose). Use the section **Running with Docker** below.
-
-**Option B — Local Node**  
-- **Node.js** v20+ (project uses v24 via nvm)
-- **npm** v10+
-
-If using nvm:
-```bash
-nvm install 24
-nvm use 24
-```
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Node.js | v20+ | Required for local mode |
+| npm | v10+ | Bundled with Node |
+| Docker | any recent | Required for Docker mode only |
+| Python | 3.10+ | Optional — required only for voice input (`--with-ai`) |
+| NVIDIA GPU + Toolkit | — | Optional — required only for `docker:ai` mode |
 
 ---
 
-## Running with Docker
+## Quick start
 
-No need to install Node or npm.
-
-**Option 1 — Start script (easiest)**
-
-- **Windows (PowerShell):** `.\start.ps1` then choose 1, or `.\start.ps1 docker`
-- **Mac/Linux / Git Bash:** `./start.sh` then choose 1, or `./start.sh docker`
-
-**Option 2 — Compose directly**
+### Option A — Local (recommended for development)
 
 ```bash
+# 1. First-time setup (run once after cloning)
+./setup.sh
+
+# 2. Start the app
+npm run dev
+```
+
+Frontend: http://localhost:5173 — Backend: http://localhost:3001
+
+### Option B — Docker (no Node needed)
+
+```bash
+# Core services only (backend + frontend)
+./start.sh docker
+
+# Or directly with Compose
 docker compose up --build
 ```
 
-- **Frontend:** http://localhost:5173  
-- **Backend API:** http://localhost:3001  
-- **Health:** http://localhost:3001/health  
+### Option C — Docker with GPU AI features
 
-The first run builds the image and runs DB migrations. Data is stored in a Docker volume (`polaris_data`) so it persists between runs.
+Requires the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
-To stop: `Ctrl+C` then `docker compose down` (or `./start.sh stop` / `.\start.ps1 stop`).
+```bash
+./start.sh docker:ai
+
+# Or directly with Compose
+docker compose -f docker-compose.yml -f docker-compose.ai.yml up --build
+```
+
+This adds Whisper STT (port 8001) and Ollama LLM (port 11434).
 
 ---
 
-## Setup (local Node only)
+## start.sh / start.ps1 reference
 
-Run the setup script (handles everything below automatically):
+```
+./start.sh [command] [flags]
 
-```bash
-./setup.sh
+  (none)              Start locally (same as 'local')
+  local               Start with Node.js + npm run dev
+  local --with-ai     Also start Ollama LLM + Whisper STT (CPU, base model)
+  docker              Docker — core services (backend + frontend) only
+  docker:ai           Docker — core + GPU AI services (needs NVIDIA Toolkit)
+  stop                Stop local background processes
+  seed                Seed 90 days of sample data
+  check               Health-check all services
+  logs                Tail Docker logs
 ```
 
-Or manually:
-
-```bash
-npm install
-cd apps/backend
-npx prisma migrate deploy
-npx prisma generate
-cd ../..
-```
-
-> The SQLite database file is created at `apps/backend/data/polaris.db`.
+Use `.\start.ps1` with the same commands on Windows PowerShell.
 
 ---
 
-## Running the app (local Node)
+## Voice input (optional)
 
-### Both at once (recommended)
+Voice input uses [Whisper](https://github.com/openai/whisper) for speech-to-text. It is **not required** — the app works fully without it. When unavailable, voice features gracefully return a "service unavailable" message.
 
-From the repo root:
+| Mode | How it works |
+|------|-------------|
+| `local --with-ai` | Runs Whisper with `base` model on CPU — good enough for dev |
+| `docker:ai` | Runs Whisper with `large-v3` model on GPU — best accuracy |
 
-```bash
-npm run dev
-```
+---
 
-This starts backend on **http://localhost:3001** and frontend on **http://localhost:5173** concurrently.
+## Setup details (local mode)
 
-### Backend only
+`./setup.sh` does the following:
 
-```bash
-cd apps/backend
-npm run dev
-```
+1. Checks Node v20+ and npm
+2. Runs `npm install` for all workspaces
+3. Builds the shared types package (`packages/shared`)
+4. Creates `apps/backend/.env` with default values (if not present)
+5. Applies database migrations and generates the Prisma client
+6. Optionally seeds sample data (`./setup.sh --seed`)
 
-### Frontend only
-
-```bash
-cd apps/frontend
-npm run dev
-```
+> The SQLite database is stored at `apps/backend/data/polaris.db`.
 
 ---
 
@@ -100,8 +105,11 @@ npm run dev
 
 | Command | Where | What it does |
 |---------|-------|--------------|
-| `npm run typecheck` | `apps/frontend` or `apps/backend` | TypeScript compile check (no emit) |
-| `npm run lint` | `apps/frontend` | ESLint |
+| `npm run dev` | root | Start backend + frontend concurrently |
+| `npm run build` | root | Build all packages |
+| `npm run test` | root | Run all tests (Vitest) |
+| `npm run typecheck` | root | TypeScript check (no emit) |
+| `npm run lint` | `apps/backend` | ESLint |
 | `npx prisma studio` | `apps/backend` | Open Prisma DB browser at localhost:5555 |
 | `npx prisma migrate dev --name <name>` | `apps/backend` | Create a new migration |
 
@@ -125,6 +133,8 @@ apps/
       services/
 packages/
   shared/         Shared TypeScript types
+services/
+  whisper/        Optional Whisper STT microservice (port 8001)
 ```
 
 ---
@@ -140,3 +150,4 @@ All endpoints are under `http://localhost:3001/api`:
 - `GET/PATCH/DELETE /api/activities/:id`
 - `GET /api/activities/today`
 - `GET /api/metrics/dashboard?period=week|month|year`
+

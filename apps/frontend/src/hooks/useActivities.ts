@@ -17,6 +17,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { api, type PaginatedResponse } from '../services/api.js';
 import type {
   Activity,
@@ -157,10 +158,13 @@ export function useCreateActivity() {
     onSuccess: (_data, input) => {
       void queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: activityKeys.today() });
-      // Invalidate goal progress if this activity was linked to a goal
       if (input.goalId) {
         void queryClient.invalidateQueries({ queryKey: ['goals', 'detail', input.goalId] });
       }
+      toast.success('Activity logged');
+    },
+    onError: () => {
+      toast.error('Failed to log activity');
     },
   });
 }
@@ -202,6 +206,10 @@ export function useDeleteActivity() {
       void queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: activityKeys.today() });
       queryClient.removeQueries({ queryKey: activityKeys.detail(id) });
+      toast.success('Activity deleted');
+    },
+    onError: () => {
+      toast.error('Failed to delete activity');
     },
   });
 }
