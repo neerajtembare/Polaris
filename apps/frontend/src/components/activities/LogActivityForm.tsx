@@ -18,7 +18,7 @@
  */
 
 import { useState, useCallback, type FormEvent } from 'react';
-import { useCreateActivity, useActivities } from '../../hooks/useActivities.ts';
+import { useCreateActivity, useUpdateActivity, useActivities } from '../../hooks/useActivities.ts';
 import { useGoals } from '../../hooks/useGoals.ts';
 import { api, ApiRequestError } from '../../services/api.ts';
 import { UnitPicker } from '../ui/UnitPicker.tsx';
@@ -26,17 +26,19 @@ import { inferActivityType } from '../../lib/units.ts';
 import { AiSuggestionPanel } from './AiSuggestionPanel.tsx';
 import { VoiceButton } from '../ui/VoiceButton.tsx';
 import { useVoiceStatus } from '../../hooks/useVoiceActivity.ts';
-import type { ActivityType, ActivityStatus, ApiSuccess, AIActivityParse } from '@polaris/shared';
+import type { ActivityType, ActivityStatus, ApiSuccess, AIActivityParse, ListedActivity } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface LogActivityFormProps {
-  defaultDate?:   string;
-  defaultStatus?: ActivityStatus;
-  onClose:        () => void;
-  onSuccess?:     () => void;
+  defaultDate?:    string;
+  defaultStatus?:  ActivityStatus;
+  /** When provided, form is in edit mode: pre-fills all fields and PATCHes on submit */
+  editActivity?:   ListedActivity;
+  onClose:         () => void;
+  onSuccess?:      () => void;
 }
 
 interface FormState {
@@ -72,26 +74,30 @@ const TYPE_LABELS: Record<ActivityType, string> = {
 /**
  * Full-screen modal overlay with the quick-log form.
  * Clicking the backdrop closes it.
+ * Pass `editActivity` to enter edit mode — all fields pre-filled, submit sends PATCH.
  */
 export function LogActivityForm({
   defaultDate   = todayIso(),
   defaultStatus = 'completed',
+  editActivity,
   onClose,
   onSuccess,
 }: LogActivityFormProps) {
+  const isEditMode     = Boolean(editActivity);
   const createActivity = useCreateActivity();
+  const updateActivity = useUpdateActivity();
   const { data: goals = [] } = useGoals({ status: 'active' });
   const { data: voiceStatus } = useVoiceStatus();
 
   const [form,  setForm]  = useState<FormState>({
-    title:        '',
-    activityType: 'quantity',
-    value:        '',
-    unit:         '',
-    goalId:       '',
-    activityDate: defaultDate,
-    status:       defaultStatus,
-    notes:        '',
+    title:        editActivity?.title        ?? '',
+    activityType: editActivity?.activityType ?? 'quantity',
+    value:        editActivity?.value        != null ? String(editActivity.value) : '',
+    unit:         editActivity?.unit         ?? '',
+    goalId:       editActivity?.goalId       ?? '',
+    activityDate: editActivity?.activityDate ?? defaultDate,
+    status:       editActivity?.status       ?? defaultStatus,
+    notes:        editActivity?.notes        ?? '',
     rawInput:     '',
   });
   const [error,       setError]       = useState<string | null>(null);
@@ -167,13 +173,14 @@ export function LogActivityForm({
 
   /**
    * Called by VoiceButton when voice → transcribe → AI parse completes.
-   * Populates rawInput with the transcript so it's visible, then applies
-   * the parsed fields to the form (same result as clicking "Parse with AI").
+   * Populates rawInput with the transcript so it's visible, then shows
+   * the AiSuggestionPanel for the user to review — same flow as manual parse.
+   * The user must click "Apply" to confirm before fields are overwritten.
    */
   const handleVoiceResult = useCallback(
     (transcript: string, parsed: AIActivityParse) => {
       set('rawInput', transcript);
-      handleAiApply(parsed);
+      setAiSuggestion(parsed);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -195,17 +202,35 @@ export function LogActivityForm({
     }
 
     try {
-      await createActivity.mutateAsync({
-        title:        form.title.trim(),
-        activityType: form.activityType,
-        activityDate: form.activityDate,
-        status:       form.status,
-        ...(needsValue && form.value && { value: Number(form.value) }),
-        ...(form.unit.trim()     && { unit:     form.unit.trim() }),
-        ...(form.goalId          && { goalId:   form.goalId }),
-        ...(form.notes.trim()    && { notes:    form.notes.trim() }),
-        ...(form.rawInput.trim() && { rawInput: form.rawInput.trim() }),
-      });
+      if (isEditMode && editActivity) {
+        // Edit mode — PATCH existing activity
+        await updateActivity.mutateAsync({
+          id:   editActivity.id,
+          data: {
+            title:        form.title.trim(),
+            activityType: form.activityType,
+            activityDate: form.activityDate,
+            status:       form.status,
+            value:        needsValue && form.value ? Number(form.value) : null,
+            unit:         form.unit.trim()  || null,
+            goalId:       form.goalId       || null,
+            notes:        form.notes.trim() || null,
+          },
+        });
+      } else {
+        // Create mode
+        await createActivity.mutateAsync({
+          title:        form.title.trim(),
+          activityType: form.activityType,
+          activityDate: form.activityDate,
+          status:       form.status,
+          ...(needsValue && form.value && { value: Number(form.value) }),
+          ...(form.unit.trim()     && { unit:     form.unit.trim() }),
+          ...(form.goalId          && { goalId:   form.goalId }),
+          ...(form.notes.trim()    && { notes:    form.notes.trim() }),
+          ...(form.rawInput.trim() && { rawInput: form.rawInput.trim() }),
+        });
+      }
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -229,7 +254,9 @@ export function LogActivityForm({
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-800">
-          <h2 id="log-activity-title" className="text-base font-semibold text-white">Log activity</h2>
+          <h2 id="log-activity-title" className="text-base font-semibold text-white">
+            {isEditMode ? 'Edit activity' : 'Log activity'}
+          </h2>
           <button
             onClick={onClose}
             aria-label="Close"
@@ -247,8 +274,10 @@ export function LogActivityForm({
             </div>
           )}
 
-          {/* ── Raw input + AI parse button ── */}
-          <div>
+          {/* ── Raw input + AI parse button — only in create mode ── */}
+          {!isEditMode && (
+            <>
+            <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-medium text-gray-400" htmlFor="la-raw">
                 Describe what you did{' '}
@@ -286,7 +315,6 @@ export function LogActivityForm({
               rows={2}
               placeholder='Try: read 30 pages, ran 5km, saved ₹500'
               className={`${inputCls} resize-none`}
-              autoFocus
             />
             {!form.rawInput.trim() && (
               <p className="mt-1 text-xs text-gray-600">
@@ -310,6 +338,8 @@ export function LogActivityForm({
               onDismiss={() => setAiSuggestion(null)}
             />
           )}
+            </>
+          )} {/* end !isEditMode */}
 
           {/* ── Title ── */}
           <div>
@@ -323,6 +353,7 @@ export function LogActivityForm({
               onChange={(e) => set('title', e.target.value)}
               placeholder="e.g. Morning run, Read, Meditate"
               maxLength={200}
+              autoFocus={isEditMode}
               className={inputCls}
             />
 
@@ -474,10 +505,12 @@ export function LogActivityForm({
             </button>
             <button
               type="submit"
-              disabled={createActivity.isPending}
+              disabled={createActivity.isPending || updateActivity.isPending}
               className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
             >
-              {createActivity.isPending ? 'Saving…' : 'Log activity'}
+              {createActivity.isPending || updateActivity.isPending
+                ? 'Saving…'
+                : isEditMode ? 'Save changes' : 'Log activity'}
             </button>
           </div>
 

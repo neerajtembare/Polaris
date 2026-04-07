@@ -8,6 +8,55 @@
 import type { ActivityType, AIActivityParse } from '@polaris/shared';
 import type { AIProvider, GoalContext } from '../types.js';
 
+// ---------------------------------------------------------------------------
+// Word-to-number normalization
+// Converts English word-form numbers and fractional phrases into digits
+// so that downstream regex patterns like /(\d+)\s*hours?/ match correctly.
+// Handles: "two hours", "an hour", "half an hour", "one and a half hours", etc.
+// ---------------------------------------------------------------------------
+
+const WORD_NUMBERS: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15,
+  sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+  thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70,
+  eighty: 80, ninety: 90, hundred: 100,
+};
+
+/**
+ * Normalizes written-form numbers in a string to their digit equivalents.
+ * Examples:
+ *   "two hours"           → "2 hours"
+ *   "an hour"             → "1 hour"
+ *   "half an hour"        → "0.5 hours"
+ *   "one and a half hours"→ "1.5 hours"
+ *   "twenty pages"        → "20 pages"
+ */
+function normalizeWrittenNumbers(input: string): string {
+  let s = input.toLowerCase();
+
+  // "half an hour" / "half an hour" → 0.5 hours (must come before other replacements)
+  s = s.replace(/\bhalf\s+(?:an?\s+)?hour/g, '0.5 hours');
+
+  // "a/an" before a unit → 1
+  s = s.replace(/\ba\b(?=\s+(?:hour|minute|min|km|mile|page|book|chapter|rep|set|session|lesson))/g, '1');
+  s = s.replace(/\ban\b(?=\s+(?:hour|minute))/g, '1');
+
+  // "X and a half" → X.5 (e.g. "one and a half" → "1.5")
+  s = s.replace(/\b(\w+)\s+and\s+a\s+half\b/g, (_match, word) => {
+    const n = WORD_NUMBERS[word];
+    return n !== undefined ? String(n + 0.5) : _match;
+  });
+
+  // Simple word numbers: "two", "three", etc.
+  s = s.replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g, (word) => {
+    return String(WORD_NUMBERS[word] ?? word);
+  });
+
+  return s;
+}
+
 /**
  * Simulates AI parsing by matching common keywords.
  * Confidence is set to 0.7 for partial matches and 0.9 for strong matches.
@@ -17,12 +66,15 @@ export class MockProvider implements AIProvider {
   readonly name = 'mock';
 
   async parse(rawInput: string, goals: GoalContext[]): Promise<AIActivityParse> {
-    const lower = rawInput.toLowerCase();
+    // Normalize word-form numbers before pattern matching
+    const lower = normalizeWrittenNumbers(rawInput.toLowerCase());
 
     type _ParsedFields = { activityType: ActivityType; value: number | null; unit: string | null };
     const fields = this.extractFields(lower);
 
-    const { goalId, goalTitle, confidence } = this.matchGoal(lower, goals, fields.unit);
+    // Use original (non-normalized) input for goal matching so word-form terms like "sleep" still match
+    const lowerOriginal = rawInput.toLowerCase();
+    const { goalId, goalTitle, confidence } = this.matchGoal(lowerOriginal, goals, fields.unit);
 
     const title = this.buildTitle(rawInput);
 
@@ -94,11 +146,13 @@ export class MockProvider implements AIProvider {
       }
 
       const domainMap: Array<{ keywords: string[]; goalKeywords: string[] }> = [
-        { keywords: ['read', 'book', 'page', 'chapter'],           goalKeywords: ['read', 'book'] },
-        { keywords: ['run', 'jog', 'walk', 'km', 'mile', 'step'],  goalKeywords: ['run', 'km', 'walk'] },
-        { keywords: ['save', 'rupee', '₹', '$', 'money', 'invest'], goalKeywords: ['save', 'money', '₹'] },
-        { keywords: ['study', 'python', 'code', 'learn', 'lesson'], goalKeywords: ['study', 'python', 'learn', 'code'] },
-        { keywords: ['gym', 'workout', 'train', 'lift', 'exercise'], goalKeywords: ['gym', 'workout', 'fit'] },
+        { keywords: ['read', 'book', 'page', 'chapter'],                              goalKeywords: ['read', 'book'] },
+        { keywords: ['run', 'jog', 'walk', 'km', 'mile', 'step'],                     goalKeywords: ['run', 'km', 'walk'] },
+        { keywords: ['save', 'rupee', '₹', '$', 'money', 'invest'],                   goalKeywords: ['save', 'money', '₹'] },
+        { keywords: ['study', 'python', 'code', 'learn', 'lesson'],                   goalKeywords: ['study', 'python', 'learn', 'code'] },
+        { keywords: ['gym', 'workout', 'train', 'lift', 'exercise'],                  goalKeywords: ['gym', 'workout', 'fit'] },
+        { keywords: ['sleep', 'slept', 'nap', 'napped', 'rest', 'rested', 'hours'],   goalKeywords: ['sleep', 'nap', 'rest'] },
+        { keywords: ['meditat', 'mindful', 'breath'],                                  goalKeywords: ['meditat', 'mindful'] },
       ];
       const goalLower = goal.title.toLowerCase();
       for (const { keywords, goalKeywords } of domainMap) {

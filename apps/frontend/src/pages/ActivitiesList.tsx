@@ -63,10 +63,12 @@ const PAGE_SIZE = 50;
  * Activities list page — full activity log with filters and quick-log CTA.
  */
 export function ActivitiesList() {
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
-  const [dateFilter,   setDateFilter]   = useState('');
-  const [showForm,     setShowForm]     = useState(false);
-  const [page,         setPage]         = useState(0);
+  const [statusFilter,  setStatusFilter]  = useState<FilterStatus>('all');
+  const [dateFilter,    setDateFilter]    = useState('');
+  const [showForm,      setShowForm]      = useState(false);
+  const [editActivity,  setEditActivity]  = useState<ListedActivity | undefined>(undefined);
+  const [page,          setPage]          = useState(0);
+  const [pendingIds,    setPendingIds]    = useState<Set<string>>(new Set());
 
   const queryFilter = {
     ...(statusFilter !== 'all' && { status: statusFilter as ActivityStatus }),
@@ -82,6 +84,9 @@ export function ActivitiesList() {
   const updateActivity = useUpdateActivity();
   const deleteActivity = useDeleteActivity();
 
+  function addPending(id: string)    { setPendingIds((prev) => new Set(prev).add(id)); }
+  function removePending(id: string) { setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s; }); }
+
   // Reset to page 0 when filters change
   function applyStatusFilter(value: FilterStatus) {
     setStatusFilter(value);
@@ -94,25 +99,38 @@ export function ActivitiesList() {
   }
 
   function handleComplete(id: string, value?: number) {
-    updateActivity.mutate({
-      id,
-      data: { status: 'completed', ...(value !== undefined && { value }) },
-    });
+    addPending(id);
+    updateActivity.mutate(
+      { id, data: { status: 'completed', ...(value !== undefined && { value }) } },
+      { onSettled: () => removePending(id) },
+    );
   }
 
   function handleSkip(id: string) {
-    updateActivity.mutate({ id, data: { status: 'skipped' } });
+    addPending(id);
+    updateActivity.mutate(
+      { id, data: { status: 'skipped' } },
+      { onSettled: () => removePending(id) },
+    );
   }
 
   function handleUndo(id: string) {
-    updateActivity.mutate({ id, data: { status: 'planned' } });
+    addPending(id);
+    updateActivity.mutate(
+      { id, data: { status: 'planned' } },
+      { onSettled: () => removePending(id) },
+    );
   }
 
   function handleDelete(id: string) {
-    deleteActivity.mutate(id);
+    addPending(id);
+    deleteActivity.mutate(id, { onSettled: () => removePending(id) });
   }
 
-  const isPending = updateActivity.isPending || deleteActivity.isPending;
+  function handleEdit(activity: ListedActivity) {
+    setEditActivity(activity);
+    setShowForm(true);
+  }
 
   // ——— Render ———
   return (
@@ -215,7 +233,8 @@ export function ActivitiesList() {
                     onSkip={handleSkip}
                     onUndo={handleUndo}
                     onDelete={handleDelete}
-                    isPending={isPending}
+                    onEdit={handleEdit}
+                    isPending={pendingIds.has(activity.id)}
                   />
                 </li>
               ))}
@@ -253,11 +272,13 @@ export function ActivitiesList() {
           </>
         )}
 
-      {/* Log-activity modal */}
+      {/* Log-activity / edit-activity modal */}
       {showForm && (
         <LogActivityForm
-          onClose={() => setShowForm(false)}
-          onSuccess={() => setShowForm(false)}
+          {...(editActivity && { editActivity })}
+          {...(!editActivity && dateFilter && { defaultDate: dateFilter })}
+          onClose={() => { setShowForm(false); setEditActivity(undefined); }}
+          onSuccess={() => { setShowForm(false); setEditActivity(undefined); }}
         />
       )}
     </div>

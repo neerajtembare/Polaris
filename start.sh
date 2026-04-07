@@ -146,8 +146,45 @@ cmd_local() {
     start_whisper
   fi
   echo ""
+  # Show AI service status before launching
+  local w_ok o_ok
+  curl -sf http://localhost:8001/health    >/dev/null 2>&1 && w_ok=1 || w_ok=0
+  curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && o_ok=1 || o_ok=0
+  echo "  AI service status:"
+  [ "$w_ok" -eq 1 ] && echo -e "  ${GREEN}✓${NC} Whisper  http://localhost:8001  (voice input active)" \
+                     || echo -e "  ${YELLOW}!${NC} Whisper  not running              (voice input disabled — run with --with-ai)"
+  [ "$o_ok" -eq 1 ] && echo -e "  ${GREEN}✓${NC} Ollama   http://localhost:11434 (AI parsing active)" \
+                     || echo -e "  ${YELLOW}!${NC} Ollama   not running              (AI parsing disabled — run with --with-ai)"
+  echo ""
   info "Starting backend + frontend…"
   npm run dev
+}
+
+cmd_menu() {
+  echo ""
+  echo -e "  ${CYAN}Polaris — Start Menu${NC}"
+  echo ""
+  echo "  1) Local   (Node.js, no AI)"
+  echo "  2) Local + AI   (Node.js + Whisper STT + Ollama LLM)"
+  echo "  3) Docker  (core services only)"
+  echo "  4) Docker + AI  (GPU — requires NVIDIA Container Toolkit)"
+  echo "  5) Check service status"
+  echo "  6) Stop local processes"
+  echo "  q) Quit"
+  echo ""
+  printf "  Choose [1-6/q]: "
+  read -r choice
+  echo ""
+  case "$choice" in
+    1) cmd_local ;;
+    2) cmd_local --with-ai ;;
+    3) cmd_docker ;;
+    4) cmd_docker_ai ;;
+    5) cmd_check ;;
+    6) cmd_stop ;;
+    q|Q) echo "Bye."; exit 0 ;;
+    *) err "Invalid choice: $choice"; exit 1 ;;
+  esac
 }
 
 cmd_docker() {
@@ -214,7 +251,7 @@ usage() {
   echo "  Usage: ./start.sh [command] [flags]"
   echo ""
   echo "  Commands:"
-  echo "    (none)              Start locally (same as 'local')"
+  echo "    (none)              Show interactive start menu"
   echo "    local               Start with Node.js + npm run dev"
   echo "    local --with-ai     Also start Ollama LLM + Whisper STT (CPU, base model)"
   echo "    docker              Docker — core services (backend + frontend) only"
@@ -232,7 +269,8 @@ usage() {
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
-case "${1:-local}" in
+case "${1:-menu}" in
+  menu)        cmd_menu ;;
   local)       cmd_local "${2:-}" ;;
   docker)      cmd_docker ;;
   docker:ai)   cmd_docker_ai ;;

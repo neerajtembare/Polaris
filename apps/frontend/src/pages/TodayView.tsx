@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ActivityCard } from '../components/activities/ActivityCard.tsx';
 import { LogActivityForm } from '../components/activities/LogActivityForm.tsx';
+import { QuickLogBar } from '../components/activities/QuickLogBar.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { EmptyState } from '../components/ui/EmptyState.tsx';
 import {
@@ -56,6 +57,7 @@ interface ColumnProps {
   onSkip:     (id: string) => void;
   onUndo:     (id: string) => void;
   onDelete:   (id: string) => void;
+  onEdit:     (activity: ListedActivity) => void;
   pendingIds: Set<string>;
   emptyText:  string;
 }
@@ -68,6 +70,7 @@ function Column({
   onSkip,
   onUndo,
   onDelete,
+  onEdit,
   pendingIds,
   emptyText,
 }: ColumnProps) {
@@ -97,6 +100,7 @@ function Column({
                 onSkip={onSkip}
                 onUndo={onUndo}
                 onDelete={onDelete}
+                onEdit={onEdit}
                 isPending={pendingIds.has(activity.id)}
               />
             </li>
@@ -115,8 +119,9 @@ function Column({
  * Today view — grouped by status with quick-log CTA.
  */
 export function TodayView() {
-  const [showForm,    setShowForm]    = useState(false);
-  const [pendingIds,  setPendingIds]  = useState<Set<string>>(new Set());
+  const [showFullForm,  setShowFullForm]  = useState(false);
+  const [editActivity,  setEditActivity]  = useState<ListedActivity | undefined>(undefined);
+  const [pendingIds,    setPendingIds]    = useState<Set<string>>(new Set());
 
   const { data, isLoading, isError } = useTodayActivities();
   const updateActivity = useUpdateActivity();
@@ -160,6 +165,10 @@ export function TodayView() {
     addPending(id);
     deleteActivity.mutate(id, { onSettled: () => removePending(id) });
   }
+  function handleEdit(activity: ListedActivity) {
+    setEditActivity(activity);
+    setShowFullForm(true);
+  }
   const totalToday = planned.length + completed.length + skipped.length;
   const { data: goals = [] } = useGoals({ status: 'active' });
 
@@ -168,7 +177,7 @@ export function TodayView() {
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
         {/* Page header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-white">Today</h1>
@@ -185,13 +194,12 @@ export function TodayView() {
               <p className="text-sm text-gray-400 mt-0.5">{formatTodayHeading(todayDate)}</p>
             )}
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            <span className="text-base leading-none">+</span> Log activity
-          </button>
         </div>
+
+        {/* ── Inline quick-log bar ── */}
+        <QuickLogBar
+          onOpenFullForm={() => setShowFullForm(true)}
+        />
 
         {/* Loading state */}
         {isLoading && (
@@ -228,7 +236,7 @@ export function TodayView() {
                   </Link>
                 )}
                 <button
-                  onClick={() => setShowForm(true)}
+                  onClick={() => setShowFullForm(true)}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   Log activity
@@ -249,6 +257,7 @@ export function TodayView() {
               onSkip={handleSkip}
               onUndo={handleUndo}
               onDelete={handleDelete}
+              onEdit={handleEdit}
               pendingIds={pendingIds}
               emptyText="Nothing left to do today 🎉"
             />
@@ -260,6 +269,7 @@ export function TodayView() {
               onSkip={handleSkip}
               onUndo={handleUndo}
               onDelete={handleDelete}
+              onEdit={handleEdit}
               pendingIds={pendingIds}
               emptyText="No completions yet — keep going!"
             />
@@ -271,6 +281,7 @@ export function TodayView() {
               onSkip={handleSkip}
               onUndo={handleUndo}
               onDelete={handleDelete}
+              onEdit={handleEdit}
               pendingIds={pendingIds}
               emptyText="Nothing skipped"
             />
@@ -279,11 +290,12 @@ export function TodayView() {
 
 
 
-      {/* Quick-log modal */}
-      {showForm && (
+      {/* Full-form modal (opened from QuickLogBar "More options", edit icon, or empty state) */}
+      {showFullForm && (
         <LogActivityForm
-          onClose={() => setShowForm(false)}
-          onSuccess={() => setShowForm(false)}
+          {...(editActivity && { editActivity })}
+          onClose={() => { setShowFullForm(false); setEditActivity(undefined); }}
+          onSuccess={() => { setShowFullForm(false); setEditActivity(undefined); }}
         />
       )}
     </div>
