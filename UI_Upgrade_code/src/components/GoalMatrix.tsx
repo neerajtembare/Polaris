@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import { Rocket, Palette, Monitor, Users, Plus, MoreVertical, Target, Lock, Command, Database, Shield, ChevronRight, Search, Bell, Settings, Mic, History, Activity } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { Theme, ScreenId } from '@/src/types';
+import ReactiveCard from './ui/ReactiveCard';
+import GoalConstellation from './3d/GoalConstellation';
 
 interface GoalMatrixProps {
   theme: Theme;
@@ -13,9 +15,12 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
   const isDark = theme === 'dark';
 
   return (
-    <div className="px-4 md:px-12 lg:px-20 max-w-[1600px] mx-auto">
+    <div className="px-4 md:px-12 lg:px-20 max-w-[1600px] mx-auto relative">
+      {/* 3D Background */}
+      <GoalConstellation theme={theme} />
+
       {/* Header Section */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-10 md:mb-16">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-10 md:mb-16 relative z-10">
         <div className="max-w-2xl space-y-2">
           {isDark && <p className="font-label text-[10px] uppercase tracking-[0.2em] text-dark-primary">Mission Protocol</p>}
           <h1 className={cn(
@@ -49,12 +54,9 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
       </header>
 
       {/* Bento Grid of Goals */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 relative z-10">
         {/* Primary Goal Card (Featured) */}
-        <div className={cn(
-          "md:col-span-2 rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-10 shadow-2xl relative overflow-hidden group transition-all hover:scale-[1.01]",
-          isDark ? "glass-morphism" : "bg-white"
-        )}>
+        <ReactiveCard isDark={isDark} className="md:col-span-2 overflow-hidden group">
           {/* Background Glow for Dark Mode */}
           {isDark && (
             <div className="absolute -top-24 -right-24 w-64 h-64 bg-dark-primary/20 blur-[100px] pointer-events-none" />
@@ -108,13 +110,10 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
               </div>
             </div>
           </div>
-        </div>
+        </ReactiveCard>
 
         {/* Goal Card 1 */}
-        <div className={cn(
-          "rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 shadow-2xl hover:shadow-3xl transition-all duration-500 group hover:-translate-y-2",
-          isDark ? "glass-morphism" : "bg-white"
-        )}>
+        <ReactiveCard isDark={isDark} className="group">
           <div className="flex justify-between items-start mb-8 md:mb-10">
             <div className={cn(
               "w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center transition-all group-hover:scale-110",
@@ -122,7 +121,7 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
             )}>
               <Palette className="w-5 h-5 md:w-6 md:h-6" />
             </div>
-            <button className={cn("opacity-40 hover:opacity-100 transition-opacity", isDark ? "text-dark-on-surface" : "text-on-surface")}><MoreVertical className="w-5 h-5" /></button>
+            <button className={cn("opacity-40 hover:opacity-100 transition-opacity relative z-20", isDark ? "text-dark-on-surface" : "text-on-surface")}><MoreVertical className="w-5 h-5" /></button>
           </div>
           <h3 className={cn("text-lg md:text-xl font-bold mb-3", isDark ? "text-dark-on-surface font-headline" : "text-on-surface")}>Core Optimization</h3>
           <p className={cn("text-xs md:text-sm opacity-60 mb-8 md:mb-10 leading-relaxed", isDark ? "text-dark-on-surface-variant" : "text-on-surface-variant")}>Increase efficiency of the primary data processing nodes across all clusters.</p>
@@ -146,13 +145,10 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
               </span>
             </div>
           </div>
-        </div>
+        </ReactiveCard>
 
         {/* Goal Card 2 */}
-        <div className={cn(
-          "rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 shadow-2xl hover:shadow-3xl transition-all duration-500 group hover:-translate-y-2",
-          isDark ? "glass-morphism" : "bg-white"
-        )}>
+        <ReactiveCard isDark={isDark} className="group">
           <div className="flex justify-between items-start mb-8 md:mb-10">
             <div className={cn(
               "w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center transition-all group-hover:scale-110",
@@ -160,7 +156,7 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
             )}>
               <Database className="w-5 h-5 md:w-6 md:h-6" />
             </div>
-            <button className={cn("opacity-40 hover:opacity-100 transition-opacity", isDark ? "text-dark-on-surface" : "text-on-surface")}><MoreVertical className="w-5 h-5" /></button>
+            <button className={cn("opacity-40 hover:opacity-100 transition-opacity relative z-20", isDark ? "text-dark-on-surface" : "text-on-surface")}><MoreVertical className="w-5 h-5" /></button>
           </div>
           <h3 className={cn("text-lg md:text-xl font-bold mb-3", isDark ? "text-dark-on-surface font-headline" : "text-on-surface")}>API Mesh Deployment</h3>
           <p className={cn("text-xs md:text-sm opacity-60 mb-8 md:mb-10 leading-relaxed", isDark ? "text-dark-on-surface-variant" : "text-on-surface-variant")}>Deploy the new API gateway across all global clusters for reduced latency.</p>
@@ -184,13 +180,10 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
               </span>
             </div>
           </div>
-        </div>
+        </ReactiveCard>
 
         {/* Goal Card 3 */}
-        <div className={cn(
-          "rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 shadow-2xl hover:shadow-3xl transition-all duration-500 group hover:-translate-y-2",
-          isDark ? "glass-morphism" : "bg-white"
-        )}>
+        <ReactiveCard isDark={isDark} className="group">
           <div className="flex justify-between items-start mb-8 md:mb-10">
             <div className={cn(
               "w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center transition-all group-hover:scale-110",
@@ -198,7 +191,7 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
             )}>
               <Shield className="w-5 h-5 md:w-6 md:h-6" />
             </div>
-            <button className={cn("opacity-40 hover:opacity-100 transition-opacity", isDark ? "text-dark-on-surface" : "text-on-surface")}><MoreVertical className="w-5 h-5" /></button>
+            <button className={cn("opacity-40 hover:opacity-100 transition-opacity relative z-20", isDark ? "text-dark-on-surface" : "text-on-surface")}><MoreVertical className="w-5 h-5" /></button>
           </div>
           <h3 className={cn("text-lg md:text-xl font-bold mb-3", isDark ? "text-dark-on-surface font-headline" : "text-on-surface")}>Security Hardening</h3>
           <p className={cn("text-xs md:text-sm opacity-60 mb-8 md:mb-10 leading-relaxed", isDark ? "text-dark-on-surface-variant" : "text-on-surface-variant")}>Implement zero-trust architecture across the internal network nodes.</p>
@@ -222,12 +215,12 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
               </span>
             </div>
           </div>
-        </div>
+        </ReactiveCard>
       </div>
 
       {/* Resource Allocation Focus (Dark Only) */}
       {isDark && (
-        <div className="mt-12 bg-surface-container-low rounded-2xl p-6 md:p-8 border border-outline-variant/10">
+        <div className="mt-12 bg-surface-container-low rounded-2xl p-6 md:p-8 border border-outline-variant/10 relative z-10">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <div>
               <h3 className="font-bold font-headline text-dark-on-surface">Resource Allocation Focus</h3>
