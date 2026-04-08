@@ -570,3 +570,111 @@ Return JSON:
     (null — parse failed or mock provider)
 
 ── STATUS: ❌  FAILED — fetch failed
+
+════════════════════════════════════════════════════════════════════════════════
+  2026-04-08 17:42:35  |  OLLAMA  |  parse-activity  |  301050ms
+════════════════════════════════════════════════════════════════════════════════
+
+── USER INPUT ──────────────────────────────────────────────────────────────────
+  "yo so i want to eat junk today"
+
+── SYSTEM PROMPT SENT ──────────────────────────────────────────────────────────
+  You are an activity parser for a personal goal-tracking app called Polaris.
+  Your job: parse the user's natural-language input into a structured JSON object.
+  Respond ONLY with raw JSON — no markdown fences, no explanation, no prose.
+  Your response must start with { and end with }. Nothing else.
+  
+  ━━━ CRITICAL RULES ━━━
+  1. Output ONLY the JSON object. No text before or after it. No "Here is the JSON:".
+  2. All field names must be exactly as specified. No extra fields.
+  3. "value" must be a number (integer or decimal) OR null — never a string.
+  4. "activityType" must be exactly one of: "quantity", "duration", "completion".
+  5. "intent" must be exactly one of: "log_activity", "create_goal", "query".
+  6. If activityType is "completion", value and unit MUST both be null.
+  7. If activityType is "quantity" or "duration" and you found a number, value must NOT be null.
+  
+  ━━━ INTENT DETECTION ━━━
+  First classify the user's intent:
+  "log_activity" — user is reporting something they did: "ran 5km", "slept 7 hours", "read 30 pages"
+  "create_goal"  — user wants to set a new goal: "I want to run 10k every week", "I want to set a goal", "I plan to save ₹10000 this month"
+  "query"        — user is asking a question: "how am I doing?", "what's my streak?"
+  Set intent in the response JSON.
+  
+  ━━━ ACTIVITY TYPE RULES ━━━
+  Use "duration" when the input mentions time spent: hours, minutes, hrs, mins, "for X time".
+  Use "quantity" when the input has a countable measure: pages, km, miles, steps, reps, sets, books, chapters, words, rupees, dollars, sessions, lessons.
+  Use "completion" when there is no quantity or time — just that something was done: meditated, did yoga, journaled, completed a workout.
+  Default to "quantity" only if truly ambiguous and there IS a number.
+  
+  ━━━ PRE-LOADED DOMAIN KNOWLEDGE ━━━
+  Reading   → pages, books, chapters        → quantity
+  Running   → km, miles, steps              → quantity
+  Walking   → km, miles, steps              → quantity
+  Cycling   → km, minutes                   → quant
+
+── USER PROMPT SENT ────────────────────────────────────────────────────────────
+  ━━━ EXAMPLES ━━━
+  Input: "read 30 pages of atomic habits"
+  Goals: [{"id":"g1","title":"Read 12 books this year","unit":"books"}]
+  Output: {"intent":"log_activity","title":"Read 30 pages of Atomic Habits","activityType":"quantity","value":30,"unit":"pages","suggestedGoalId":"g1","suggestedGoalTitle":"Read 12 books this year","confidence":0.92}
+  
+  Input: "ran 5.2km in the park"
+  Goals: [{"id":"g2","title":"Run 100km this month","unit":"km"}]
+  Output: {"intent":"log_activity","title":"Ran 5.2km in the park","activityType":"quantity","value":5.2,"unit":"km","suggestedGoalId":"g2","suggestedGoalTitle":"Run 100km this month","confidence":0.95}
+  
+  Input: "studied python for 2 hours"
+  Goals: [{"id":"g3","title":"Learn Python","unit":null}]
+  Output: {"intent":"log_activity","title":"Studied Python for 2 hours","activityType":"duration","value":2,"unit":"hours","suggestedGoalId":"g3","suggestedGoalTitle":"Learn Python","confidence":0.90}
+  
+  Input: "I want to set a long term goal to run 10k every week"
+  Goals: []
+  Output: {"intent":"create_goal","title":"Run 10k every week","activityType":"quantity","value":10,"unit":"km","suggestedGoalId":null,"suggestedGoalTitle":null,"confidence":0.90}
+  
+  Input: "saved ₹500 today"
+  Goals: [{"id":"g4","title":"Save ₹10000 this month","unit":"₹"}]
+  Output: {"intent":"log_activity","title":"Saved ₹500","activityType":"quantity","value":500,"unit":"₹","suggestedGoalId":"g4","suggestedGoalTitle":"Save ₹10000 this month","confidence":0.95}
+  
+  Input: "meditated this morning"
+  Goals: []
+  Output: {"intent":"log_activity","title":"Meditated","activityType":"completion","value":null,"unit":null,"suggestedGoalId":null,"suggestedGoalTitle":null,"confidence":0.75}
+  
+  Input: "did 3 sets of 10 pushups"
+  Goals: [{"id":"g5","title":"Build upper body strength","unit":"reps"}]
+  Output: {"intent":"log_activity","title":"3 sets of 10 pushups","activityType":"quantity","value":30,"unit":"reps","suggestedGoalId":"g5","suggestedGoalTitle":"Build upper body strength","confidence":0.85}
+  
+  Input: "slept 7.5 hours"
+  Goals: [{"id":"g6","title":"Sleep 8 hours daily","unit":"hours"}]
+  Output: {"intent":"log_activity","title":"Slept 7.5 hours","activityType":"duration","value":7.5,"unit":"hours","suggestedGoalId":"g6","suggestedGoalTitle":"Sleep 8 hours daily","confidence":0.95}
+  
+  Input: "walked 8000 steps"
+  Goals: []
+  Output: {"intent":"log_activity","title":"Walked 8,000 steps","activityType":"quantity","value":8000,"unit":"steps","suggestedGoalId":null,"suggestedGoalTitle":null,"confidence":0.88}
+  
+  Input: "slept at 1am and woke up at 7am"
+  Goals: [{"id":"g7","title":"Sleep 8 hours daily","unit":"hours"}]
+  Output: {"intent":"log_activity","title":"Slept 1am–7am","activityType":"duration","value":6,"unit":"hours","suggestedGoalId":"g7","suggestedGoalTitle":"Sleep 8 hours daily","confidence":0.92}
+  
+  ━━━ NOW PARSE THIS ━━━
+  Input: "yo so i want to eat junk today"
+  Goals: [{"id":"1df19689-6006-43cc-8c16-e5404e0b696e","title":"I want to read everyday","unit":"pages"}, {"id":"a1708b81-075b-4579-9f75-32ea16960c21","title":"sleep 6 hours","unit":"hours"}]
+  
+  Return a JSON object with exactly these fields. No other text. No markdown.
+  {
+    "intent": "log_activity" or "create_goal" or "query",
+    "title": "...",
+    "activityType": "quantity" or "duration" or "completion",
+    "value": number or null,
+    "unit": "string" or null,
+    "suggestedGoalId": "string" or null,
+    "suggestedGoalTitle": "string" or null,
+    "confidence": 0.0 to 1.0
+  }
+  Output:
+
+── RAW RESPONSE FROM OLLAMA ────────────────────────────────────────────────────
+  (empty)
+
+── PARSED RESULT ───────────────────────────────────────────────────────────────
+    (null — parse failed or mock provider)
+
+── STATUS: ❌  FAILED — fetch failed

@@ -14,7 +14,7 @@ interface SpinnerProps {
 export function Spinner({ sizeClass = 'h-5 w-5', className = '' }: SpinnerProps) {
   return (
     <svg
-      className={['animate-spin text-indigo-400', sizeClass, className].join(' ')}
+      className={['animate-spin text-primary dark:text-dark-primary', sizeClass, className].join(' ')}
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

@@ -32,6 +32,7 @@ interface LayoutProps {
   state: NavigationState;
   onNavigate: (screen: ScreenId, transition?: 'none' | 'push') => void;
   onToggleTheme: () => void;
+  onLogout: () => void;
   children: React.ReactNode;
 }
 
@@ -43,7 +44,7 @@ const NAV_ITEMS: { screen: ScreenId; label: string; Icon: React.FC<{ className?:
   { screen: 'Settings', label: 'Settings', Icon: Settings },
 ];
 
-export default function Layout({ state, onNavigate, onToggleTheme, children }: LayoutProps) {
+export default function Layout({ state, onNavigate, onToggleTheme, onLogout, children }: LayoutProps) {
   const isDark = state.theme === 'dark';
 
   return (
@@ -150,6 +151,19 @@ export default function Layout({ state, onNavigate, onToggleTheme, children }: L
                 P
               </div>
             </div>
+
+            {/* Logout */}
+            <button
+              onClick={onLogout}
+              aria-label="Sign out"
+              title="Sign out"
+              className={cn(
+                'p-2 rounded-xl transition-all active:scale-90',
+                isDark ? 'text-red-400 hover:bg-red-400/10' : 'text-on-surface-variant hover:text-red-500 hover:bg-red-50'
+              )}
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </nav>

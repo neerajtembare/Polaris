@@ -15,7 +15,7 @@
  * - hooks/useGoals.ts
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -67,6 +67,12 @@ interface CreateGoalFormProps {
 function CreateGoalForm({ isDark, onClose }: CreateGoalFormProps) {
   const createGoal = useCreateGoal();
   const [title, setTitle] = useState('');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
   const [description, setDescription] = useState('');
   const [timeframe, setTimeframe] = useState<'long' | 'medium' | 'short'>('medium');
   const [targetValue, setTargetValue] = useState('');

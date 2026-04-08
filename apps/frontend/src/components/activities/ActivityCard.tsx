@@ -16,6 +16,7 @@
 
 import { useState } from 'react';
 import { Hash, Timer, CheckCircle } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { StatusBadge } from '../ui/Badge.tsx';
 import { ConfirmModal } from '../ui/ConfirmModal.tsx';
 import type { ListedActivity } from '../../hooks/useActivities.ts';
@@ -26,6 +27,8 @@ import type { ListedActivity } from '../../hooks/useActivities.ts';
 
 interface ActivityCardProps {
   activity: ListedActivity;
+  /** Theme — drives all conditional styling */
+  isDark?: boolean;
   /** Called when user marks the activity complete. Optional value for quantity/duration. */
   onComplete: (id: string, value?: number) => void;
   /** Called when user marks the activity skipped */
@@ -55,6 +58,7 @@ interface ActivityCardProps {
  */
 export function ActivityCard({
   activity,
+  isDark = true,
   onComplete,
   onSkip,
   onUndo,
@@ -108,32 +112,37 @@ export function ActivityCard({
         onCancel={() => setShowConfirm(false)}
       />
 
-    <article className="glass hover:border-gray-700/60 transition-all duration-150 p-4">
+    <article className={cn(
+      'rounded-2xl border transition-all duration-150 p-4',
+      isDark
+        ? 'bg-white/3 border-white/10 hover:border-white/20'
+        : 'bg-surface-container-low border-outline-variant/15 hover:border-outline-variant/30'
+    )}>
 
       {/* Top row: type icon + title + actions */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5 flex-1 min-w-0">
-          <TypeIcon className="w-3.5 h-3.5 text-gray-600 mt-0.5 flex-shrink-0" aria-hidden="true" />
+          <TypeIcon className={cn('w-3.5 h-3.5 mt-0.5 flex-shrink-0', isDark ? 'text-dark-on-surface-variant/50' : 'text-on-surface-variant/50')} aria-hidden="true" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-100 leading-snug">{activity.title}</p>
+            <p className={cn('text-sm font-semibold leading-snug', isDark ? 'text-dark-on-surface' : 'text-on-surface')}>{activity.title}</p>
 
             {/* value / unit */}
             {activity.value !== null && (
-              <p className="mt-0.5 text-xs text-indigo-400 font-semibold tabular-nums">
+              <p className={cn('mt-0.5 text-xs font-semibold tabular-nums', isDark ? 'text-dark-primary' : 'text-primary')}>
                 {activity.value} {activity.unit ?? ''}
               </p>
             )}
 
             {/* goal link */}
             {activity.goalTitle && (
-              <p className="mt-0.5 text-xs text-gray-600">
-                <span className="text-gray-500">{activity.goalTitle}</span>
+              <p className={cn('mt-0.5 text-xs', isDark ? 'text-dark-on-surface-variant/60' : 'text-on-surface-variant/60')}>
+                <span>{activity.goalTitle}</span>
               </p>
             )}
 
             {/* notes */}
             {activity.notes && (
-              <p className="mt-1 text-xs text-gray-500 line-clamp-2">{activity.notes}</p>
+              <p className={cn('mt-1 text-xs line-clamp-2', isDark ? 'text-dark-on-surface-variant/60' : 'text-on-surface-variant/60')}>{activity.notes}</p>
             )}
           </div>
         </div>
@@ -145,7 +154,8 @@ export function ActivityCard({
               onClick={() => onEdit(activity)}
               disabled={isPending}
               aria-label={`Edit: ${activity.title}`}
-              className="text-gray-700 hover:text-indigo-400 transition-colors p-1.5 rounded-lg hover:bg-indigo-500/10 disabled:opacity-40"
+              className={cn('transition-colors p-1.5 rounded-lg disabled:opacity-40',
+                isDark ? 'text-dark-on-surface-variant/40 hover:text-dark-primary hover:bg-dark-primary/10' : 'text-on-surface-variant/40 hover:text-primary hover:bg-primary/10')}
             >
               ✎
             </button>
@@ -154,7 +164,8 @@ export function ActivityCard({
             onClick={() => setShowConfirm(true)}
             disabled={isPending}
             aria-label={`Delete: ${activity.title}`}
-            className="text-gray-700 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-500/10 disabled:opacity-40"
+            className={cn('transition-colors p-1.5 rounded-lg disabled:opacity-40',
+              isDark ? 'text-dark-on-surface-variant/40 hover:text-red-400 hover:bg-red-500/10' : 'text-on-surface-variant/40 hover:text-red-500 hover:bg-red-50')}
           >
             ✕
           </button>
@@ -163,8 +174,9 @@ export function ActivityCard({
 
       {/* Inline value prompt */}
       {showValuePrompt && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg bg-gray-800/80 border border-gray-700/60 px-3 py-2">
-          <label className="text-xs text-gray-400 shrink-0">
+        <div className={cn('mt-3 flex items-center gap-2 rounded-lg px-3 py-2 border',
+          isDark ? 'bg-white/5 border-white/10' : 'bg-surface-container-low border-outline-variant/20')}>
+          <label className={cn('text-xs shrink-0', isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant')}>
             How many{activity.unit ? ` ${activity.unit}` : ''}?
           </label>
           <input
@@ -175,20 +187,23 @@ export function ActivityCard({
             onChange={(e) => setPromptValue(e.target.value)}
             placeholder="0"
             autoFocus
-            className="flex-1 min-w-0 bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            className={cn('flex-1 min-w-0 rounded-md px-2 py-1 text-xs border focus:outline-none focus:ring-1',
+              isDark
+                ? 'bg-white/10 border-white/15 text-dark-on-surface placeholder-white/30 focus:ring-dark-primary/40'
+                : 'bg-surface-container border-outline-variant/20 text-on-surface placeholder-on-surface-variant/40 focus:ring-primary/30')}
           />
           <button
             type="button"
             onClick={handleConfirmValue}
             disabled={isPending}
-            className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-40"
+            className="px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-medium rounded-md transition-colors disabled:opacity-40"
           >
             ✓
           </button>
           <button
             type="button"
             onClick={handleCancelPrompt}
-            className="px-2 py-1 text-gray-500 hover:text-gray-300 text-xs transition-colors"
+            className={cn('px-2 py-1 text-xs transition-colors', isDark ? 'text-dark-on-surface-variant/50 hover:text-dark-on-surface' : 'text-on-surface-variant/50 hover:text-on-surface')}
           >
             ✕
           </button>
@@ -223,7 +238,8 @@ export function ActivityCard({
               <button
                 onClick={() => onUndo(activity.id)}
                 disabled={isPending}
-                className="px-2.5 py-1 bg-gray-800/80 hover:bg-gray-700 text-gray-400 text-xs font-medium rounded-lg border border-gray-700/50 transition-colors disabled:opacity-40"
+                className={cn('px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors disabled:opacity-40',
+                  isDark ? 'bg-white/5 hover:bg-white/10 text-dark-on-surface-variant border-white/10' : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border-outline-variant/20')}
               >
                 Undo
               </button>

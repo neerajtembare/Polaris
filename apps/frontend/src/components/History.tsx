@@ -142,7 +142,7 @@ export default function History({ theme, onNavigate: _onNavigate }: HistoryProps
               className="bg-transparent flex-1 focus:outline-none placeholder:opacity-30 text-sm"
               placeholder="Search activities…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
             />
           </div>
           <input
@@ -200,6 +200,7 @@ export default function History({ theme, onNavigate: _onNavigate }: HistoryProps
               >
                 <ActivityCard
                   activity={activity}
+                  isDark={isDark}
                   onComplete={(id) =>
                     updateActivity.mutate({ id, data: { status: 'completed' } })
                   }

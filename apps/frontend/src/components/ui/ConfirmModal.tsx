@@ -61,7 +61,7 @@ export function ConfirmModal({
       aria-labelledby="confirm-modal-message"
     >
       <div
-        className="glass max-w-sm w-full mx-4 p-6 shadow-2xl"
+        className="max-w-sm w-full mx-4 p-6 shadow-2xl rounded-2xl border bg-white dark:bg-dark-surface-container-low border-outline-variant/20 dark:border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Icon + message */}
@@ -70,11 +70,11 @@ export function ConfirmModal({
             <TriangleAlert className="w-4 h-4 text-red-400" />
           </div>
           <div>
-            <p id="confirm-modal-message" className="text-sm font-semibold text-gray-100">
+            <p id="confirm-modal-message" className="text-sm font-semibold text-on-surface dark:text-dark-on-surface">
               {message}
             </p>
             {detail && (
-              <p className="mt-1 text-xs text-gray-400">{detail}</p>
+              <p className="mt-1 text-xs text-on-surface-variant dark:text-dark-on-surface-variant opacity-70">{detail}</p>
             )}
           </div>
         </div>
@@ -84,7 +84,7 @@ export function ConfirmModal({
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium rounded-lg transition-colors text-on-surface-variant dark:text-dark-on-surface-variant bg-surface-container dark:bg-white/5 hover:bg-surface-container-high dark:hover:bg-white/10 border border-outline-variant/20 dark:border-white/10"
           >
             Cancel
           </button>

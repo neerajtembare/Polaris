@@ -10,7 +10,7 @@
  * - components/Hub, GoalMatrix, Insights, History, Settings, Login
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import Login from './components/Login';
@@ -22,13 +22,46 @@ import Settings from './components/Settings';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import type { ScreenId, Theme, NavigationState } from './types/navigation';
 
+const STORAGE_THEME_KEY = 'polaris:theme';
+const STORAGE_AUTH_KEY  = 'polaris:auth';
+
+function loadTheme(): Theme {
+  try {
+    const saved = localStorage.getItem(STORAGE_THEME_KEY);
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch { /* storage unavailable */ }
+  return 'dark';
+}
+
+function loadAuth(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_AUTH_KEY) === 'true';
+  } catch { return false; }
+}
+
 export default function App() {
   const [navState, setNavState] = useState<NavigationState>({
     screen: 'Hub',
-    theme: 'dark',
+    theme: loadTheme(),
     transition: 'none',
-    isAuthenticated: false,
+    isAuthenticated: loadAuth(),
   });
+
+  // Persist theme whenever it changes + sync <html> class for Tailwind dark:
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_THEME_KEY, navState.theme); } catch { /* noop */ }
+    const root = document.documentElement;
+    if (navState.theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, [navState.theme]);
+
+  // Persist auth whenever it changes
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_AUTH_KEY, String(navState.isAuthenticated)); } catch { /* noop */ }
+  }, [navState.isAuthenticated]);
 
   const navigate = (screen: ScreenId, transition: 'none' | 'push' = 'push') => {
     setNavState((prev) => ({ ...prev, screen, transition }));
@@ -45,11 +78,16 @@ export default function App() {
     setNavState((prev) => ({ ...prev, isAuthenticated: true, screen: 'Hub' }));
   };
 
+  const logout = () => {
+    try { localStorage.removeItem(STORAGE_AUTH_KEY); } catch { /* noop */ }
+    setNavState((prev) => ({ ...prev, isAuthenticated: false, screen: 'Hub' }));
+  };
+
   // Show login if not authenticated
   if (!navState.isAuthenticated) {
     return (
       <ErrorBoundary>
-        <Login theme={navState.theme} onLogin={login} />
+        <Login theme={navState.theme} onLogin={login} onToggleTheme={toggleTheme} />
         <ToastConfig isDark={navState.theme === 'dark'} />
       </ErrorBoundary>
     );
@@ -67,7 +105,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <Layout state={navState} onNavigate={navigate} onToggleTheme={toggleTheme}>
+      <Layout state={navState} onNavigate={navigate} onToggleTheme={toggleTheme} onLogout={logout}>
         {screenContent[navState.screen]}
       </Layout>
       <ToastConfig isDark={navState.theme === 'dark'} />

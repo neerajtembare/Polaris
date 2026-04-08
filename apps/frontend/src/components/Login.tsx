@@ -11,7 +11,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Points, PointMaterial } from '@react-three/drei';
 import * as random from 'maath/random/dist/maath-random.esm';
 import * as THREE from 'three';
-import { Shield, Zap, Globe, ArrowRight } from 'lucide-react';
+import { Shield, Zap, Globe, ArrowRight, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Theme } from '@/types/navigation';
 
@@ -45,15 +45,22 @@ function Stars({ isDark }: { isDark: boolean }) {
 interface LoginProps {
   theme: Theme;
   onLogin: () => void;
+  onToggleTheme: () => void;
 }
 
-export default function Login({ theme, onLogin }: LoginProps) {
+export default function Login({ theme, onLogin, onToggleTheme }: LoginProps) {
   const isDark = theme === 'dark';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter your email and password.');
+      return;
+    }
+    setError('');
     onLogin();
   };
 
@@ -71,6 +78,23 @@ export default function Login({ theme, onLogin }: LoginProps) {
         isDark ? 'bg-dark-bg text-white' : 'bg-white text-on-surface'
       )}
     >
+      {/* Theme toggle — top-right corner */}
+      <button
+        onClick={onToggleTheme}
+        aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        className={cn(
+          'fixed top-4 right-4 z-50 p-2.5 rounded-xl border transition-all active:scale-90 flex items-center gap-1.5',
+          isDark
+            ? 'bg-white/5 border-white/10 text-dark-primary hover:bg-white/10'
+            : 'bg-black/5 border-black/10 text-on-surface-variant hover:bg-black/10 hover:text-primary'
+        )}
+      >
+        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        <span className="text-[10px] font-bold uppercase tracking-widest">
+          {isDark ? 'Light' : 'Dark'}
+        </span>
+      </button>
       {/* Left: Brand + 3D */}
       <div className="relative w-full md:w-1/2 h-[42vh] md:h-screen flex flex-col justify-center px-6 md:px-20 overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -164,22 +188,40 @@ export default function Login({ theme, onLogin }: LoginProps) {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <input
-              className={inputClass}
-              type="email"
-              placeholder="Email address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-            />
-            <input
-              className={inputClass}
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
+            <div>
+              <label htmlFor="login-email" className={cn('block text-xs font-bold mb-1.5 uppercase tracking-widest opacity-60', isDark ? 'text-dark-on-surface' : 'text-on-surface')}>
+                Email
+              </label>
+              <input
+                id="login-email"
+                className={inputClass}
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                autoComplete="email"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="login-password" className={cn('block text-xs font-bold mb-1.5 uppercase tracking-widest opacity-60', isDark ? 'text-dark-on-surface' : 'text-on-surface')}>
+                Password
+              </label>
+              <input
+                id="login-password"
+                className={inputClass}
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-400 font-medium">{error}</p>
+            )}
 
             <button
               type="submit"

@@ -17,10 +17,11 @@
  * - hooks/useMetrics.ts
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic,
+  MicOff,
   Loader2,
   CheckCircle2,
   Flame,
@@ -40,6 +41,32 @@ import { useMetrics } from '@/hooks/useMetrics';
 import { useGoals } from '@/hooks/useGoals';
 import type { Theme, ScreenId } from '@/types/navigation';
 import toast from 'react-hot-toast';
+
+// ── SpeechRecognition type shim (not in lib.dom.d.ts by default) ─────────────
+interface ISpeechRecognition extends EventTarget {
+  continuous:     boolean;
+  interimResults: boolean;
+  lang:           string;
+  start():        void;
+  stop():         void;
+  abort():        void;
+  onstart:        ((this: ISpeechRecognition, ev: Event) => void) | null;
+  onend:          ((this: ISpeechRecognition, ev: Event) => void) | null;
+  onerror:        ((this: ISpeechRecognition, ev: SpeechRecognitionErrorEvent) => void) | null;
+  onresult:       ((this: ISpeechRecognition, ev: SpeechRecognitionEvent) => void) | null;
+}
+interface SpeechRecognitionErrorEvent extends Event { error: string; }
+interface SpeechRecognitionAlternative { transcript: string; }
+interface SpeechRecognitionResult { readonly 0: SpeechRecognitionAlternative | undefined; }
+interface SpeechRecognitionEvent extends Event { readonly results: ArrayLike<SpeechRecognitionResult>; }
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => ISpeechRecognition;
+    webkitSpeechRecognition?: new () => ISpeechRecognition;
+  }
+}
+
+
 
 interface HubProps {
   theme: Theme;
@@ -66,8 +93,49 @@ export default function Hub({ theme, onNavigate }: HubProps) {
   // Input state
   const [inputValue, setInputValue] = useState('');
   const [feedback, setFeedback] = useState<{ message: string; provider: string } | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<ISpeechRecognition | null>(null);
 
-  // Hooks
+  // Auto-clear feedback without leaking on unmount
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => setFeedback(null), 5_000);
+    return () => clearTimeout(timer);
+  }, [feedback]);
+
+  // Stop recognition on unmount
+  useEffect(() => {
+    return () => { recognitionRef.current?.abort(); };
+  }, []);
+
+  // Speech-to-text: transcribes into input field only — user reviews, then clicks Log
+  const handleMicClick = useCallback(() => {
+    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    if (!SR) {
+      toast.error('Voice input is not supported in this browser. Try Chrome or Edge.');
+      return;
+    }
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
+    const recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognitionRef.current = recognition;
+    recognition.onstart  = () => setIsListening(true);
+    recognition.onend    = () => setIsListening(false);
+    recognition.onerror  = (e: SpeechRecognitionErrorEvent) => {
+      setIsListening(false);
+      if (e.error !== 'aborted') toast.error(`Voice error: ${e.error}`);
+    };
+    recognition.onresult = (e: SpeechRecognitionEvent) => {
+      const transcript = e.results[0]?.[0]?.transcript ?? '';
+      if (transcript) setInputValue((prev) => prev ? `${prev} ${transcript}` : transcript);
+    };
+    recognition.start();
+  }, [isListening]);
   const { aiParse, isLoading: isParsingAi } = useAiParse();
   const createActivity = useCreateActivity();
   const { data: todayData } = useTodayActivities();
@@ -107,11 +175,12 @@ export default function Hub({ theme, onNavigate }: HubProps) {
         provider: aiResult?.provider ?? 'local',
       });
       setInputValue('');
-      setTimeout(() => setFeedback(null), 5_000);
     } catch {
       toast.error('Failed to log activity. Please try again.');
     }
   };
+
+  // Hooks
 
   // Derived metrics
   const streak = metrics?.currentStreak ?? 14; // sample fallback
@@ -178,11 +247,19 @@ export default function Hub({ theme, onNavigate }: HubProps) {
                 : 'bg-surface-container-lowest/80 border-outline-variant/10 focus-within:ring-primary/20'
             )}
           >
-            <div className="px-3 md:px-4">
-              <Mic
-                className={cn('w-5 h-5 md:w-6 md:h-6', isDark ? 'text-dark-primary' : 'text-primary')}
-              />
-            </div>
+            <button
+              type="button"
+              onClick={handleMicClick}
+              aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+              className={cn(
+                'px-3 md:px-4 py-1 rounded-lg transition-all active:scale-90 shrink-0',
+                isListening && 'animate-pulse'
+              )}
+            >
+              {isListening
+                ? <MicOff className={cn('w-5 h-5 md:w-6 md:h-6', isDark ? 'text-dark-primary' : 'text-primary')} />
+                : <Mic    className={cn('w-5 h-5 md:w-6 md:h-6 opacity-60 hover:opacity-100', isDark ? 'text-dark-primary' : 'text-primary')} />}
+            </button>
             <input
               className={cn(
                 'w-full bg-transparent border-none focus:ring-0 text-base md:text-lg py-3 md:py-4 placeholder:opacity-40 font-medium',
