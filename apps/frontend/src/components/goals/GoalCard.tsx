@@ -15,9 +15,11 @@
  * - src/hooks/useGoals.ts
  */
 
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TimeframeBadge, StatusBadge } from '../ui/Badge.tsx';
 import { ProgressBar } from '../ui/ProgressBar.tsx';
+import { ConfirmModal } from '../ui/ConfirmModal.tsx';
 import type { Goal } from '@polaris/shared';
 import type { GoalProgress } from '../../hooks/useGoals.ts';
 
@@ -46,18 +48,28 @@ interface GoalCardProps {
  * - Delete button
  */
 export function GoalCard({ goal, onDelete }: GoalCardProps) {
-  const progress = goal.progress;
+  const progress  = goal.progress;
   const hasTarget = goal.targetValue !== null && goal.targetValue > 0;
+  const [showConfirm, setShowConfirm] = useState(false);
 
   return (
-    <article className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-colors">
+    <>
+      <ConfirmModal
+        isOpen={showConfirm}
+        message="Delete this goal?"
+        detail={goal.title}
+        onConfirm={() => { setShowConfirm(false); onDelete(goal.id); }}
+        onCancel={() => setShowConfirm(false)}
+      />
+
+    <article className="glass hover:border-gray-700/60 transition-all duration-150 p-4">
 
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <Link
             to={`/goals/${goal.id}`}
-            className="text-sm font-semibold text-white hover:text-indigo-300 transition-colors line-clamp-2"
+            className="text-sm font-semibold text-gray-100 hover:text-indigo-300 transition-colors line-clamp-2"
           >
             {goal.title}
           </Link>
@@ -68,9 +80,9 @@ export function GoalCard({ goal, onDelete }: GoalCardProps) {
 
         {/* Delete button */}
         <button
-          onClick={() => onDelete(goal.id)}
+          onClick={() => setShowConfirm(true)}
           aria-label={`Delete goal: ${goal.title}`}
-          className="text-gray-600 hover:text-red-400 transition-colors p-1 -mr-1 flex-shrink-0"
+          className="text-gray-700 hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-500/10 flex-shrink-0"
         >
           ✕
         </button>
@@ -93,17 +105,20 @@ export function GoalCard({ goal, onDelete }: GoalCardProps) {
                 heightClass="h-1.5"
               />
               <p className="mt-1.5 text-xs text-gray-500">
-                {progress.currentValue} / {goal.targetValue} {goal.targetUnit ?? ''}
+                <span className="text-indigo-400 font-medium tabular-nums">{progress.currentValue}</span>
+                {' / '}
+                {goal.targetValue} {goal.targetUnit ?? ''}
                 {' · '}
                 <span className="text-gray-600">{progress.activityCount} activities</span>
               </p>
             </>
           ) : (
-            <div className="h-1.5 bg-gray-800 rounded-full" aria-label="No progress data yet" />
+            <div className="h-1.5 bg-gray-800/80 rounded-full" aria-label="No progress data yet" />
           )}
         </div>
       )}
 
     </article>
+    </>
   );
 }

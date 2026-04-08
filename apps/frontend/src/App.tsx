@@ -16,6 +16,7 @@
 
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AppLayout }      from './components/layout/AppLayout.tsx';
 import { ErrorBoundary }  from './components/ui/ErrorBoundary.tsx';
 import { Spinner }        from './components/ui/Spinner.tsx';
@@ -41,6 +42,20 @@ function Layout() {
 export default function App() {
   return (
     <ErrorBoundary>
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: '#1f2028',
+            color: '#e2e8f0',
+            border: '1px solid rgba(75,85,99,0.4)',
+            borderRadius: '0.75rem',
+            fontSize: '0.875rem',
+          },
+          success: { iconTheme: { primary: '#34d399', secondary: '#0e0e13' } },
+          error:   { iconTheme: { primary: '#f87171', secondary: '#0e0e13' } },
+        }}
+      />
       <Suspense
         fallback={
           <div className="min-h-screen bg-gray-950 flex items-center justify-center">

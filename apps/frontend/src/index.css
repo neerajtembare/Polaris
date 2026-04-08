@@ -10,7 +10,25 @@
   }
 
   body {
-    @apply bg-gray-950 text-gray-100;
+    background-color: #0e0e13;
+    @apply text-gray-300;
+  }
+
+  /*
+   * Thin dark scrollbar for a polished feel.
+   */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-600;
   }
 
   /*
@@ -19,5 +37,24 @@
    */
   :focus-visible {
     @apply outline-none ring-2 ring-indigo-500 ring-offset-2 ring-offset-gray-950;
+  }
+}
+
+@layer components {
+  /* Reusable glassmorphism card surface */
+  .glass {
+    @apply bg-gray-900/40 backdrop-blur-md border border-gray-800/50 rounded-xl;
+  }
+
+  /* Shimmer loading bar (use as background-image shorthand) */
+  .shimmer-bar {
+    background: linear-gradient(
+      90deg,
+      theme('colors.indigo.900 / 0%') 0%,
+      theme('colors.indigo.600 / 40%') 50%,
+      theme('colors.indigo.900 / 0%') 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
   }
 }

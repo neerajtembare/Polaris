@@ -14,8 +14,10 @@
  * - src/App.tsx
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Sparkles } from 'lucide-react';
+import { format } from 'date-fns';
 import { ProgressBar } from '../components/ui/ProgressBar.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
 import {
@@ -40,11 +42,11 @@ interface StatCardProps {
 
 function StatCard({ label, value, sublabel, accent = false }: StatCardProps) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+    <div className="glass px-5 py-4 rounded-2xl hover:border-gray-700/60 transition-colors">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-widest">{label}</p>
       <p
         className={[
-          'mt-1 text-3xl font-bold tabular-nums',
+          'mt-1.5 text-3xl font-bold tabular-nums',
           accent ? 'text-indigo-400' : 'text-white',
         ].join(' ')}
       >
@@ -58,33 +60,83 @@ function StatCard({ label, value, sublabel, accent = false }: StatCardProps) {
 // ——— Heatmap ———
 
 function Heatmap({ activityByDay }: { activityByDay: Record<string, number> }) {
-  const entries = Object.entries(activityByDay);
+  const entries = Object.entries(activityByDay).sort(([a], [b]) => a.localeCompare(b));
   if (entries.length === 0) return null;
 
   const max = Math.max(...entries.map(([, v]) => v), 1);
 
   function cellColor(count: number) {
-    if (count === 0) return 'bg-gray-800';
+    if (count === 0) return 'bg-gray-800/80';
     const pct = count / max;
-    if (pct <= 0.25) return 'bg-indigo-900';
+    if (pct <= 0.25) return 'bg-indigo-950 border border-indigo-800/40';
     if (pct <= 0.5)  return 'bg-indigo-700';
     if (pct <= 0.75) return 'bg-indigo-500';
-    return 'bg-indigo-400';
+    return 'bg-indigo-400 shadow-[0_0_4px_rgba(99,102,241,0.5)]';
   }
 
+  // Build week rows: group by ISO week so cells align to day-of-week columns
+  type WeekMap = Map<string, (readonly [string, number])[]>;
+  const weeks: WeekMap = new Map();
+  for (const entry of entries) {
+    const d    = new Date(entry[0] + 'T00:00:00');
+    const day  = d.getDay(); // 0=Sun
+    const diff = (day === 0 ? -6 : 1) - day; // shift to Monday-start
+    const mon  = new Date(d);
+    mon.setDate(d.getDate() + diff);
+    const key = mon.toISOString().split('T')[0] as string;
+    if (!weeks.has(key)) weeks.set(key, []);
+    weeks.get(key)!.push(entry as readonly [string, number]);
+  }
+
+  const weekKeys = Array.from(weeks.keys()).sort();
+  const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+    <div className="glass px-5 py-4">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-widest mb-3">
         Activity frequency
       </p>
-      <div className="flex flex-wrap gap-1">
-        {entries.map(([date, count]) => (
-          <div
-            key={date}
-            title={`${date}: ${count} activit${count === 1 ? 'y' : 'ies'}`}
-            className={`w-4 h-4 rounded-sm ${cellColor(count)} shrink-0`}
-          />
-        ))}
+      <div className="overflow-x-auto">
+        <div className="flex gap-1.5">
+          {/* Day labels column */}
+          <div className="flex flex-col gap-1 pt-0 mr-1">
+            {DAY_LABELS.map((d, i) => (
+              <div key={i} className="w-3.5 h-3.5 text-[9px] text-gray-600 flex items-center justify-center">
+                {d}
+              </div>
+            ))}
+          </div>
+          {/* Week columns */}
+          {weekKeys.map((wk) => {
+            const dayEntries = weeks.get(wk)!;
+            const dayMap: Record<number, readonly [string, number]> = {};
+            for (const e of dayEntries) {
+              const d   = new Date(e[0] + 'T00:00:00');
+              const dow = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
+              dayMap[dow] = e;
+            }
+            // Month label: show on first week where month changes
+            const firstDate  = dayMap[0] ? new Date(dayMap[0][0] + 'T00:00:00') : null;
+            const monthLabel = firstDate ? format(firstDate, 'MMM') : '';
+
+            return (
+              <div key={wk} className="flex flex-col gap-1">
+                <div className="text-[9px] text-gray-600 h-3 leading-none">{monthLabel}</div>
+                {Array.from({ length: 7 }, (_, i) => {
+                  const entry = dayMap[i];
+                  const [date, count] = entry ?? [null, 0];
+                  return (
+                    <div
+                      key={i}
+                      title={date ? `${date}: ${count} activit${count === 1 ? 'y' : 'ies'}` : ''}
+                      className={`w-3.5 h-3.5 rounded-sm ${cellColor(count)} shrink-0 transition-colors`}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -102,21 +154,24 @@ interface WeeklyAnalysisModalProps {
 function WeeklyAnalysisModal({ onClose, analysis, isLoading, error }: WeeklyAnalysisModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="weekly-analysis-title"
     >
       <div
-        className="bg-gray-900 border border-gray-700 rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto"
+        className="glass max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-          <h2 id="weekly-analysis-title" className="text-lg font-semibold text-white">Weekly Analysis</h2>
+        <div className="px-5 py-4 border-b border-gray-800/60 flex items-center justify-between">
+          <h2 id="weekly-analysis-title" className="text-base font-semibold text-white flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-indigo-400" />
+            Weekly Analysis
+          </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-500 hover:text-white transition-colors"
             aria-label="Close"
           >
             ✕
@@ -172,7 +227,7 @@ function GoalProgressList({ metrics }: { metrics: DashboardMetrics }) {
 
   if (goalProgress.length === 0) {
     return (
-      <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-6 text-center">
+      <div className="glass px-5 py-6 text-center">
         <p className="text-sm text-gray-500">No goal activity this period.</p>
         <Link to="/goals/new" className="mt-3 inline-block text-sm text-indigo-400 hover:underline">
           Create a goal →
@@ -182,18 +237,18 @@ function GoalProgressList({ metrics }: { metrics: DashboardMetrics }) {
   }
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4 space-y-4">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Goal progress</p>
+    <div className="glass px-5 py-4 space-y-4">
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-widest">Goal progress</p>
       {goalProgress.map((g) => (
         <div key={g.goalId}>
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1.5">
             <Link
               to={`/goals/${g.goalId}`}
-              className="text-sm font-medium text-white hover:text-indigo-300 transition-colors truncate max-w-[70%]"
+              className="text-sm font-medium text-gray-200 hover:text-indigo-300 transition-colors truncate max-w-[70%]"
             >
               {g.goalTitle}
             </Link>
-            <span className="text-xs text-gray-400 tabular-nums ml-2 shrink-0">
+            <span className="text-xs text-indigo-400 tabular-nums ml-2 shrink-0 font-medium">
               {g.targetValue !== null
                 ? `${g.currentValue} / ${g.targetValue}${g.unit ? ` ${g.unit}` : ''}`
                 : `${g.currentValue}${g.unit ? ` ${g.unit}` : ''}`}
@@ -216,16 +271,35 @@ const PERIOD_TABS: { label: string; value: MetricsPeriod }[] = [
   { label: 'Year',  value: 'year'  },
 ];
 
+const STORAGE_KEY = 'polaris:dashboard:period';
+
 /**
  * Dashboard page — activity stats, heatmap, and goal progress for the selected period.
  */
 export function Dashboard() {
-  const [period, setPeriod] = useState<MetricsPeriod>('week');
+  const [period, setPeriod] = useState<MetricsPeriod>(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return (stored === 'week' || stored === 'month' || stored === 'year') ? stored : 'week';
+  });
   const { data, isLoading, isError } = useMetrics(period);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AIWeeklyAnalysis | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  // Persist period selection
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, period);
+  }, [period]);
+
+  // Dynamic greeting
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  })();
+  const todayLabel = format(new Date(), 'EEEE, MMMM d');
 
   async function handleAnalyzeWeek() {
     setShowAnalysis(true);
@@ -252,22 +326,23 @@ export function Dashboard() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
-        {/* Page header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Page header — greeting */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Overview of your tracking activity</p>
+            <h1 className="text-2xl font-bold text-white">{greeting}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{todayLabel}</p>
           </div>
 
           {/* Period picker + Analyze Week */}
           <div className="flex items-center gap-3">
             <button
               onClick={handleAnalyzeWeek}
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition-colors"
             >
+              <Sparkles className="w-3.5 h-3.5" />
               Analyze Week
             </button>
-            <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+            <div className="flex gap-1 bg-gray-900/60 border border-gray-800/50 rounded-lg p-1">
             {PERIOD_TABS.map(({ label, value }) => (
               <button
                 key={value}
@@ -275,7 +350,7 @@ export function Dashboard() {
                 className={[
                   'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
                   period === value
-                    ? 'bg-gray-700 text-white shadow'
+                    ? 'bg-indigo-600 text-white shadow'
                     : 'text-gray-400 hover:text-gray-200',
                 ].join(' ')}
               >

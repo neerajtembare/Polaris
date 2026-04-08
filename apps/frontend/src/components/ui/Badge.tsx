@@ -11,9 +11,9 @@ import type { GoalTimeframe, GoalStatus, ActivityStatus } from '@polaris/shared'
 // ---------------------------------------------------------------------------
 
 const TIMEFRAME_STYLES: Record<GoalTimeframe, string> = {
-  long:   'bg-indigo-900/60 text-indigo-300 ring-indigo-700/40',
-  medium: 'bg-amber-900/60  text-amber-300  ring-amber-700/40',
-  short:  'bg-emerald-900/60 text-emerald-300 ring-emerald-700/40',
+  long:   'bg-indigo-500/15 text-indigo-300 ring-indigo-500/30',
+  medium: 'bg-amber-500/15  text-amber-300  ring-amber-500/30',
+  short:  'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30',
 };
 
 const TIMEFRAME_LABELS: Record<GoalTimeframe, string> = {
@@ -23,12 +23,12 @@ const TIMEFRAME_LABELS: Record<GoalTimeframe, string> = {
 };
 
 const STATUS_STYLES: Record<GoalStatus | ActivityStatus, string> = {
-  active:    'bg-green-900/60  text-green-300   ring-green-700/40',
-  completed: 'bg-blue-900/60   text-blue-300    ring-blue-700/40',
-  paused:    'bg-yellow-900/60 text-yellow-300  ring-yellow-700/40',
-  archived:  'bg-gray-800      text-gray-400    ring-gray-700/40',
-  planned:   'bg-gray-800      text-gray-300    ring-gray-700/40',
-  skipped:   'bg-orange-900/60 text-orange-300  ring-orange-700/40',
+  active:    'bg-green-500/15   text-green-300   ring-green-500/30',
+  completed: 'bg-blue-500/15    text-blue-300    ring-blue-500/30',
+  paused:    'bg-yellow-500/15  text-yellow-300  ring-yellow-500/30',
+  archived:  'bg-gray-500/15    text-gray-400    ring-gray-500/30',
+  planned:   'bg-gray-500/10    text-gray-400    ring-gray-600/30',
+  skipped:   'bg-orange-500/15  text-orange-300  ring-orange-500/30',
 };
 
 // ---------------------------------------------------------------------------

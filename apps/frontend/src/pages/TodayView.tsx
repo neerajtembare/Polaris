@@ -19,6 +19,8 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Plus } from 'lucide-react';
+import { format } from 'date-fns';
 import { ActivityCard } from '../components/activities/ActivityCard.tsx';
 import { LogActivityForm } from '../components/activities/LogActivityForm.tsx';
 import { QuickLogBar } from '../components/activities/QuickLogBar.tsx';
@@ -37,12 +39,10 @@ import { useMetrics } from '../hooks/useMetrics.ts';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Format "Monday 26 May 2025" */
+/** Format "Monday, 26 May 2025" */
 function formatTodayHeading(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-GB', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  });
+  return format(d, 'EEEE, MMMM d');
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +60,7 @@ interface ColumnProps {
   onEdit:     (activity: ListedActivity) => void;
   pendingIds: Set<string>;
   emptyText:  string;
+  accentClass?: string;
 }
 
 function Column({
@@ -73,23 +74,24 @@ function Column({
   onEdit,
   pendingIds,
   emptyText,
+  accentClass = 'border-t-2 border-gray-700',
 }: ColumnProps) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className={`flex flex-col gap-3 bg-gray-900/20 rounded-xl p-4 ${accentClass}`}>
       {/* Column heading */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mb-1">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500">
           {heading}
         </h2>
-        {badge !== undefined && badge !== 0 && (
-          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-gray-700 text-xs font-medium text-gray-300">
+        {badge !== undefined && (
+          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-gray-800 text-xs font-medium text-gray-400">
             {badge}
           </span>
         )}
       </div>
 
       {activities.length === 0 ? (
-        <p className="text-sm text-gray-600 italic">{emptyText}</p>
+        <p className="text-sm text-gray-600 italic pt-1">{emptyText}</p>
       ) : (
         <ul className="space-y-2">
           {activities.map((activity) => (
@@ -177,7 +179,7 @@ export function TodayView() {
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
         {/* Page header */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-white">Today</h1>
@@ -191,9 +193,17 @@ export function TodayView() {
               )}
             </div>
             {data && (
-              <p className="text-sm text-gray-400 mt-0.5">{formatTodayHeading(todayDate)}</p>
+              <p className="text-sm text-gray-500 mt-0.5">{formatTodayHeading(todayDate)}</p>
             )}
           </div>
+          {/* Primary log CTA */}
+          <button
+            onClick={() => setShowFullForm(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-indigo-900/30"
+          >
+            <Plus className="w-4 h-4" />
+            Log activity
+          </button>
         </div>
 
         {/* ── Inline quick-log bar ── */}
@@ -246,9 +256,9 @@ export function TodayView() {
           />
         )}
 
-        {/* Three-column grid */}
+        {/* Three-column kanban grid */}
         {!isLoading && !isError && totalToday > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Column
               heading="Planned"
               badge={planned.length}
@@ -260,6 +270,7 @@ export function TodayView() {
               onEdit={handleEdit}
               pendingIds={pendingIds}
               emptyText="Nothing left to do today 🎉"
+              accentClass="border-t-2 border-gray-600"
             />
             <Column
               heading="Completed"
@@ -272,6 +283,7 @@ export function TodayView() {
               onEdit={handleEdit}
               pendingIds={pendingIds}
               emptyText="No completions yet — keep going!"
+              accentClass="border-t-2 border-emerald-500/70"
             />
             <Column
               heading="Skipped"
@@ -284,6 +296,7 @@ export function TodayView() {
               onEdit={handleEdit}
               pendingIds={pendingIds}
               emptyText="Nothing skipped"
+              accentClass="border-t-2 border-orange-500/40"
             />
           </div>
         )}

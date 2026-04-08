@@ -14,18 +14,25 @@
 
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { LayoutDashboard, CalendarDays, Target, Activity, type LucideIcon } from 'lucide-react';
 import { FloatingLogButton } from '../activities/FloatingLogButton.tsx';
 
 // ---------------------------------------------------------------------------
 // Nav items — add future routes here
 // ---------------------------------------------------------------------------
 
-const NAV_ITEMS = [
-  { to: '/dashboard',  label: 'Dashboard',  icon: '⚡' },
-  { to: '/today',      label: 'Today',      icon: '📅' },
-  { to: '/goals',      label: 'Goals',      icon: '🎯' },
-  { to: '/activities', label: 'Activities', icon: '📋' },
-] as const;
+interface NavItem {
+  to:    string;
+  label: string;
+  Icon:  LucideIcon;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { to: '/dashboard',  label: 'Dashboard',  Icon: LayoutDashboard },
+  { to: '/today',      label: 'Today',      Icon: CalendarDays },
+  { to: '/goals',      label: 'Goals',      Icon: Target },
+  { to: '/activities', label: 'Activities', Icon: Activity },
+];
 
 // ---------------------------------------------------------------------------
 // Component
@@ -43,36 +50,38 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   return (
     <>
       {/* Brand */}
-      <div className="px-5 py-5 border-b border-gray-800">
-        <p className="text-lg font-bold tracking-tight text-white">✦ Polaris</p>
-        <p className="text-xs text-gray-500 mt-0.5">Activity tracker</p>
+      <div className="px-5 py-5 border-b border-gray-800/60">
+        <p className="text-lg font-bold tracking-tight text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.4)]">
+          ✦ Polaris
+        </p>
+        <p className="text-xs text-gray-600 mt-0.5">Activity tracker</p>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5" aria-label="Main navigation">
-        {NAV_ITEMS.map(({ to, label, icon }) => (
+        {NAV_ITEMS.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}
             onClick={onNavClick}
             className={({ isActive }) =>
               [
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white',
+                  ? 'border-l-2 border-indigo-500 bg-indigo-500/10 text-indigo-300 pl-[10px]'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5',
               ].join(' ')
             }
           >
-            <span aria-hidden="true">{icon}</span>
+            <Icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
             {label}
           </NavLink>
         ))}
       </nav>
 
       {/* Footer / version label */}
-      <div className="px-5 py-4 border-t border-gray-800">
-        <span className="text-xs text-gray-600">Phase 1 · MVP</span>
+      <div className="px-5 py-4 border-t border-gray-800/60">
+        <span className="text-xs text-gray-700">v1.0 · MVP</span>
       </div>
     </>
   );
@@ -87,17 +96,17 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
+    <div className="flex h-screen text-white overflow-hidden" style={{ background: '#0e0e13' }}>
 
       {/* ——— Desktop sidebar (hidden on small screens) ——— */}
-      <aside className="hidden md:flex w-56 flex-shrink-0 flex-col bg-gray-900 border-r border-gray-800">
+      <aside className="hidden md:flex w-56 flex-shrink-0 flex-col bg-gray-900/60 backdrop-blur-xl border-r border-gray-800/50">
         <SidebarContent />
       </aside>
 
       {/* ——— Mobile drawer overlay ——— */}
       {drawerOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 md:hidden"
+          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm md:hidden"
           onClick={() => setDrawerOpen(false)}
           aria-hidden="true"
         />
@@ -106,7 +115,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* ——— Mobile drawer panel ——— */}
       <aside
         className={[
-          'fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-gray-900 border-r border-gray-800',
+          'fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-gray-900/95 backdrop-blur-xl border-r border-gray-800/50',
           'transform transition-transform duration-200 ease-in-out md:hidden',
           drawerOpen ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
@@ -127,7 +136,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
         {/* Mobile top bar (visible only on small screens) */}
-        <header className="flex items-center gap-3 px-4 py-3 bg-gray-900 border-b border-gray-800 md:hidden">
+        <header className="flex items-center gap-3 px-4 py-3 bg-gray-900/80 backdrop-blur-xl border-b border-gray-800/50 md:hidden">
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Open navigation"
