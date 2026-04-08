@@ -57,4 +57,9 @@
     background-size: 200% 100%;
     @apply animate-shimmer;
   }
+
+  /* Safe area bottom padding for mobile devices with notches */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

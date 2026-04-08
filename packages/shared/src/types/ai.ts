@@ -8,10 +8,20 @@
 import type { ActivityType } from './activity.js';
 
 /**
+ * User intent detected from the raw input.
+ * - log_activity: User is reporting something they did ("ran 5km", "slept 7 hours")
+ * - create_goal:  User wants to set a new goal ("I want to run 10k every week")
+ * - query:        User is asking a question ("how am I doing?")
+ */
+export type UserIntent = 'log_activity' | 'create_goal' | 'query';
+
+/**
  * Structured parse result returned by any AI provider.
  * Maps directly to the LogActivityForm fields the frontend will auto-fill.
  */
 export interface AIActivityParse {
+  /** Detected user intent — drives frontend routing */
+  intent:              UserIntent;
   title:               string;
   activityType:        ActivityType;
   value:               number | null;

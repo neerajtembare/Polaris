@@ -127,6 +127,19 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
     },
     AIController.analyzeWeekHandler
   );
+
+  /**
+   * GET /api/ai/config
+   * Return the currently active AI provider name and Ollama model (if applicable).
+   */
+  app.get('/config', {}, AIController.getAiConfigHandler);
+
+  /**
+   * GET /api/ai/ollama-models
+   * Proxy to Ollama /api/tags — returns list of locally installed model names.
+   * Returns empty array if Ollama is unreachable.
+   */
+  app.get('/ollama-models', {}, AIController.getOllamaModelsHandler);
 };
 
 export default aiRoutes;

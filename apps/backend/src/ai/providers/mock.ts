@@ -5,7 +5,7 @@
  * @module @polaris/backend/ai
  */
 
-import type { ActivityType, AIActivityParse } from '@polaris/shared';
+import type { ActivityType, AIActivityParse, UserIntent } from '@polaris/shared';
 import type { AIProvider, GoalContext } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -66,31 +66,63 @@ export class MockProvider implements AIProvider {
   readonly name = 'mock';
 
   async parse(rawInput: string, goals: GoalContext[]): Promise<AIActivityParse> {
-    // Normalize word-form numbers before pattern matching
     const lower = normalizeWrittenNumbers(rawInput.toLowerCase());
-
+    const intent = this.detectIntent(lower);
     type _ParsedFields = { activityType: ActivityType; value: number | null; unit: string | null };
     const fields = this.extractFields(lower);
-
-    // Use original (non-normalized) input for goal matching so word-form terms like "sleep" still match
     const lowerOriginal = rawInput.toLowerCase();
     const { goalId, goalTitle, confidence } = this.matchGoal(lowerOriginal, goals, fields.unit);
-
     const title = this.buildTitle(rawInput);
-
     return {
+      intent,
       title,
       activityType:       fields.activityType,
       value:              fields.value,
       unit:               fields.unit,
       suggestedGoalId:    goalId,
       suggestedGoalTitle: goalTitle,
-      confidence,
+      confidence:         intent === 'create_goal' ? 0.88 : confidence,
       provider:           this.name,
     };
   }
 
+  private detectIntent(lower: string): UserIntent {
+    const goalCreationPhrases = [
+      'want to', 'want a goal', 'set a goal', 'create a goal', 'make a goal',
+      'i plan to', 'my goal is', "i'm trying to", 'i am trying to',
+      'i want to start', 'help me track', 'track my', 'i should',
+      'i need to', 'long term goal', 'short term goal', 'goal to',
+      'set a target', 'commit to', 'starting to',
+    ];
+    if (goalCreationPhrases.some((p) => lower.includes(p))) return 'create_goal';
+    const queryPhrases = [
+      'how am i', 'how did i', 'what is my', "what's my", 'show me',
+      'how much', 'am i on track', 'my progress', 'my streak',
+    ];
+    if (queryPhrases.some((p) => lower.includes(p))) return 'query';
+    return 'log_activity';
+  }
+
   private extractFields(lower: string): { activityType: ActivityType; value: number | null; unit: string | null } {
+    // ── Multi-segment time ranges: sum ALL "Xam → Yam" pairs in the input ────
+    const toMinutes = (h: string, m: string | undefined, period: string): number => {
+      let hours = parseInt(h, 10) % 12;
+      if (period.toLowerCase() === 'pm') hours += 12;
+      return hours * 60 + (m ? parseInt(m, 10) : 0);
+    };
+    const timeRangeRegex = /(\d{1,2})(?::(\d{2}))?\s*(am|pm).*?(\d{1,2})(?::(\d{2}))?\s*(am|pm)/gi;
+    let totalMinutes = 0;
+    let segmentCount = 0;
+    for (const tr of [...lower.matchAll(timeRangeRegex)]) {
+      const startMin = toMinutes(tr[1] ?? '0', tr[2], tr[3] ?? 'am');
+      const endMin   = toMinutes(tr[4] ?? '0', tr[5], tr[6] ?? 'am');
+      const diffMin  = endMin >= startMin ? endMin - startMin : endMin + 24 * 60 - startMin;
+      if (diffMin > 0 && diffMin <= 16 * 60) { totalMinutes += diffMin; segmentCount++; }
+    }
+    if (segmentCount > 0) {
+      return { activityType: 'duration', value: parseFloat((totalMinutes / 60).toFixed(2)), unit: 'hours' };
+    }
+
     const patterns: Array<{ regex: RegExp; unit: string; activityType: ActivityType; multiplier?: number }> = [
       { regex: /(\d+(?:\.\d+)?)\s*(?:pages?|pg)/,              unit: 'pages',   activityType: 'quantity' },
       { regex: /(\d+(?:\.\d+)?)\s*(?:books?)/,                unit: 'books',   activityType: 'quantity' },

@@ -1,8 +1,7 @@
 /**
  * @file App.tsx
  * @description Root application component with route definitions.
- *   All app routes share the AppLayout via a single layout route —
- *   individual pages no longer need to import/render AppLayout themselves.
+ *   All app routes share the AppLayout via a single layout route.
  *   Pages are lazy-loaded to reduce initial bundle size.
  * @module @polaris/frontend
  *
@@ -21,13 +20,13 @@ import { AppLayout }      from './components/layout/AppLayout.tsx';
 import { ErrorBoundary }  from './components/ui/ErrorBoundary.tsx';
 import { Spinner }        from './components/ui/Spinner.tsx';
 
-// Lazy-loaded pages — each gets its own chunk, reducing initial JS payload
-const Dashboard      = lazy(() => import('./pages/Dashboard.tsx').then((m) => ({ default: m.Dashboard })));
+// Lazy-loaded pages
+const Home           = lazy(() => import('./pages/Home.tsx'));
 const GoalsList      = lazy(() => import('./pages/GoalsList.tsx').then((m) => ({ default: m.GoalsList })));
 const GoalCreate     = lazy(() => import('./pages/GoalCreate.tsx').then((m) => ({ default: m.GoalCreate })));
 const GoalDetail     = lazy(() => import('./pages/GoalDetail.tsx').then((m) => ({ default: m.GoalDetail })));
 const ActivitiesList = lazy(() => import('./pages/ActivitiesList.tsx').then((m) => ({ default: m.ActivitiesList })));
-const TodayView      = lazy(() => import('./pages/TodayView.tsx').then((m) => ({ default: m.TodayView })));
+const Settings       = lazy(() => import('./pages/Settings.tsx').then((m) => ({ default: m.Settings })));
 const NotFound       = lazy(() => import('./pages/NotFound.tsx').then((m) => ({ default: m.NotFound })));
 
 /** Shared layout wrapper — renders AppLayout with the matched child route inside */
@@ -64,17 +63,20 @@ export default function App() {
         }
       >
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
           {/* All app pages share the AppLayout via this layout route */}
           <Route element={<Layout />}>
-            <Route path="/dashboard"  element={<Dashboard />} />
+            <Route path="/"           element={<Home />} />
             <Route path="/goals"      element={<GoalsList />} />
             <Route path="/goals/new"  element={<GoalCreate />} />
             <Route path="/goals/:id"  element={<GoalDetail />} />
-            <Route path="/activities" element={<ActivitiesList />} />
-            <Route path="/today"      element={<TodayView />} />
+            <Route path="/history"    element={<ActivitiesList />} />
+            <Route path="/settings"   element={<Settings />} />
           </Route>
+
+          {/* Legacy route redirects */}
+          <Route path="/dashboard"  element={<Navigate to="/" replace />} />
+          <Route path="/today"      element={<Navigate to="/" replace />} />
+          <Route path="/activities" element={<Navigate to="/history" replace />} />
 
           {/* Catch-all: any unmatched path shows 404 */}
           <Route path="*" element={<NotFound />} />

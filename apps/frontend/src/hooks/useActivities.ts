@@ -19,6 +19,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api, type PaginatedResponse } from '../services/api.js';
+import { goalKeys } from './useGoals.js';
 import type {
   Activity,
   CreateActivityInput,
@@ -159,7 +160,9 @@ export function useCreateActivity() {
       void queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: activityKeys.today() });
       if (input.goalId) {
-        void queryClient.invalidateQueries({ queryKey: ['goals', 'detail', input.goalId] });
+        // Invalidate both the goal detail AND the goal list (home dashboard progress)
+        void queryClient.invalidateQueries({ queryKey: goalKeys.detail(input.goalId) });
+        void queryClient.invalidateQueries({ queryKey: goalKeys.lists() });
       }
       toast.success('Activity logged');
     },
@@ -185,9 +188,10 @@ export function useUpdateActivity() {
       void queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: activityKeys.today() });
       void queryClient.invalidateQueries({ queryKey: activityKeys.detail(id) });
-      // Invalidate goal progress if linked
+      // Invalidate goal progress if linked (both detail and list for home dashboard)
       if (activity.goalId) {
-        void queryClient.invalidateQueries({ queryKey: ['goals', 'detail', activity.goalId] });
+        void queryClient.invalidateQueries({ queryKey: goalKeys.detail(activity.goalId) });
+        void queryClient.invalidateQueries({ queryKey: goalKeys.lists() });
       }
     },
   });
