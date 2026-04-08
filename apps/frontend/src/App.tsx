@@ -1,87 +1,101 @@
 /**
  * @file App.tsx
- * @description Root application component with route definitions.
- *   All app routes share the AppLayout via a single layout route.
- *   Pages are lazy-loaded to reduce initial bundle size.
+ * @description Root application component with state-based navigation.
+ *   Manages screen, theme, and auth state. Uses Kinetic Precision layout.
  * @module @polaris/frontend
  *
  * @dependencies
- * - react-router-dom
- *
- * @relatedFiles
- * - src/components/layout/AppLayout.tsx
- * - src/pages/*.tsx
+ * - motion/react (AnimatePresence)
+ * - components/Layout
+ * - components/Hub, GoalMatrix, Insights, History, Settings, Login
  */
 
-import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
-import { AppLayout }      from './components/layout/AppLayout.tsx';
-import { ErrorBoundary }  from './components/ui/ErrorBoundary.tsx';
-import { Spinner }        from './components/ui/Spinner.tsx';
-
-// Lazy-loaded pages
-const Home           = lazy(() => import('./pages/Home.tsx'));
-const GoalsList      = lazy(() => import('./pages/GoalsList.tsx').then((m) => ({ default: m.GoalsList })));
-const GoalCreate     = lazy(() => import('./pages/GoalCreate.tsx').then((m) => ({ default: m.GoalCreate })));
-const GoalDetail     = lazy(() => import('./pages/GoalDetail.tsx').then((m) => ({ default: m.GoalDetail })));
-const ActivitiesList = lazy(() => import('./pages/ActivitiesList.tsx').then((m) => ({ default: m.ActivitiesList })));
-const Settings       = lazy(() => import('./pages/Settings.tsx').then((m) => ({ default: m.Settings })));
-const NotFound       = lazy(() => import('./pages/NotFound.tsx').then((m) => ({ default: m.NotFound })));
-
-/** Shared layout wrapper — renders AppLayout with the matched child route inside */
-function Layout() {
-  return (
-    <AppLayout>
-      <Outlet />
-    </AppLayout>
-  );
-}
+import Layout from './components/Layout';
+import Login from './components/Login';
+import Hub from './components/Hub';
+import GoalMatrix from './components/GoalMatrix';
+import Insights from './components/Insights';
+import History from './components/History';
+import Settings from './components/Settings';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import type { ScreenId, Theme, NavigationState } from './types/navigation';
 
 export default function App() {
+  const [navState, setNavState] = useState<NavigationState>({
+    screen: 'Hub',
+    theme: 'dark',
+    transition: 'none',
+    isAuthenticated: false,
+  });
+
+  const navigate = (screen: ScreenId, transition: 'none' | 'push' = 'push') => {
+    setNavState((prev) => ({ ...prev, screen, transition }));
+  };
+
+  const toggleTheme = () => {
+    setNavState((prev) => ({
+      ...prev,
+      theme: prev.theme === 'dark' ? 'light' : 'dark',
+    }));
+  };
+
+  const login = () => {
+    setNavState((prev) => ({ ...prev, isAuthenticated: true, screen: 'Hub' }));
+  };
+
+  // Show login if not authenticated
+  if (!navState.isAuthenticated) {
+    return (
+      <ErrorBoundary>
+        <Login theme={navState.theme} onLogin={login} />
+        <ToastConfig isDark={navState.theme === 'dark'} />
+      </ErrorBoundary>
+    );
+  }
+
+  const sharedProps = { theme: navState.theme, onNavigate: navigate } as const;
+
+  const screenContent = {
+    Hub:      <Hub      {...sharedProps} />,
+    Goals:    <GoalMatrix {...sharedProps} />,
+    Insights: <Insights {...sharedProps} />,
+    History:  <History  {...sharedProps} />,
+    Settings: <Settings {...sharedProps} />,
+  };
+
   return (
     <ErrorBoundary>
-      <Toaster
-        position="bottom-right"
-        toastOptions={{
-          style: {
-            background: '#1f2028',
-            color: '#e2e8f0',
-            border: '1px solid rgba(75,85,99,0.4)',
-            borderRadius: '0.75rem',
-            fontSize: '0.875rem',
-          },
-          success: { iconTheme: { primary: '#34d399', secondary: '#0e0e13' } },
-          error:   { iconTheme: { primary: '#f87171', secondary: '#0e0e13' } },
-        }}
-      />
-      <Suspense
-        fallback={
-          <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-            <Spinner sizeClass="h-10 w-10" />
-          </div>
-        }
-      >
-        <Routes>
-          {/* All app pages share the AppLayout via this layout route */}
-          <Route element={<Layout />}>
-            <Route path="/"           element={<Home />} />
-            <Route path="/goals"      element={<GoalsList />} />
-            <Route path="/goals/new"  element={<GoalCreate />} />
-            <Route path="/goals/:id"  element={<GoalDetail />} />
-            <Route path="/history"    element={<ActivitiesList />} />
-            <Route path="/settings"   element={<Settings />} />
-          </Route>
-
-          {/* Legacy route redirects */}
-          <Route path="/dashboard"  element={<Navigate to="/" replace />} />
-          <Route path="/today"      element={<Navigate to="/" replace />} />
-          <Route path="/activities" element={<Navigate to="/history" replace />} />
-
-          {/* Catch-all: any unmatched path shows 404 */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Suspense>
+      <Layout state={navState} onNavigate={navigate} onToggleTheme={toggleTheme}>
+        {screenContent[navState.screen]}
+      </Layout>
+      <ToastConfig isDark={navState.theme === 'dark'} />
     </ErrorBoundary>
   );
 }
+
+function ToastConfig({ isDark }: { isDark: boolean }) {
+  return (
+    <Toaster
+      position="bottom-right"
+      toastOptions={{
+        duration: 3000,
+        style: {
+          background: isDark ? '#0f172a' : '#ffffff',
+          color: isDark ? '#f1f5f9' : '#1e293b',
+          border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+          borderRadius: '12px',
+          fontSize: '14px',
+        },
+        success: {
+          iconTheme: { primary: isDark ? '#81ecff' : '#0058be', secondary: isDark ? '#020617' : '#ffffff' },
+        },
+        error: {
+          iconTheme: { primary: '#ef4444', secondary: isDark ? '#020617' : '#ffffff' },
+        },
+      }}
+    />
+  );
+}
+
