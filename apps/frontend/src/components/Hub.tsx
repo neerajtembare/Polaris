@@ -27,8 +27,9 @@ import {
   Target,
   Activity,
   ChevronRight,
-  Plus,
   BarChart2,
+  Dumbbell,
+  BookOpen,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,7 @@ import ReactiveCard from './ui/ReactiveCard';
 import { useAiParse } from '@/hooks/useAiParse';
 import { useCreateActivity, useTodayActivities } from '@/hooks/useActivities';
 import { useMetrics } from '@/hooks/useMetrics';
+import { useGoals } from '@/hooks/useGoals';
 import type { Theme, ScreenId } from '@/types/navigation';
 import toast from 'react-hot-toast';
 
@@ -70,6 +72,7 @@ export default function Hub({ theme, onNavigate }: HubProps) {
   const createActivity = useCreateActivity();
   const { data: todayData } = useTodayActivities();
   const { data: metrics } = useMetrics('week');
+  const { data: goalsData } = useGoals({ status: 'active', includeProgress: true });
 
   const isLogging = isParsingAi || createActivity.isPending;
 
@@ -111,19 +114,35 @@ export default function Hub({ theme, onNavigate }: HubProps) {
   };
 
   // Derived metrics
-  const streak = metrics?.currentStreak ?? 0;
+  const streak = metrics?.currentStreak ?? 14; // sample fallback
   const completedToday = todayData?.completed?.length ?? 0;
   const plannedToday = todayData?.planned?.length ?? 0;
-  const recentActivities = [
-    ...(todayData?.completed ?? []).slice(0, 3),
-    ...(todayData?.planned ?? []).slice(0, 2),
-  ];
 
   // Weekly bar chart — activityByDay is a Record<YYYY-MM-DD, number>
-  const weeklyBars: number[] = metrics?.activityByDay
+  const rawBars: number[] = metrics?.activityByDay
     ? Object.values(metrics.activityByDay).slice(-7)
-    : [0, 0, 0, 0, 0, 0, 0];
+    : [];
+  const weeklyBars: number[] = rawBars.length > 0
+    ? rawBars
+    : [60, 80, 40, 95, 70, 85, 100]; // sample bars when no data
   const maxBar = Math.max(...weeklyBars, 1);
+
+  // Sample goals fallback (show when no real goals available)
+  const sampleGoals = [
+    { id: 's1', title: isDark ? 'Neural Network Training' : 'Product Launch Phase 1', progress: 72, color: isDark ? 'plasma-gradient' : 'signature-gradient', Icon: Target },
+    { id: 's2', title: isDark ? 'Cognitive Flow Optimization' : 'Marathon Training',   progress: 45, color: isDark ? 'bg-gradient-to-r from-dark-secondary to-purple-400' : 'bg-gradient-to-r from-purple-500 to-indigo-500', Icon: Dumbbell },
+    { id: 's3', title: isDark ? 'System Latency Reduction'   : 'Read 24 Books',        progress: 50, color: isDark ? 'bg-gradient-to-r from-dark-tertiary to-blue-400'   : 'bg-gradient-to-r from-blue-500 to-cyan-500', Icon: BookOpen },
+  ] as const;
+
+  const displayGoals = (goalsData && goalsData.length > 0)
+    ? goalsData.slice(0, 3).map((g, i) => ({
+        id: g.id,
+        title: g.title,
+        progress: g.progress ? Math.round((g.progress.currentValue / (g.progress.targetValue || 1)) * 100) : 0,
+        color: sampleGoals[i % 3]?.color ?? 'signature-gradient',
+        Icon: sampleGoals[i % 3]?.Icon ?? Target,
+      }))
+    : sampleGoals;
 
   return (
     <div className="px-4 md:px-12 max-w-7xl mx-auto relative">
@@ -234,7 +253,7 @@ export default function Hub({ theme, onNavigate }: HubProps) {
       {/* ── Bento Grid ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 relative z-10">
 
-        {/* Streak Card */}
+        {/* ── Streak / Self-Mastery Card (col 4) ───────────────────── */}
         <ReactiveCard isDark={isDark} className="md:col-span-4 flex flex-col justify-between">
           <div>
             <h3
@@ -243,7 +262,7 @@ export default function Hub({ theme, onNavigate }: HubProps) {
                 isDark ? 'text-dark-primary' : 'text-primary'
               )}
             >
-              Activity Streak
+              {isDark ? 'Self-Mastery Index' : 'Activity Streak'}
             </h3>
             <div className="flex items-baseline gap-2">
               <span
@@ -257,7 +276,7 @@ export default function Hub({ theme, onNavigate }: HubProps) {
               <span
                 className={cn('text-lg md:text-xl font-bold', isDark ? 'text-dark-primary' : 'text-on-surface-variant')}
               >
-                days
+                {isDark ? 'Cycles' : 'days'}
               </span>
             </div>
             <p
@@ -266,7 +285,11 @@ export default function Hub({ theme, onNavigate }: HubProps) {
                 isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant'
               )}
             >
-              Keep going — consistency compounds.
+              {isDark
+                ? 'Your neural focus consistency is at peak efficiency.'
+                : completedToday > 0
+                  ? `${completedToday} done · ${plannedToday} planned today`
+                  : "You're in the top 5% of productive users this month."}
             </p>
           </div>
           {/* Weekly bar chart */}
@@ -279,7 +302,7 @@ export default function Hub({ theme, onNavigate }: HubProps) {
                 <motion.div
                   initial={{ height: 0 }}
                   animate={{ height: `${(count / maxBar) * 100}%` }}
-                  transition={{ duration: 0.8, delay: i * 0.08 }}
+                  transition={{ duration: 1, delay: i * 0.1 }}
                   className={cn(
                     'w-full rounded-lg',
                     isDark ? 'plasma-gradient shadow-[0_0_10px_rgba(129,236,255,0.4)]' : 'signature-gradient'
@@ -290,8 +313,8 @@ export default function Hub({ theme, onNavigate }: HubProps) {
           </div>
         </ReactiveCard>
 
-        {/* Today Overview */}
-        <ReactiveCard isDark={isDark} className="md:col-span-8 flex flex-col">
+        {/* ── Momentum Spline (col 8) ───────────────────────────────── */}
+        <ReactiveCard isDark={isDark} className="md:col-span-8 flex flex-col justify-between">
           <div className="flex justify-between items-center mb-6">
             <h3
               className={cn(
@@ -299,156 +322,147 @@ export default function Hub({ theme, onNavigate }: HubProps) {
                 isDark ? 'text-dark-primary' : 'text-primary'
               )}
             >
-              Today
+              {isDark ? 'Activity Momentum' : 'Momentum Spline'}
             </h3>
-            <div className="flex gap-3">
-              <div className="flex flex-col items-center">
-                <span
-                  className={cn('text-2xl font-black', isDark ? 'text-dark-primary' : 'text-primary')}
-                >
-                  {completedToday}
-                </span>
-                <span className="text-[9px] uppercase tracking-widest opacity-50 font-bold">Done</span>
+            <span className={cn('text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded', isDark ? 'bg-dark-primary/20 text-dark-primary' : 'bg-primary/10 text-primary')}>
+              Live
+            </span>
+          </div>
+
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-center">
+            {/* Option A: Velocity Spline */}
+            <div className="w-full relative">
+              <p className={cn('text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 text-center', isDark ? 'text-dark-on-surface' : 'text-on-surface')}>
+                Option A: Velocity Spline
+              </p>
+              <div className="h-32 w-full relative">
+                <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 500 100">
+                  <defs>
+                    <linearGradient id="splineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={isDark ? '#81ecff' : '#0058be'} stopOpacity="0.1" />
+                      <stop offset="50%" stopColor={isDark ? '#81ecff' : '#0058be'} stopOpacity="1" />
+                      <stop offset="100%" stopColor={isDark ? '#c280ff' : '#2170e4'} stopOpacity="1" />
+                    </linearGradient>
+                  </defs>
+                  <motion.path
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 2, ease: 'easeInOut' }}
+                    d="M0,80 C100,80 150,20 250,40 C350,60 400,10 500,30"
+                    fill="none"
+                    stroke="url(#splineGrad)"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    style={{ filter: isDark ? 'drop-shadow(0px 0px 8px rgba(129,236,255,0.5))' : 'none' }}
+                  />
+                  <circle cx="250" cy="40" r="4" fill={isDark ? '#81ecff' : '#0058be'} className="animate-pulse" />
+                  <circle cx="500" cy="30" r="4" fill={isDark ? '#c280ff' : '#2170e4'} className="animate-pulse" />
+                </svg>
               </div>
-              <div className={cn('w-px', isDark ? 'bg-white/10' : 'bg-black/10')} />
-              <div className="flex flex-col items-center">
-                <span
-                  className={cn('text-2xl font-black', isDark ? 'text-dark-on-surface' : 'text-on-surface')}
-                >
-                  {plannedToday}
-                </span>
-                <span className="text-[9px] uppercase tracking-widest opacity-50 font-bold">Planned</span>
+            </div>
+
+            {/* Option B: Orbital Radar */}
+            <div className="w-full relative flex flex-col items-center">
+              <p className={cn('text-[10px] font-black uppercase tracking-widest opacity-40 mb-2 text-center', isDark ? 'text-dark-on-surface' : 'text-on-surface')}>
+                Option B: Orbital Radar
+              </p>
+              <div className="h-32 w-32 relative flex items-center justify-center">
+                <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r="20" fill="none" stroke={isDark ? '#81ecff' : '#0058be'} strokeWidth="1" strokeOpacity="0.2" />
+                  <circle cx="50" cy="50" r="35" fill="none" stroke={isDark ? '#81ecff' : '#0058be'} strokeWidth="1" strokeOpacity="0.4" strokeDasharray="4 4" />
+                  <circle cx="50" cy="50" r="50" fill="none" stroke={isDark ? '#81ecff' : '#0058be'} strokeWidth="1" strokeOpacity="0.1" />
+                  <motion.circle
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
+                    style={{ transformOrigin: '50px 50px' }}
+                    cx="50" cy="15" r="3" fill={isDark ? '#81ecff' : '#0058be'}
+                  />
+                  <motion.circle
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+                    style={{ transformOrigin: '50px 50px' }}
+                    cx="85" cy="50" r="2" fill={isDark ? '#c280ff' : '#2170e4'}
+                  />
+                </svg>
               </div>
             </div>
           </div>
 
-          {/* Recent activities */}
-          <div className="flex-1 space-y-3">
-            {recentActivities.length === 0 ? (
-              <div
-                className={cn(
-                  'flex flex-col items-center justify-center py-10 text-center',
-                  isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant'
-                )}
-              >
-                <Activity className="w-8 h-8 mb-3 opacity-30" />
-                <p className="text-sm font-medium opacity-60">No activities yet today</p>
-                <p className="text-xs opacity-40 mt-1">Log something above to get started</p>
+          <div className="mt-6 md:mt-8 pt-6 border-t border-current opacity-10 flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <BarChart2 className={cn('w-4 h-4', isDark ? 'text-dark-primary' : 'text-primary')} />
+              <div>
+                <p className={cn('text-xs font-bold', isDark ? 'text-dark-on-surface' : 'text-on-surface')}>Deep Work Focus</p>
+                <p className={cn('text-[10px] opacity-60', isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant')}>
+                  {metrics?.completedActivities ? `${metrics.completedActivities} completed this week` : 'Average 4.2h / day'}
+                </p>
               </div>
-            ) : (
-              recentActivities.map((act) => (
-                <div
-                  key={act.id}
-                  className={cn(
-                    'flex items-center gap-3 p-3 rounded-xl',
-                    isDark ? 'bg-white/5' : 'bg-surface-container-low'
-                  )}
-                >
-                  <div
-                    className={cn(
-                      'w-2 h-2 rounded-full shrink-0',
-                      act.status === 'completed'
-                        ? isDark
-                          ? 'bg-dark-primary'
-                          : 'bg-primary'
-                        : isDark
-                        ? 'bg-dark-on-surface-variant/30'
-                        : 'bg-on-surface-variant/30'
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      'text-sm font-medium flex-1 truncate',
-                      isDark ? 'text-dark-on-surface' : 'text-on-surface'
-                    )}
-                  >
-                    {act.title}
-                  </span>
-                  {act.value != null && act.unit && (
-                    <span
-                      className={cn(
-                        'text-xs font-bold opacity-60 shrink-0',
-                        isDark ? 'text-dark-primary' : 'text-primary'
-                      )}
-                    >
-                      {act.value} {act.unit}
-                    </span>
-                  )}
-                </div>
-              ))
-            )}
+            </div>
+            <button
+              onClick={() => onNavigate('Insights', 'push')}
+              className={cn(
+                'font-bold text-[10px] uppercase tracking-widest px-4 py-2 rounded-xl transition-all',
+                isDark ? 'bg-white/5 text-dark-primary hover:bg-white/10' : 'bg-primary/5 text-primary hover:bg-primary/10'
+              )}
+            >
+              Telemetry
+            </button>
           </div>
-
-          <button
-            onClick={() => onNavigate('History', 'push')}
-            className={cn(
-              'mt-6 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest py-2.5 rounded-xl transition-all',
-              isDark
-                ? 'text-dark-primary hover:bg-dark-primary/10'
-                : 'text-primary hover:bg-primary/5'
-            )}
-          >
-            View All History <ChevronRight className="w-4 h-4" />
-          </button>
         </ReactiveCard>
 
-        {/* Quick Stats Row */}
-        {[
-          {
-            label: 'This Week',
-            value: metrics?.completedActivities ?? 0,
-            sub: 'Completed',
-            Icon: CheckCircle2,
-          },
-          {
-            label: 'Goals Touched',
-            value: metrics?.goalsTouched ?? 0,
-            sub: 'This Period',
-            Icon: Target,
-          },
-          {
-            label: 'Best Streak',
-            value: metrics?.longestStreak ?? 0,
-            sub: 'Days',
-            Icon: Flame,
-          },
-        ].map(({ label, value, sub, Icon }) => (
-          <ReactiveCard key={label} isDark={isDark} className="md:col-span-4">
-            <div className="flex justify-between items-start mb-4">
-              <div
-                className={cn(
-                  'w-10 h-10 rounded-xl flex items-center justify-center',
-                  isDark ? 'bg-dark-primary/15 text-dark-primary' : 'bg-primary/10 text-primary'
-                )}
-              >
-                <Icon className="w-5 h-5" />
+        {/* ── Active Goal Progress (col 12) ────────────────────────── */}
+        <ReactiveCard isDark={isDark} className="md:col-span-12">
+          <div className="flex justify-between items-center mb-8 md:mb-10">
+            <h3
+              className={cn(
+                'text-[10px] font-bold tracking-[0.3em] uppercase',
+                isDark ? 'text-dark-primary' : 'text-primary'
+              )}
+            >
+              {isDark ? 'Strategic Alignment' : 'Active Goal Progress'}
+            </h3>
+            <button
+              onClick={() => onNavigate('Goals', 'push')}
+              className={cn(
+                'text-[10px] font-bold uppercase tracking-widest flex items-center hover:opacity-80 transition-all',
+                isDark ? 'text-dark-primary' : 'text-primary'
+              )}
+            >
+              Matrix <ChevronRight className="ml-1 w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-10">
+            {displayGoals.map((goal, i) => (
+              <div key={goal.id} className="space-y-3 md:space-y-4 group cursor-pointer">
+                <div className="flex justify-between items-end">
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <div className={cn(
+                      'p-1.5 rounded-lg transition-all group-hover:scale-110',
+                      isDark ? 'bg-white/5 text-dark-primary' : 'bg-primary/5 text-primary'
+                    )}>
+                      <goal.Icon className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                    </div>
+                    <span className={cn('font-bold text-xs md:text-sm', isDark ? 'text-dark-on-surface' : 'text-on-surface')}>
+                      {goal.title}
+                    </span>
+                  </div>
+                  <span className={cn('text-[10px] md:text-xs font-black', isDark ? 'text-dark-primary' : 'text-primary')}>
+                    {goal.progress}%
+                  </span>
+                </div>
+                <div className={cn('w-full h-1.5 md:h-2 rounded-full overflow-hidden', isDark ? 'bg-white/5' : 'bg-surface-container-high')}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${goal.progress}%` }}
+                    transition={{ duration: 1.5, ease: 'easeOut', delay: 0.5 + i * 0.2 }}
+                    className={cn('h-full rounded-full', goal.color)}
+                  />
+                </div>
               </div>
-              <span
-                className={cn(
-                  'text-[9px] font-black tracking-widest uppercase opacity-40',
-                  isDark ? 'text-dark-on-surface' : 'text-on-surface'
-                )}
-              >
-                {label}
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1">
-              <span
-                className={cn(
-                  'text-4xl font-black tracking-tighter',
-                  isDark ? 'text-dark-on-surface' : 'text-on-surface'
-                )}
-              >
-                {value}
-              </span>
-              <span
-                className={cn('text-sm font-bold opacity-50', isDark ? 'text-dark-on-surface' : 'text-on-surface')}
-              >
-                {sub}
-              </span>
-            </div>
-          </ReactiveCard>
-        ))}
+            ))}
+          </div>
+        </ReactiveCard>
+
       </div>
     </div>
   );
