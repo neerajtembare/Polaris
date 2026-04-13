@@ -53,23 +53,23 @@ export class ErrorBoundary extends Component<Props, State> {
   override render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
+        <div className="min-h-screen bg-surface dark:bg-dark-bg flex items-center justify-center p-6">
           <div className="max-w-md w-full text-center">
             <div className="text-5xl mb-4" aria-hidden="true">⚠️</div>
-            <h1 className="text-2xl font-bold text-white mb-2">
+            <h1 className="text-2xl font-bold text-on-surface dark:text-dark-on-surface mb-2">
               Something went wrong
             </h1>
-            <p className="text-gray-400 mb-2 text-sm">
+            <p className="text-on-surface-variant dark:text-dark-on-surface-variant mb-2 text-sm opacity-70">
               An unexpected error occurred. Your data is safe.
             </p>
             {this.state.errorMessage && (
-              <p className="text-gray-500 text-xs mb-6 font-mono bg-gray-900 rounded px-3 py-2 break-words">
+              <p className="text-on-surface-variant dark:text-dark-on-surface-variant text-xs mb-6 font-mono bg-surface-container dark:bg-white/5 rounded px-3 py-2 break-words opacity-70">
                 {this.state.errorMessage}
               </p>
             )}
             <button
               onClick={this.handleReset}
-              className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
+              className="px-6 py-2 bg-primary dark:bg-dark-primary text-white dark:text-dark-bg rounded-lg font-medium transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:focus-visible:ring-dark-primary"
             >
               Go to Dashboard
             </button>

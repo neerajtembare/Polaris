@@ -48,8 +48,8 @@ export function UnitPicker({ value, onChange, id }: UnitPickerProps) {
             className={[
               'px-2.5 py-1 rounded-md text-xs font-medium border transition-colors',
               mode === 'preset' && value === label
-                ? 'bg-indigo-600 border-indigo-500 text-white'
-                : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-indigo-500 hover:text-white',
+                ? 'bg-primary/15 dark:bg-dark-primary/20 border-primary/40 dark:border-dark-primary/30 text-primary dark:text-dark-primary'
+                : 'bg-surface-container dark:bg-white/5 border-outline-variant/20 dark:border-white/10 text-on-surface dark:text-dark-on-surface hover:border-primary dark:hover:border-dark-primary',
             ].join(' ')}
           >
             {label}
@@ -63,8 +63,8 @@ export function UnitPicker({ value, onChange, id }: UnitPickerProps) {
           className={[
             'px-2.5 py-1 rounded-md text-xs font-medium border transition-colors',
             mode === 'custom'
-              ? 'bg-indigo-600 border-indigo-500 text-white'
-              : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-indigo-500 hover:text-white',
+              ? 'bg-primary/15 dark:bg-dark-primary/20 border-primary/40 dark:border-dark-primary/30 text-primary dark:text-dark-primary'
+              : 'bg-surface-container dark:bg-white/5 border-outline-variant/20 dark:border-white/10 text-on-surface-variant dark:text-dark-on-surface-variant hover:border-primary dark:hover:border-dark-primary',
           ].join(' ')}
         >
           Custom…
@@ -81,7 +81,7 @@ export function UnitPicker({ value, onChange, id }: UnitPickerProps) {
           placeholder="e.g. sprints, litres, ₹"
           maxLength={50}
           autoFocus
-          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="w-full bg-surface-container-low dark:bg-white/5 border border-outline-variant/20 dark:border-white/10 rounded-lg px-3 py-2 text-sm text-on-surface dark:text-dark-on-surface placeholder-on-surface-variant/40 dark:placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-primary/30 dark:focus:ring-dark-primary/30 focus:border-transparent"
         />
       )}
     </div>

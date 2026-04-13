@@ -23,6 +23,8 @@ export class OpenAIProvider implements AIProvider {
     if (!apiKey) throw new Error('OPENAI_API_KEY not set');
 
     const userPrompt = buildActivityParseUserPrompt(rawInput, goals);
+    const startMs = Date.now();
+    console.error(`[OpenAI] → Request | model=gpt-4o-mini | input="${rawInput.slice(0, 60)}${rawInput.length > 60 ? '…' : ''}"`);
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -39,23 +41,27 @@ export class OpenAIProvider implements AIProvider {
           { role: 'user',   content: userPrompt },
         ],
       }),
-      signal: AbortSignal.timeout(30_000),
+      // No timeout — allow OpenAI to respond at its own pace
     });
 
     if (!response.ok) {
+      console.error(`[OpenAI] ✗ HTTP ${response.status} ${response.statusText}`);
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
     type OpenAIResponse = { choices: Array<{ message: { content: string } }> };
     const json = (await response.json()) as OpenAIResponse;
     const content = json.choices[0]?.message?.content ?? '';
+    console.error(`[OpenAI] ← Response | elapsed=${Date.now() - startMs}ms | chars=${content.length}`);
 
     const parsed = parseAndValidateActivityResponse(content, goals, rawInput);
     if (parsed) {
+      console.error(`[OpenAI] ✓ Parsed | type=${parsed.activityType} | value=${parsed.value} | unit=${parsed.unit} | confidence=${parsed.confidence}`);
       return { ...parsed, provider: this.name };
     }
 
-    console.warn('[AIService] OpenAI returned malformed JSON, falling back to mock');
+    console.error(`[OpenAI] ✗ JSON validation failed — raw: "${content.slice(0, 200)}"`);
+    console.error('[OpenAI] ↩ Falling back to MockProvider');
     return await getMockProvider().parse(rawInput, goals);
   }
 }

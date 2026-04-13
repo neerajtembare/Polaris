@@ -19,7 +19,7 @@
  */
 
 import { useState, useEffect, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UnitPicker } from '../components/ui/UnitPicker.tsx';
 import { useCreateGoal } from '../hooks/useGoals.ts';
 import { ApiRequestError } from '../services/api.ts';
@@ -53,10 +53,16 @@ const DEFAULT_FORM: FormState = {
 // ---------------------------------------------------------------------------
 
 export function GoalCreate() {
-  const navigate   = useNavigate();
-  const createGoal = useCreateGoal();
+  const navigate     = useNavigate();
+  const [searchParams] = useSearchParams();
+  const createGoal   = useCreateGoal();
 
-  const [form,  setForm]  = useState<FormState>(DEFAULT_FORM);
+  const [form,  setForm]  = useState<FormState>({
+    ...DEFAULT_FORM,
+    title:       searchParams.get('title')  ?? '',
+    targetValue: searchParams.get('target') ?? '',
+    targetUnit:  searchParams.get('unit')   ?? '',
+  });
   const [error, setError] = useState<string | null>(null);
 
   // Suggestion strip state: null = hidden, object = suggestion to show

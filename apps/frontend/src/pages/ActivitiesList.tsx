@@ -19,6 +19,7 @@
  */
 
 import { useState } from 'react';
+import { Search } from 'lucide-react';
 import { ActivityCard } from '../components/activities/ActivityCard.tsx';
 import { LogActivityForm } from '../components/activities/LogActivityForm.tsx';
 import { Spinner } from '../components/ui/Spinner.tsx';
@@ -65,6 +66,7 @@ const PAGE_SIZE = 50;
 export function ActivitiesList() {
   const [statusFilter,  setStatusFilter]  = useState<FilterStatus>('all');
   const [dateFilter,    setDateFilter]    = useState('');
+  const [search,        setSearch]        = useState('');
   const [showForm,      setShowForm]      = useState(false);
   const [editActivity,  setEditActivity]  = useState<ListedActivity | undefined>(undefined);
   const [page,          setPage]          = useState(0);
@@ -78,7 +80,11 @@ export function ActivitiesList() {
   };
 
   const { data: activitiesRes, isLoading, isError } = useActivities(queryFilter);
-  const activities: ListedActivity[] = activitiesRes?.data ?? [];
+  const allActivities: ListedActivity[] = activitiesRes?.data ?? [];
+  // Client-side search filter applied on top of server-side filters
+  const activities = search.trim()
+    ? allActivities.filter((a) => a.title.toLowerCase().includes(search.toLowerCase()))
+    : allActivities;
   const total = activitiesRes?.meta?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const updateActivity = useUpdateActivity();
@@ -151,10 +157,22 @@ export function ActivitiesList() {
         </div>
 
         {/* Filters row */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex flex-col gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search activities…"
+              className="w-full bg-gray-900/60 border border-gray-800/50 rounded-xl pl-9 pr-4 py-2 text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
 
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {/* Status tabs */}
-          <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+          <div className="flex gap-1 bg-gray-900/60 border border-gray-800/50 rounded-lg p-1">
             {STATUS_TABS.map(({ label, value }) => (
               <button
                 key={value}
@@ -162,7 +180,7 @@ export function ActivitiesList() {
                 className={[
                   'px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
                   statusFilter === value
-                    ? 'bg-gray-700 text-white shadow'
+                    ? 'bg-indigo-600 text-white shadow'
                     : 'text-gray-400 hover:text-gray-200',
                 ].join(' ')}
               >
@@ -177,7 +195,7 @@ export function ActivitiesList() {
             value={dateFilter}
             onChange={(e) => applyDateFilter(e.target.value)}
             title="Filter by date"
-            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:dark]"
+            className="bg-gray-900/60 border border-gray-800/50 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:dark]"
           />
           {dateFilter && (
             <button
@@ -187,6 +205,7 @@ export function ActivitiesList() {
               Clear date
             </button>
           )}
+          </div>
         </div>
 
         {/* Content */}
@@ -242,29 +261,45 @@ export function ActivitiesList() {
 
             {/* Pagination footer */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+              <div className="flex items-center justify-between pt-4 border-t border-gray-800/50">
                 <span className="text-xs text-gray-500">
                   Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
                 </span>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 items-center">
+                  <button
+                    onClick={() => setPage(0)}
+                    disabled={page === 0}
+                    aria-label="First page"
+                    className="px-2.5 py-1.5 text-xs rounded-lg bg-gray-800/80 text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    «
+                  </button>
                   <button
                     onClick={() => setPage((p) => Math.max(0, p - 1))}
                     disabled={page === 0}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                     aria-label="Previous page"
+                    className="px-3 py-1.5 text-xs rounded-lg bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     ← Prev
                   </button>
-                  <span className="px-3 py-1.5 text-xs text-gray-400">
+                  <span className="px-2 py-1.5 text-xs text-gray-500 tabular-nums">
                     {page + 1} / {totalPages}
                   </span>
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                     disabled={page >= totalPages - 1}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                     aria-label="Next page"
+                    className="px-3 py-1.5 text-xs rounded-lg bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     Next →
+                  </button>
+                  <button
+                    onClick={() => setPage(totalPages - 1)}
+                    disabled={page >= totalPages - 1}
+                    aria-label="Last page"
+                    className="px-2.5 py-1.5 text-xs rounded-lg bg-gray-800/80 text-gray-400 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    »
                   </button>
                 </div>
               </div>

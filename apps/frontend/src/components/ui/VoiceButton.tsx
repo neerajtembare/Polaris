@@ -126,14 +126,14 @@ export function VoiceButton({ onResult, available = true, className = '' }: Voic
           disabled
           aria-label="Voice input unavailable"
           className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border
-            bg-gray-800/40 border-gray-700/40 text-gray-600 cursor-not-allowed ${className}`}
+            bg-surface-container/40 dark:bg-white/5 border-outline-variant/20 dark:border-white/10 text-on-surface-variant dark:text-dark-on-surface-variant opacity-40 cursor-not-allowed ${className}`}
         >
           <MicIcon />
           Voice
         </button>
         {/* Tooltip */}
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs
-          bg-gray-800 border border-gray-700 rounded-lg text-gray-300 whitespace-nowrap
+          bg-white dark:bg-dark-surface-container-low border border-outline-variant/20 dark:border-white/10 rounded-lg text-on-surface dark:text-dark-on-surface whitespace-nowrap
           opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-xl">
           Start Whisper service to enable voice input
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4
@@ -159,10 +159,10 @@ export function VoiceButton({ onResult, available = true, className = '' }: Voic
         className={[
           'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border',
           'transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1',
-          'focus:ring-offset-gray-900',
+          'focus:ring-offset-surface dark:focus:ring-offset-dark-bg',
           isRecording
-            ? 'bg-red-900/60 border-red-700 text-red-300 hover:bg-red-800/60 focus:ring-red-500'
-            : 'bg-indigo-900/40 border-indigo-700/60 text-indigo-300 hover:bg-indigo-800/50 focus:ring-indigo-500',
+            ? 'bg-red-500/15 border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-500/25 focus:ring-red-500'
+            : 'bg-primary/10 dark:bg-dark-primary/10 border-primary/30 dark:border-dark-primary/30 text-primary dark:text-dark-primary hover:bg-primary/20 dark:hover:bg-dark-primary/20 focus:ring-primary dark:focus:ring-dark-primary',
           (isRequesting || isProcessing) && 'opacity-60 cursor-not-allowed',
         ].join(' ')}
       >
@@ -194,7 +194,7 @@ export function VoiceButton({ onResult, available = true, className = '' }: Voic
         <button
           type="button"
           onClick={cancelRecording}
-          className="text-xs text-gray-600 hover:text-gray-400 transition-colors ml-1"
+          className="text-xs text-on-surface-variant dark:text-dark-on-surface-variant opacity-40 hover:opacity-70 transition-opacity ml-1"
         >
           cancel
         </button>

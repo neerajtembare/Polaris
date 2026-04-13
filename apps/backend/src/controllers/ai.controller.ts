@@ -1,27 +1,23 @@
 /**
  * @file controllers/ai.controller.ts
- * @description HTTP handler for the AI parse-activity endpoint.
- *   This controller never mutates the database — it only returns suggestions
- *   for the frontend to display in the review panel.
- *
- *   Architecture: AI suggests → user reviews → user confirms → standard CRUD saves.
+ * @description HTTP handlers for AI endpoints.
+ *   All AI calls route through aiService (PolarisAI singleton from @polaris/ai).
+ *   Controllers never mutate the database — suggestions only.
  *
  * @module @polaris/backend/controllers
  *
  * @relatedFiles
  *   - src/routes/ai.ts
  *   - src/services/ai.service.ts
- *   - src/services/goal.service.ts  (used to fetch goal context)
+ *   - packages/ai/src/PolarisAI.ts
  */
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { parseActivity }    from '../services/ai.service.js';
-import { breakdownGoal }    from '../ai/breakdown.js';
-import { analyzeWeek }      from '../ai/analyze-week.js';
-import { listGoals }        from '../services/goal.service.js';
-import { getGoalById }      from '../services/goal.service.js';
+import { aiService }           from '../services/ai.service.js';
+import { listGoals }           from '../services/goal.service.js';
+import { getGoalById }         from '../services/goal.service.js';
 import { getDashboardMetrics } from '../services/metrics.service.js';
-import { handleError }      from '../lib/handleError.js';
+import { handleError }         from '../lib/handleError.js';
 
 // ---------------------------------------------------------------------------
 // Request body shapes
@@ -57,8 +53,7 @@ export async function parseActivityHandler(
       targetUnit: g.targetUnit,
     }));
 
-    const result = await parseActivity(rawInput.trim(), goalContext);
-
+    const result = await aiService.parseActivity(rawInput.trim(), goalContext);
     return reply.send({ success: true, data: result });
   } catch (err) {
     return handleError('AIController', err, reply);
@@ -67,9 +62,6 @@ export async function parseActivityHandler(
 
 /**
  * POST /api/ai/breakdown
- *
- * Decomposes a goal into sub-goals and suggested activities.
- * Nothing is saved — user reviews and creates manually.
  */
 export async function breakdownHandler(
   request: FastifyRequest<{ Body: BreakdownBody }>,
@@ -91,7 +83,7 @@ export async function breakdownHandler(
         ? ((goal.targetDate as Date).toISOString().split('T')[0] ?? null)
         : null;
 
-    const result = await breakdownGoal({
+    const result = await aiService.breakdownGoal({
       title:       goal.title,
       description: goal.description ?? null,
       timeframe:   goal.timeframe,
@@ -108,9 +100,6 @@ export async function breakdownHandler(
 
 /**
  * POST /api/ai/analyze-week
- *
- * Generates behavioral insights from the past week's dashboard metrics.
- * Nothing is saved — user reviews the analysis.
  */
 export async function analyzeWeekHandler(
   _request: FastifyRequest,
@@ -118,9 +107,58 @@ export async function analyzeWeekHandler(
 ): Promise<void> {
   try {
     const metrics = await getDashboardMetrics('week');
-    const result = await analyzeWeek(metrics);
+    const result = await aiService.analyzeWeek(metrics);
     return reply.send({ success: true, data: result });
   } catch (err) {
     return handleError('AIController', err, reply);
+  }
+}
+
+/**
+ * GET /api/ai/config
+ */
+export async function getAiConfigHandler(
+  _request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const provider = process.env['AI_PROVIDER'] ?? 'mock';
+  const ollamaModel = process.env['OLLAMA_MODEL'] ?? 'llama3.2:3b';
+  const ollamaUrl = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
+
+  return reply.send({
+    success: true,
+    data: {
+      provider,
+      ollamaModel: provider === 'ollama' ? ollamaModel : null,
+      ollamaUrl:   provider === 'ollama' ? ollamaUrl   : null,
+    },
+  });
+}
+
+/**
+ * GET /api/ai/ollama-models
+ */
+export async function getOllamaModelsHandler(
+  _request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const ollamaUrl = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
+
+  try {
+    const res = await fetch(`${ollamaUrl}/api/tags`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+
+    if (!res.ok) {
+      return reply.send({ success: true, data: { models: [] } });
+    }
+
+    type OllamaTagsResponse = { models: Array<{ name: string; modified_at: string; size: number }> };
+    const json = (await res.json()) as OllamaTagsResponse;
+    const models = (json.models ?? []).map((m) => m.name);
+
+    return reply.send({ success: true, data: { models } });
+  } catch {
+    return reply.send({ success: true, data: { models: [] } });
   }
 }

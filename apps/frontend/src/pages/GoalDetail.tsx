@@ -18,10 +18,12 @@
 
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Archive } from 'lucide-react';
 import { TimeframeBadge, StatusBadge } from '../components/ui/Badge.tsx';
 import { ProgressBar } from '../components/ui/ProgressBar.tsx';
 import { LoadingScreen } from '../components/ui/Spinner.tsx';
 import { UnitPicker } from '../components/ui/UnitPicker.tsx';
+import { ConfirmModal } from '../components/ui/ConfirmModal.tsx';
 import { useGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoals.ts';
 import { api, ApiRequestError } from '../services/api.ts';
 import type { ApiSuccess } from '@polaris/shared';
@@ -58,6 +60,7 @@ export function GoalDetail() {
   const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [breakdownResult, setBreakdownResult] = useState<AIGoalBreakdown | null>(null);
   const [breakdownError, setBreakdownError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { data: goal, isLoading, isError } = useGoal(id, { includeProgress: true });
 
@@ -143,12 +146,22 @@ export function GoalDetail() {
   // ——— Delete ———
   async function handleDelete() {
     if (!goal) return;
-    if (!window.confirm(`Delete "${goal.title}"? This cannot be undone.`)) return;
     try {
       await deleteGoal.mutateAsync(goal.id);
       navigate('/goals');
     } catch (err) {
       const msg = err instanceof ApiRequestError ? err.message : 'Failed to delete goal. Please try again.';
+      setEditError(msg);
+    }
+  }
+
+  // ——— Archive shortcut ———
+  async function handleArchive() {
+    if (!goal) return;
+    try {
+      await updateGoal.mutateAsync({ id: goal.id, data: { status: 'archived' } });
+    } catch (err) {
+      const msg = err instanceof ApiRequestError ? err.message : 'Failed to archive goal.';
       setEditError(msg);
     }
   }
@@ -175,8 +188,16 @@ export function GoalDetail() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
 
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        message={`Delete "${goal.title}"?`}
+        detail="This cannot be undone."
+        onConfirm={() => { setShowDeleteConfirm(false); void handleDelete(); }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
         {/* Back link */}
-        <Link to="/goals" className="text-sm text-gray-400 hover:text-white transition-colors">
+        <Link to="/goals" className="text-sm text-gray-500 hover:text-white transition-colors">
           ← Back to goals
         </Link>
 
@@ -187,14 +208,24 @@ export function GoalDetail() {
             {/* Title + actions */}
             <div className="flex items-start justify-between gap-4">
               <h1 className="text-2xl font-bold text-white leading-tight">{goal.title}</h1>
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
                 <button
                   onClick={() => void handleAiBreakdown()}
                   disabled={breakdownLoading}
-                  className="px-3 py-1.5 text-sm font-medium text-indigo-400 hover:text-indigo-300 bg-indigo-950/50 hover:bg-indigo-900/50 rounded-lg transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-sm font-medium text-indigo-300 hover:text-indigo-200 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-lg transition-colors disabled:opacity-50"
                 >
                   {breakdownLoading ? '…' : '✨ AI Breakdown'}
                 </button>
+                {goal.status !== 'archived' && (
+                  <button
+                    onClick={() => void handleArchive()}
+                    disabled={updateGoal.isPending}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white bg-gray-800/80 hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Archive className="w-3.5 h-3.5" />
+                    Archive
+                  </button>
+                )}
                 <button
                   onClick={startEdit}
                   className="px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
@@ -202,7 +233,7 @@ export function GoalDetail() {
                   Edit
                 </button>
                 <button
-                  onClick={() => void handleDelete()}
+                  onClick={() => setShowDeleteConfirm(true)}
                   disabled={deleteGoal.isPending}
                   className="px-3 py-1.5 text-sm font-medium text-red-400 hover:text-white hover:bg-red-900/50 rounded-lg transition-colors disabled:opacity-50"
                 >
@@ -224,7 +255,7 @@ export function GoalDetail() {
 
             {/* Target + progress */}
             {goal.targetValue !== null && (
-              <div className="mt-6 bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <div className="mt-6 glass p-4">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
                   Progress
                 </p>
@@ -255,14 +286,14 @@ export function GoalDetail() {
             {/* Metadata */}
             <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
               {goal.targetDate && (
-                <div className="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2.5">
+                <div className="glass rounded-lg px-3 py-2.5">
                   <p className="text-xs text-gray-500 mb-0.5">Target date</p>
-                  <p className="text-white font-medium">{goal.targetDate}</p>
+                  <p className="text-gray-200 font-medium">{goal.targetDate}</p>
                 </div>
               )}
-              <div className="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2.5">
+              <div className="glass rounded-lg px-3 py-2.5">
                 <p className="text-xs text-gray-500 mb-0.5">Created</p>
-                <p className="text-white font-medium">
+                <p className="text-gray-200 font-medium">
                   {new Date(goal.createdAt).toLocaleDateString()}
                 </p>
               </div>
@@ -390,13 +421,13 @@ export function GoalDetail() {
       {/* AI Breakdown modal */}
       {showBreakdown && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 animate-fade-in"
           onClick={(e) => { if (e.target === e.currentTarget) setShowBreakdown(false); }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="goal-breakdown-title"
         >
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-5">
+          <div className="glass w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 id="goal-breakdown-title" className="text-lg font-semibold text-white">✨ AI Breakdown</h3>
               <button

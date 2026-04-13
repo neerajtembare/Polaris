@@ -1,154 +1,87 @@
 /**
  * @file components/layout/AppLayout.tsx
- * @description Application shell — sidebar nav + main content region.
- *   Every page is wrapped in this component to get consistent navigation.
+ * @description Application shell — TopBar on md+, BottomNav on mobile, no sidebar.
  * @module @polaris/frontend/components/layout
  *
  * @dependencies
- * - react-router-dom (NavLink)
+ * - TopBar (desktop/tablet nav)
+ * - BottomNav (mobile nav)
+ * - CommandPalette (Cmd/Ctrl+K)
  *
  * @relatedFiles
  * - src/App.tsx
- * - src/pages/Dashboard.tsx
+ * - src/components/layout/TopBar.tsx
+ * - src/components/layout/BottomNav.tsx
  */
 
-import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { FloatingLogButton } from '../activities/FloatingLogButton.tsx';
+import { useState, useEffect, useCallback } from 'react';
+import { TopBar } from './TopBar';
+import { BottomNav } from './BottomNav';
+import { CommandPalette } from '../ui/CommandPalette';
 
 // ---------------------------------------------------------------------------
-// Nav items — add future routes here
-// ---------------------------------------------------------------------------
-
-const NAV_ITEMS = [
-  { to: '/dashboard',  label: 'Dashboard',  icon: '⚡' },
-  { to: '/today',      label: 'Today',      icon: '📅' },
-  { to: '/goals',      label: 'Goals',      icon: '🎯' },
-  { to: '/activities', label: 'Activities', icon: '📋' },
-] as const;
-
-// ---------------------------------------------------------------------------
-// Component
+// Main Layout Component
 // ---------------------------------------------------------------------------
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
-// ---------------------------------------------------------------------------
-// Shared sidebar content (used in both desktop and mobile drawer)
-// ---------------------------------------------------------------------------
-
-function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
-  return (
-    <>
-      {/* Brand */}
-      <div className="px-5 py-5 border-b border-gray-800">
-        <p className="text-lg font-bold tracking-tight text-white">✦ Polaris</p>
-        <p className="text-xs text-gray-500 mt-0.5">Activity tracker</p>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5" aria-label="Main navigation">
-        {NAV_ITEMS.map(({ to, label, icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            onClick={onNavClick}
-            className={({ isActive }) =>
-              [
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white',
-              ].join(' ')
-            }
-          >
-            <span aria-hidden="true">{icon}</span>
-            {label}
-          </NavLink>
-        ))}
-      </nav>
-
-      {/* Footer / version label */}
-      <div className="px-5 py-4 border-t border-gray-800">
-        <span className="text-xs text-gray-600">Phase 1 · MVP</span>
-      </div>
-    </>
-  );
-}
-
 /**
- * Full-height two-column shell.
- * Desktop (md+): fixed-width sidebar on the left.
- * Mobile: hamburger button in top bar opens a slide-out drawer.
+ * Minimal layout shell:
+ * - Mobile (< 768px): Bottom tab bar (Home, Goals, History)
+ * - Desktop/Tablet (≥ 768px): Top navigation bar
+ * - Global: Cmd/Ctrl+K opens command palette, N focuses input
  */
 export function AppLayout({ children }: AppLayoutProps) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+
+  const focusSmartInput = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('open-log-sheet'));
+  }, []);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+K for command palette
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
+      }
+
+      // N to focus the SmartInputBar (when not in input field)
+      if (
+        e.key === 'n' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        e.preventDefault();
+        focusSmartInput();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [focusSmartInput]);
 
   return (
-    <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
+    <div className="flex flex-col h-screen text-white overflow-hidden" style={{ background: '#0e0e13' }}>
+      {/* Desktop/Tablet top bar (md+) */}
+      <TopBar onOpenSearch={() => setIsCommandPaletteOpen(true)} />
 
-      {/* ——— Desktop sidebar (hidden on small screens) ——— */}
-      <aside className="hidden md:flex w-56 flex-shrink-0 flex-col bg-gray-900 border-r border-gray-800">
-        <SidebarContent />
-      </aside>
+      {/* Content scrollable region */}
+      <main className="flex-1 overflow-y-auto pb-20 md:pb-4">
+        {children}
+      </main>
 
-      {/* ——— Mobile drawer overlay ——— */}
-      {drawerOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 md:hidden"
-          onClick={() => setDrawerOpen(false)}
-          aria-hidden="true"
-        />
-      )}
+      {/* Mobile bottom navigation (< md) */}
+      <BottomNav />
 
-      {/* ——— Mobile drawer panel ——— */}
-      <aside
-        className={[
-          'fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-gray-900 border-r border-gray-800',
-          'transform transition-transform duration-200 ease-in-out md:hidden',
-          drawerOpen ? 'translate-x-0' : '-translate-x-full',
-        ].join(' ')}
-        aria-label="Mobile navigation"
-      >
-        {/* Close button inside drawer */}
-        <button
-          onClick={() => setDrawerOpen(false)}
-          aria-label="Close navigation"
-          className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
-        >
-          ✕
-        </button>
-        <SidebarContent onNavClick={() => setDrawerOpen(false)} />
-      </aside>
-
-      {/* ——— Main content ——— */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-
-        {/* Mobile top bar (visible only on small screens) */}
-        <header className="flex items-center gap-3 px-4 py-3 bg-gray-900 border-b border-gray-800 md:hidden">
-          <button
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open navigation"
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            {/* Hamburger icon */}
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <p className="text-sm font-bold tracking-tight text-white">✦ Polaris</p>
-        </header>
-
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
-      </div>
-
-      {/* Global floating log button — visible on all pages */}
-      <FloatingLogButton />
-
+      {/* Global command palette (Cmd/Ctrl+K) */}
+      <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setIsCommandPaletteOpen(false)} />
     </div>
   );
 }

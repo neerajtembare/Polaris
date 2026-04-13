@@ -16,6 +16,7 @@
  */
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { CreateGoalInput, UpdateGoalInput } from '@polaris/shared';
 import * as GoalService from '../services/goal.service.js';
 import { handleError } from '../lib/handleError.js';
 
@@ -93,11 +94,11 @@ export async function getGoal(
  * Create a new goal.
  */
 export async function createGoal(
-  request: FastifyRequest,
+  request: FastifyRequest<{ Body: CreateGoalInput }>,
   reply: FastifyReply
 ) {
   try {
-    const goal = await GoalService.createGoal(request.body as Parameters<typeof GoalService.createGoal>[0]);
+    const goal = await GoalService.createGoal(request.body);
     return reply.status(201).send({ success: true, data: goal });
   } catch (err) {
     return handleError('GoalController', err, reply);
@@ -115,7 +116,7 @@ export async function updateGoal(
   try {
     const goal = await GoalService.updateGoal(
       request.params.id,
-      request.body as Parameters<typeof GoalService.updateGoal>[1]
+      request.body as UpdateGoalInput
     );
     return reply.send({ success: true, data: goal });
   } catch (err) {

@@ -68,17 +68,17 @@ export function AiSuggestionPanel({
   const isLowConfidence = suggestion.confidence < 0.6;
 
   return (
-    <div className="rounded-xl border border-indigo-800 bg-indigo-950/60 p-4 space-y-3">
+    <div className="rounded-xl border border-primary/20 dark:border-dark-primary/20 bg-primary/5 dark:bg-dark-primary/5 p-4 space-y-3">
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-indigo-400 text-sm">✨</span>
-          <p className="text-xs font-semibold text-indigo-300 uppercase tracking-wide">
+          <span className="text-primary dark:text-dark-primary text-sm">✨</span>
+          <p className="text-xs font-semibold text-primary dark:text-dark-primary uppercase tracking-wide">
             AI suggests
           </p>
           <span
-            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-800 text-gray-400 border border-gray-700"
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-surface-container dark:bg-white/5 text-on-surface-variant dark:text-dark-on-surface-variant border border-outline-variant/20 dark:border-white/10"
             title={suggestion.provider === 'mock' ? 'Keyword-based matching (no API)' : 'OpenAI GPT-4o-mini'}
           >
             {suggestion.provider === 'mock' ? 'Mock' : 'OpenAI'}
@@ -91,7 +91,7 @@ export function AiSuggestionPanel({
 
       {/* Low-confidence warning */}
       {isLowConfidence && (
-        <div className="rounded-lg bg-yellow-950/60 border border-yellow-800/60 px-3 py-2 text-xs text-yellow-300">
+        <div className="rounded-lg bg-yellow-500/10 dark:bg-yellow-950/60 border border-yellow-500/30 dark:border-yellow-800/60 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-300">
           Low confidence — edit before applying if needed.
         </div>
       )}
@@ -123,14 +123,14 @@ export function AiSuggestionPanel({
         <button
           type="button"
           onClick={() => onApply(suggestion)}
-          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-colors"
+          className="px-4 py-1.5 bg-primary dark:bg-dark-primary text-white dark:text-dark-bg text-xs font-semibold rounded-lg transition-colors hover:opacity-90"
         >
           Apply suggestions
         </button>
         <button
           type="button"
           onClick={onDismiss}
-          className="px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-white transition-colors"
+          className="px-3 py-1.5 text-xs font-medium text-on-surface-variant dark:text-dark-on-surface-variant opacity-50 hover:opacity-100 transition-opacity"
         >
           Dismiss
         </button>
@@ -155,10 +155,10 @@ function SuggestionRow({
 }) {
   return (
     <div className="flex items-baseline gap-2 text-xs">
-      <span className="w-12 flex-shrink-0 text-gray-500">{label}:</span>
-      <span className="text-white font-medium">{value}</span>
+      <span className="w-12 flex-shrink-0 text-on-surface-variant dark:text-dark-on-surface-variant opacity-50">{label}:</span>
+      <span className="text-on-surface dark:text-dark-on-surface font-medium">{value}</span>
       {badge && (
-        <span className="text-indigo-400 text-xs">✨ {badge}</span>
+        <span className="text-primary dark:text-dark-primary text-xs">✨ {badge}</span>
       )}
     </div>
   );

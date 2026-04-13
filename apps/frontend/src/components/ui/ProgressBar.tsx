@@ -36,7 +36,7 @@ export function ProgressBar({
       <div className={['flex-1 bg-gray-800 rounded-full overflow-hidden', heightClass].join(' ')}>
         {/* Fill */}
         <div
-          className="h-full bg-indigo-500 rounded-full transition-all duration-500 ease-out"
+          className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400 rounded-full transition-all duration-500 ease-out"
           style={{ width: `${clamped}%` }}
           role="progressbar"
           aria-valuenow={clamped}

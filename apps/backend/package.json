@@ -24,6 +24,7 @@
     "@fastify/multipart": "^9.0.3",
     "@fastify/rate-limit": "^10.3.0",
     "@polaris/shared": "*",
+    "@polaris/ai": "*",
     "@prisma/client": "6.4.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
