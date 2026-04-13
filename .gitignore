@@ -49,4 +49,3 @@ coverage/
 
 # Scripts that should never be committed (contain credentials or auto-sudo)
 install_ollama_auto.sh
-

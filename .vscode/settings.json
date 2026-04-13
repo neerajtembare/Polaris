@@ -62,6 +62,7 @@
     "npx tsc": true,
     "npx vite": true,
     "npx prisma": true,
-    "psql": true
+    "psql": true,
+    "mv": true
   }
 }

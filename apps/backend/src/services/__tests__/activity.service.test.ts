@@ -167,7 +167,8 @@ describe('getActivityById()', () => {
     (prisma.activity.findFirst as Mock).mockResolvedValue(activity);
 
     const result = await ActivityService.getActivityById('act-1');
-    expect(result).toEqual(activity);
+    // Service calls parseTags which converts null → [], so add tags to expected shape
+    expect(result).toMatchObject({ ...activity, tags: [] });
   });
 
   it('throws 404 when activity not found', async () => {

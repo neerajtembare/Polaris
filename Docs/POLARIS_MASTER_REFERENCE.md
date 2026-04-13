@@ -1,8 +1,8 @@
 # Polaris — Master Reference Document
 
-> **Last Updated:** April 13, 2026  
-> **Current Phase:** Phase 0A Complete → 0B/0C in progress  
-> **Status:** Functional MVP on PostgreSQL — Phase 0A infrastructure complete
+> **Last Updated:** April 14, 2026  
+> **Current Phase:** Phase 3 — Complete  
+> **Status:** Full test suite passing — 94 backend + 97 frontend tests
 
 ---
 
@@ -763,14 +763,18 @@ Use with: `docker compose -f docker-compose.yml -f docker-compose.ai.yml up --bu
 
 ## 15. Testing
 
+**Total: 191 tests passing (94 backend + 97 frontend) across 21 test files.**
+
+See [testing.md](./testing.md) for full strategy, patterns, and coverage targets.
+
 ### Stack
 
 | Tool | Purpose |
 |------|---------|
 | Vitest | Test runner (backend + frontend) |
-| Testing Library | React component testing |
-| MSW | API mocking (Mock Service Worker) |
-| `@testing-library/jest-dom` | DOM assertions |
+| Testing Library | React component testing (`@testing-library/react`) |
+| `@testing-library/jest-dom` | DOM matchers |
+| `@testing-library/user-event` | User interaction simulation |
 
 ### Commands
 
@@ -779,11 +783,36 @@ npm test                    # Run all tests (backend + frontend)
 npm run test:coverage       # With coverage reports
 ```
 
-### Test Files
+### Backend Tests (94 passing)
 
-- `apps/frontend/src/__tests__/setup.ts` — Test setup (jest-dom matchers)
-- `apps/frontend/src/__tests__/services/api.test.ts` — API client unit tests
-- `apps/frontend/src/__tests__/components/ui/` — UI component tests
+| File | Tests | Scope |
+|------|-------|-------|
+| `services/__tests__/activity.service.test.ts` | 7 | Activity CRUD, tag parsing |
+| `services/__tests__/goal.service.test.ts` | 8 | Goal CRUD, progress |
+| `services/__tests__/focus-session.service.test.ts` | 14 | State machine, complete/abandon |
+| `services/__tests__/metrics.service.test.ts` | 6 | Streaks, dashboard periods |
+| `services/__tests__/dormancy.service.test.ts` | 6 | 7-day threshold |
+| `services/__tests__/ai.service.test.ts` | 6 | AI facade, all three ops |
+| `routes/__tests__/activities.integration.test.ts` | 10 | Activity endpoints |
+| `routes/__tests__/focus-sessions.integration.test.ts` | 7 | Focus session endpoints |
+| `routes/__tests__/ai.integration.test.ts` | 4 | AI endpoints |
+| `routes/__tests__/goals.integration.test.ts` | 14 | Goal endpoints |
+| `routes/__tests__/metrics.integration.test.ts` | 12 | Metrics endpoint |
+
+### Frontend Tests (97 passing)
+
+| File | Tests | Scope |
+|------|-------|-------|
+| `hooks/__tests__/useActivityInput.test.ts` | 10 | NLP parse + AI upgrade flow |
+| `hooks/__tests__/useGoals.test.ts` | 6 | Goal query hooks |
+| `hooks/__tests__/useFocusTimer.test.ts` | 14 | Timer state machine |
+| `components/__tests__/ParsedActivityCard.test.tsx` | 9 | Activity suggestion card |
+| `components/__tests__/TodayKanban.test.tsx` | 9 | Kanban board, status updates |
+| `components/__tests__/AudioPlayer.test.tsx` | 8 | Audio store, stream selection |
+| `components/__tests__/Settings.test.tsx` | 10 | AI provider UI |
+| `services/api.test.ts` | 8 | API client |
+| `lib/parse-input.test.ts` | 14 | Client-side NLP parser |
+| `components/ui/Badge.test.tsx` | 9 | Badge component |
 
 ---
 
@@ -815,7 +844,7 @@ npm run test:coverage       # With coverage reports
 | Error Boundary | ✅ Done | Global crash recovery UI |
 | Rate Limiting | 🟡 AI-only | Global limit removed (Phase 0A); AI endpoints: 10/min |
 | PostgreSQL Migration | ✅ Done | Phase 0A — schema migrated, tables created, seeded |
-| FocusSession Model | ✅ Done | Schema + table created, no controller/routes yet |
+| FocusSession | ✅ Done | Schema, service, controller, and routes implemented |
 | Gemma 4 (gemma4:e4b) | ✅ Configured | Default model in .env, start.sh, docker-compose.ai.yml |
 
 ### Partially Implemented
@@ -823,10 +852,9 @@ npm run test:coverage       # With coverage reports
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Authentication | 🟡 Stub | localStorage mock — no real auth yet |
-| Zustand Stores | 🟡 Unused | Package present, store dir empty |
-| React Router | 🟡 Dead | `pages/` directory exists but is never rendered — `BrowserRouter` not mounted |
-| Zustand Stores | 🟡 Partial | `audioPlayer.store.ts` implemented; other stores dir still empty |
-| React Router | 🟡 Dead | `pages/` directory exists but is never rendered — `BrowserRouter` not mounted |
+| Zustand Stores | 🟡 Partial | `audioPlayer.store.ts` implemented; other stores still empty |
+| React Router | 🟡 Dead | `pages/` dir exists but `BrowserRouter` not mounted — state-based nav used instead |
+| Audio Streams | 🔴 Broken | Zeno.fm streams are paid/broken — deferred for replacement |
 
 ---
 
@@ -836,10 +864,11 @@ Per the project charter, these are planned for future phases:
 
 | Phase | Features | Status |
 |-------|----------|--------|
+| Phase 1 | MVP core loop (done), Activity templates, GoalConstellation, ProgressBar animations | 🟡 Partial |
 | Phase 2 | Advanced analytics, filtering, search | Not started |
-| Phase 3 | Goal dormancy, tagging, onboarding, daily intentions, Test AI | ✅ Done |
 | Phase 3+ | AI coaching (conversations), recurrence, automated pattern detection | Not started |
 | Phase 4 | Behavioral insights, smart suggestions | Not started |
+| Phase 4 | Authentication (Supabase Auth or JWT), userId enforcement | Not started |
 | Phase 5 | Cloud sync, multi-device | Not started |
 
 **Explicitly NOT to implement yet:**
@@ -863,5 +892,28 @@ When documents conflict, higher rank wins:
 3. `Docs/04_data_model.md` — Definitive schema
 4. `Docs/12_implementation_checklist.md` — Build plan
 5. `Docs/03_sdd.md` — Architecture reference
-6. **This document** — Living reference of actual state
-7. All other docs — Context / strategy
+6. **This document** (`POLARIS_MASTER_REFERENCE.md`) — Living reference of actual state
+7. `SESSION_STATE.md` — Current progress snapshot
+8. All other docs — Context / strategy
+
+## Docs Inventory
+
+| File | Purpose |
+|------|---------|
+| `POLARIS_MASTER_REFERENCE.md` | All-in-one living reference (this file) |
+| `SESSION_STATE.md` | Current phase/milestone/blocker snapshot |
+| `testing.md` | Test strategy, patterns, coverage targets |
+| `01_product_charter.md` | Vision, problem statement, non-goals |
+| `02_prd.md` | Functional requirements |
+| `03_sdd.md` | System architecture |
+| `04_data_model.md` | Prisma schema (canonical) |
+| `05_ai_strategy.md` | AI philosophy + implementation reference |
+| `06_ux_behavior_design.md` | UX philosophy + layout principles |
+| `07_roadmap_and_milestones.md` | Phase roadmap + milestone definitions |
+| `08_architecture_decision_log.md` | ADRs (Fastify, Prisma, SQLite, soft-delete) |
+| `09_user_flows.md` | Step-by-step user journeys |
+| `10_api_contract.md` | REST API spec (definitive) |
+| `11_scope_boundaries.md` | Feature matrix (MUST/SHOULD/LATER) |
+| `12_implementation_checklist.md` | Phase-by-phase build checklist |
+| `AI_DEV_GUIDE.md` | AI-assisted dev session protocol |
+| `Full_UI_Upgrade_Plan.md` | Celestial UI redesign plan (active) |

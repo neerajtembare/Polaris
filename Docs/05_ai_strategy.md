@@ -1011,3 +1011,53 @@ class MockAIProvider implements AIProvider {
 The database is the source of truth.
 AI helps you understand and act on your data.
 AI never acts without your explicit confirmation.
+
+---
+
+# 19. Implementation Reference
+
+## Providers
+
+| Provider | When Active | Implementation |
+|----------|-------------|----------------|
+| **MockProvider** | Default (no env vars) | `apps/backend/src/ai/providers/mock.ts` — keyword-based, in-process |
+| **OpenAIProvider** | `AI_PROVIDER=openai` + `OPENAI_API_KEY` | `apps/backend/src/ai/providers/openai.ts` — gpt-4o-mini, falls back to Mock |
+| **OllamaProvider** | Not implemented | Future — privacy/offline use |
+
+## Module Structure
+
+```
+apps/backend/src/ai/
+├── index.ts              # parseActivity, re-exports
+├── breakdown.ts          # Goal decomposition
+├── analyze-week.ts       # Weekly analysis
+├── prompts/
+│   ├── activity-parse.ts
+│   ├── goal-breakdown.ts
+│   └── weekly-analysis.ts
+├── providers/
+│   ├── mock.ts
+│   └── openai.ts
+├── utils/
+│   ├── buildContext.ts
+│   └── validateResponse.ts
+└── types.ts
+```
+
+## Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/ai/parse-activity` | Parse raw text into structured activity fields |
+| `POST /api/ai/breakdown` | Decompose a goal into sub-goals and suggested activities |
+| `POST /api/ai/analyze-week` | Generate behavioral insights from past week |
+
+All endpoints are suggestions only — they never mutate the database.
+
+## Adding a New AI Feature
+
+1. Add shared type in `packages/shared/src/types/ai.ts`
+2. Create prompt template in `apps/backend/src/ai/prompts/`
+3. Implement logic in `apps/backend/src/ai/` (mock + real provider)
+4. Add handler in `ai.controller.ts` and route in `routes/ai.ts`
+5. Add UI trigger and modal/panel in the relevant page
