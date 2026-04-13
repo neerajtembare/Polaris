@@ -2,18 +2,19 @@
  * @file components/AudioPlayer.tsx
  * @description Persistent mini audio player that lives in the top nav.
  *   Manages a single <audio> element via a ref so it never unmounts.
- *   Expands into a panel showing stream presets and a custom URL input.
+ *   Three tabs: Presets (curated), Browse (Radio Browser API search), Favorites (saved).
  * @module @polaris/frontend/components
  *
  * @dependencies
  * - zustand (useAudioPlayer store)
  * - lucide-react
  * - framer-motion
+ * - hooks/useRadioBrowser
  *
  * @relatedFiles
  * - stores/audioPlayer.store.ts
+ * - hooks/useRadioBrowser.ts
  * - components/Layout.tsx
- * - components/FocusMode.tsx
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -24,10 +25,12 @@ import {
   Music,
   Volume2,
   VolumeX,
-  ChevronUp,
-  ChevronDown,
-  Link,
   X,
+  Search,
+  Heart,
+  HeartOff,
+  Loader2,
+  Radio,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -35,10 +38,13 @@ import {
   PRESET_STREAMS,
   type AudioStream,
 } from '@/stores/audioPlayer.store';
+import { useRadioBrowser, type RadioStation } from '@/hooks/useRadioBrowser';
 
 interface AudioPlayerProps {
   isDark: boolean;
 }
+
+type Tab = 'presets' | 'browse' | 'favorites';
 
 export function AudioPlayer({ isDark }: AudioPlayerProps) {
   const {
@@ -46,19 +52,23 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
     isPlaying,
     volume,
     isExpanded,
-    customUrl,
+    favorites,
     selectStream,
-    setCustomUrl,
-    playCustomUrl,
     play,
     pause,
     togglePlay,
     setVolume,
     toggleExpanded,
+    addFavorite,
+    removeFavorite,
+    isFavorite,
   } = useAudioPlayer();
 
+  const { results, isLoading, error, query, setQuery, search, clear } = useRadioBrowser();
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [showCustom, setShowCustom] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('presets');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Create the audio element once
   useEffect(() => {
@@ -66,9 +76,6 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
       audioRef.current = new Audio();
       audioRef.current.preload = 'none';
     }
-    return () => {
-      // Don't destroy on unmount — this component should never unmount
-    };
   }, []);
 
   // Sync volume
@@ -81,22 +88,17 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
   // Sync stream URL
   useEffect(() => {
     if (!audioRef.current) return;
-    if (currentStream) {
-      audioRef.current.src = currentStream.url;
-    } else {
-      audioRef.current.src = '';
-    }
+    audioRef.current.src = currentStream ? currentStream.url : '';
   }, [currentStream]);
 
-  // Sync play/pause (user must have interacted first — no autoplay)
+  // Sync play/pause — browser autoplay policy: only plays after user gesture
   useEffect(() => {
     if (!audioRef.current || !currentStream) return;
     if (isPlaying) {
       audioRef.current.play().catch(() => {
-        // Browser blocked autoplay or stream unreachable — revert and notify user
         pause();
         import('react-hot-toast').then(({ default: toast }) => {
-          toast.error('Could not play stream. Check the URL or try another.', { id: 'audio-err' });
+          toast.error('Could not play stream. Try another.', { id: 'audio-err' });
         });
       });
     } else {
@@ -104,26 +106,93 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
     }
   }, [isPlaying, currentStream, pause]);
 
-  const handleSelectPreset = (stream: AudioStream) => {
-    selectStream(stream);
-  };
-
   const handleStop = () => {
     selectStream(null);
     pause();
   };
 
-  const handleCustomSubmit = (e: React.FormEvent) => {
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    playCustomUrl();
-    setShowCustom(false);
+    if (query.trim()) search(query);
+  };
+
+  const handleToggleFavorite = (stream: AudioStream) => {
+    if (isFavorite(stream.id)) {
+      removeFavorite(stream.id);
+    } else {
+      addFavorite(stream);
+    }
   };
 
   const isMuted = volume === 0;
 
+  // ── Stream row ────────────────────────────────────────────────────────────
+  const StreamRow = ({
+    stream,
+    showFavoriteBtn = false,
+    isFav = false,
+  }: {
+    stream: AudioStream & { bitrate?: number; votes?: number };
+    showFavoriteBtn?: boolean;
+    isFav?: boolean;
+  }) => {
+    const isActive = currentStream?.id === stream.id;
+    return (
+      <div
+        className={cn(
+          'w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-2.5 transition-all group',
+          isActive
+            ? isDark
+              ? 'bg-dark-primary/15 text-dark-primary'
+              : 'bg-primary/10 text-primary'
+            : isDark
+            ? 'hover:bg-white/5 text-dark-on-surface-variant'
+            : 'hover:bg-black/5 text-on-surface-variant'
+        )}
+      >
+        <button
+          onClick={() => selectStream(stream)}
+          className="flex items-center gap-2.5 flex-1 min-w-0"
+        >
+          <span className="shrink-0">{stream.emoji}</span>
+          <span className="truncate flex-1">{stream.label}</span>
+          {'bitrate' in stream && stream.bitrate ? (
+            <span className="text-xs opacity-40 shrink-0">{stream.bitrate}k</span>
+          ) : null}
+          {isActive && isPlaying && (
+            <span className="text-xs opacity-60 flex items-center gap-1 shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+              live
+            </span>
+          )}
+          {isActive && !isPlaying && (
+            <span className="text-xs opacity-40 shrink-0">paused</span>
+          )}
+        </button>
+
+        {showFavoriteBtn && (
+          <button
+            onClick={() => handleToggleFavorite(stream)}
+            title={isFav ? 'Remove from favorites' : 'Save to favorites'}
+            className={cn(
+              'shrink-0 w-6 h-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all',
+              isFav
+                ? 'opacity-100 text-rose-400 hover:text-rose-300'
+                : isDark
+                ? 'hover:bg-white/10 text-white/40 hover:text-white/80'
+                : 'hover:bg-black/5 text-black/30 hover:text-black/60'
+            )}
+          >
+            {isFav ? <HeartOff className="w-3.5 h-3.5" /> : <Heart className="w-3.5 h-3.5" />}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="relative">
-      {/* ── Mini Player Button ─────────────────────────────────── */}
+      {/* ── Mini Player ───────────────────────────────────────── */}
       <div className="flex items-center gap-1">
         {currentStream && (
           <span className="text-xs hidden md:block max-w-[100px] truncate opacity-70">
@@ -150,7 +219,7 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
           onClick={toggleExpanded}
           title="Audio streams"
           className={cn(
-            'w-8 h-8 rounded-xl flex items-center justify-center transition-all active:scale-90 border',
+            'relative w-8 h-8 rounded-xl flex items-center justify-center transition-all active:scale-90 border',
             isExpanded
               ? isDark
                 ? 'bg-dark-primary/20 border-dark-primary/40 text-dark-primary'
@@ -167,7 +236,7 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
         </button>
       </div>
 
-      {/* ── Expanded Panel ─────────────────────────────────────── */}
+      {/* ── Expanded Panel ────────────────────────────────────── */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -176,7 +245,7 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.18 }}
             className={cn(
-              'absolute right-0 top-12 w-72 rounded-2xl shadow-2xl border z-50 overflow-hidden',
+              'absolute right-0 top-12 w-80 rounded-2xl shadow-2xl border z-50 overflow-hidden flex flex-col',
               isDark
                 ? 'bg-dark-surface/95 backdrop-blur-xl border-white/10'
                 : 'bg-white/95 backdrop-blur-xl border-black/5'
@@ -185,7 +254,7 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
             {/* Header */}
             <div
               className={cn(
-                'flex items-center justify-between px-4 py-3 border-b',
+                'flex items-center justify-between px-4 py-3 border-b shrink-0',
                 isDark ? 'border-white/5' : 'border-black/5'
               )}
             >
@@ -201,36 +270,59 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
               </button>
             </div>
 
-            {/* Stream list */}
-            <div className="p-2">
-              {/* Stop / silence option */}
-              <button
-                onClick={handleStop}
-                className={cn(
-                  'w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-3 transition-all',
-                  !currentStream
-                    ? isDark
-                      ? 'bg-dark-primary/15 text-dark-primary'
-                      : 'bg-primary/10 text-primary'
-                    : isDark
-                    ? 'hover:bg-white/5 text-dark-on-surface-variant'
-                    : 'hover:bg-black/5 text-on-surface-variant'
-                )}
-              >
-                <span>🔇</span>
-                <span>Silence / Off</span>
-                {!currentStream && <span className="ml-auto text-xs opacity-60">active</span>}
-              </button>
+            {/* Tabs */}
+            <div
+              className={cn(
+                'flex gap-1 px-3 pt-2 shrink-0',
+              )}
+            >
+              {(['presets', 'browse', 'favorites'] as Tab[]).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    if (tab === 'browse') {
+                      setTimeout(() => searchInputRef.current?.focus(), 50);
+                    }
+                  }}
+                  className={cn(
+                    'flex-1 py-1.5 rounded-xl text-xs font-medium capitalize transition-all',
+                    activeTab === tab
+                      ? isDark
+                        ? 'bg-dark-primary/20 text-dark-primary'
+                        : 'bg-primary/10 text-primary'
+                      : isDark
+                      ? 'text-dark-on-surface-variant hover:bg-white/5'
+                      : 'text-on-surface-variant hover:bg-black/5'
+                  )}
+                >
+                  {tab === 'browse' ? (
+                    <span className="flex items-center justify-center gap-1">
+                      <Radio className="w-3 h-3" />
+                      Browse
+                    </span>
+                  ) : tab === 'favorites' ? (
+                    <span className="flex items-center justify-center gap-1">
+                      <Heart className="w-3 h-3" />
+                      Saved{favorites.length > 0 ? ` (${favorites.length})` : ''}
+                    </span>
+                  ) : (
+                    'Presets'
+                  )}
+                </button>
+              ))}
+            </div>
 
-              {PRESET_STREAMS.map((stream) => {
-                const isActive = currentStream?.id === stream.id;
-                return (
+            {/* Tab content */}
+            <div className="overflow-y-auto max-h-64 px-2 py-2">
+              {/* ── Presets tab ─────────────────────────────── */}
+              {activeTab === 'presets' && (
+                <div className="space-y-0.5">
                   <button
-                    key={stream.id}
-                    onClick={() => handleSelectPreset(stream)}
+                    onClick={handleStop}
                     className={cn(
                       'w-full text-left px-3 py-2 rounded-xl text-sm flex items-center gap-3 transition-all',
-                      isActive
+                      !currentStream
                         ? isDark
                           ? 'bg-dark-primary/15 text-dark-primary'
                           : 'bg-primary/10 text-primary'
@@ -239,61 +331,33 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
                         : 'hover:bg-black/5 text-on-surface-variant'
                     )}
                   >
-                    <span>{stream.emoji}</span>
-                    <span>{stream.label}</span>
-                    {isActive && isPlaying && (
-                      <span className="ml-auto text-xs opacity-60 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                        playing
-                      </span>
-                    )}
-                    {isActive && !isPlaying && (
-                      <span className="ml-auto text-xs opacity-40">paused</span>
+                    <span>🔇</span>
+                    <span>Silence / Off</span>
+                    {!currentStream && (
+                      <span className="ml-auto text-xs opacity-60">active</span>
                     )}
                   </button>
-                );
-              })}
-            </div>
-
-            {/* Custom URL */}
-            <div
-              className={cn(
-                'border-t px-3 pb-3 pt-2',
-                isDark ? 'border-white/5' : 'border-black/5'
+                  {PRESET_STREAMS.map((stream) => (
+                    <StreamRow
+                      key={stream.id}
+                      stream={stream}
+                      showFavoriteBtn
+                      isFav={isFavorite(stream.id)}
+                    />
+                  ))}
+                </div>
               )}
-            >
-              <button
-                onClick={() => setShowCustom((v) => !v)}
-                className={cn(
-                  'flex items-center gap-2 text-xs font-medium mb-2 transition-colors',
-                  isDark
-                    ? 'text-dark-on-surface-variant hover:text-dark-primary'
-                    : 'text-on-surface-variant hover:text-primary'
-                )}
-              >
-                <Link className="w-3 h-3" />
-                Custom stream URL
-                {showCustom ? (
-                  <ChevronUp className="w-3 h-3 ml-auto" />
-                ) : (
-                  <ChevronDown className="w-3 h-3 ml-auto" />
-                )}
-              </button>
 
-              <AnimatePresence>
-                {showCustom && (
-                  <motion.form
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    onSubmit={handleCustomSubmit}
-                    className="flex gap-2 overflow-hidden"
-                  >
+              {/* ── Browse tab ──────────────────────────────── */}
+              {activeTab === 'browse' && (
+                <div>
+                  <form onSubmit={handleSearchSubmit} className="flex gap-2 mb-3 px-1">
                     <input
-                      type="url"
-                      value={customUrl}
-                      onChange={(e) => setCustomUrl(e.target.value)}
-                      placeholder="https://stream.example.com/live.mp3"
+                      ref={searchInputRef}
+                      type="text"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="lofi, jazz, ambient, classical…"
                       className={cn(
                         'flex-1 text-xs px-3 py-2 rounded-xl border outline-none transition-all',
                         isDark
@@ -303,25 +367,77 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
                     />
                     <button
                       type="submit"
-                      disabled={!customUrl.trim()}
+                      disabled={!query.trim() || isLoading}
                       className={cn(
-                        'px-3 py-2 rounded-xl text-xs font-semibold transition-all active:scale-90',
+                        'px-3 py-2 rounded-xl text-xs font-semibold transition-all active:scale-90 flex items-center gap-1',
                         isDark
                           ? 'bg-dark-primary/20 text-dark-primary hover:bg-dark-primary/30 disabled:opacity-40'
                           : 'bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40'
                       )}
                     >
-                      Play
+                      {isLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Search className="w-3.5 h-3.5" />
+                      )}
                     </button>
-                  </motion.form>
-                )}
-              </AnimatePresence>
+                  </form>
+
+                  {error && (
+                    <p className="text-xs text-center py-4 opacity-60 text-rose-400">{error}</p>
+                  )}
+
+                  {!isLoading && results.length === 0 && !error && (
+                    <p className={cn('text-xs text-center py-6 opacity-40', isDark ? 'text-white' : 'text-black')}>
+                      Search by genre tag — results sorted by community votes
+                    </p>
+                  )}
+
+                  <div className="space-y-0.5">
+                    {results.map((station: RadioStation) => (
+                      <StreamRow
+                        key={station.id}
+                        stream={station}
+                        showFavoriteBtn
+                        isFav={isFavorite(station.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Favorites tab ───────────────────────────── */}
+              {activeTab === 'favorites' && (
+                <div>
+                  {favorites.length === 0 ? (
+                    <div className={cn('text-xs text-center py-8 opacity-40', isDark ? 'text-white' : 'text-black')}>
+                      <Heart className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                      No saved stations yet.
+                      <br />
+                      Click{' '}
+                      <Heart className="w-3 h-3 inline-block" />
+                      {' '}on any stream to save it.
+                    </div>
+                  ) : (
+                    <div className="space-y-0.5">
+                      {favorites.map((stream) => (
+                        <StreamRow
+                          key={stream.id}
+                          stream={stream}
+                          showFavoriteBtn
+                          isFav
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Volume */}
             <div
               className={cn(
-                'flex items-center gap-3 px-4 py-3 border-t',
+                'flex items-center gap-3 px-4 py-3 border-t shrink-0',
                 isDark ? 'border-white/5' : 'border-black/5'
               )}
             >
@@ -329,7 +445,9 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
                 onClick={() => setVolume(isMuted ? 0.7 : 0)}
                 className={cn(
                   'transition-colors',
-                  isDark ? 'text-dark-on-surface-variant hover:text-dark-primary' : 'text-on-surface-variant hover:text-primary'
+                  isDark
+                    ? 'text-dark-on-surface-variant hover:text-dark-primary'
+                    : 'text-on-surface-variant hover:text-primary'
                 )}
               >
                 {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}

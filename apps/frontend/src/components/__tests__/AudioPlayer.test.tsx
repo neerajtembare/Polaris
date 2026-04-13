@@ -61,34 +61,52 @@ const mockPause        = vi.fn();
 const mockTogglePlay   = vi.fn();
 const mockSetVolume    = vi.fn();
 const mockToggleExpanded = vi.fn();
-const mockPlayCustomUrl  = vi.fn();
-const mockSetCustomUrl   = vi.fn();
+const mockAddFavorite    = vi.fn();
+const mockRemoveFavorite = vi.fn();
+const mockIsFavorite     = vi.fn(() => false);
 
 const storeState = {
   currentStream: null as { id: string; label: string; url: string; emoji: string } | null,
   isPlaying:     false,
   volume:        0.8,
   isExpanded:    false,
-  customUrl:     '',
+  favorites:     [] as { id: string; label: string; url: string; emoji: string }[],
   selectStream:  mockSelectStream,
   play:          mockPlay,
   pause:         mockPause,
   togglePlay:    mockTogglePlay,
   setVolume:     mockSetVolume,
   toggleExpanded: mockToggleExpanded,
-  playCustomUrl:  mockPlayCustomUrl,
-  setCustomUrl:   mockSetCustomUrl,
+  addFavorite:    mockAddFavorite,
+  removeFavorite: mockRemoveFavorite,
+  isFavorite:     mockIsFavorite,
 };
 
 vi.mock('@/stores/audioPlayer.store', () => ({
   useAudioPlayer: () => storeState,
   PRESET_STREAMS: [
-    { id: 'lofi',       label: 'Lofi Chill',   url: 'https://stream.zeno.fm/f3wvbbqmdg8uv', emoji: '🎵' },
-    { id: 'rain',       label: 'Rain & Thunder', url: 'https://stream.zeno.fm/yn065g0jnqhvv', emoji: '🌧️' },
-    { id: 'brown-noise',label: 'Brown Noise',   url: 'https://stream.zeno.fm/a8e4smdphs8uv', emoji: '🟫' },
-    { id: 'synthwave',  label: 'Synthwave',     url: 'https://stream.zeno.fm/0r0xa792kwzuv', emoji: '🌆' },
-    { id: 'coffee',     label: 'Coffee Shop',   url: 'https://stream.zeno.fm/scny4qn0e28uv', emoji: '☕' },
+    { id: 'lofi-hiphop', label: 'Lofi Hip Hop',    url: 'https://streams.ilovemusic.de/iloveradio17.mp3', emoji: '🎵' },
+    { id: 'chillout',   label: 'Chillout Lounge', url: 'http://streaming.radionomy.com/ChilloutLounge',  emoji: '🌙' },
+    { id: 'classical',  label: 'Classical Focus', url: 'http://stream.srg-ssr.ch/m/rsc_de/mp3_128',      emoji: '🎻' },
+    { id: 'jazz',       label: 'Smooth Jazz',     url: 'https://streaming.live365.com/a18141',           emoji: '🎷' },
+    { id: 'ambient',    label: 'Ambient / Drone', url: 'https://live.radioreklama.fm/ambient128.mp3',    emoji: '🌊' },
   ],
+}));
+
+// ---------------------------------------------------------------------------
+// Mock useRadioBrowser hook
+// ---------------------------------------------------------------------------
+
+vi.mock('@/hooks/useRadioBrowser', () => ({
+  useRadioBrowser: () => ({
+    results: [],
+    isLoading: false,
+    error: null,
+    query: '',
+    setQuery: vi.fn(),
+    search: vi.fn(),
+    clear: vi.fn(),
+  }),
 }));
 
 import { AudioPlayer } from '../../components/AudioPlayer.js';
@@ -100,9 +118,11 @@ import { AudioPlayer } from '../../components/AudioPlayer.js';
 describe('AudioPlayer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsFavorite.mockReturnValue(false);
     storeState.isPlaying  = false;
     storeState.isExpanded = false;
     storeState.currentStream = null;
+    storeState.favorites = [];
   });
 
   it('renders play button when not playing', () => {
@@ -112,7 +132,7 @@ describe('AudioPlayer', () => {
 
   it('calls togglePlay when the play/pause button is pressed', async () => {
     // Button is disabled when no stream is selected — must set a stream first
-    storeState.currentStream = { id: 'lofi', label: 'Lofi Chill', url: 'https://stream.zeno.fm/f3wvbbqmdg8uv', emoji: '🎵' };
+    storeState.currentStream = { id: 'lofi-hiphop', label: 'Lofi Hip Hop', url: 'https://streams.ilovemusic.de/iloveradio17.mp3', emoji: '🎵' };
     render(<AudioPlayer isDark={false} />);
     const playBtn = screen.getByTitle(/play|pause/i);
     await userEvent.click(playBtn);
@@ -132,28 +152,26 @@ describe('AudioPlayer', () => {
   it('shows stream list when expanded', () => {
     storeState.isExpanded = true;
     render(<AudioPlayer isDark={false} />);
-    // All 5 preset stream labels should be visible
-    expect(screen.getByText('Lofi Chill')).toBeTruthy();
-    expect(screen.getByText('Rain & Thunder')).toBeTruthy();
-    expect(screen.getByText('Synthwave')).toBeTruthy();
+    expect(screen.getByText('Lofi Hip Hop')).toBeTruthy();
+    expect(screen.getByText('Chillout Lounge')).toBeTruthy();
+    expect(screen.getByText('Smooth Jazz')).toBeTruthy();
   });
 
   it('calls selectStream when a preset is clicked', async () => {
     storeState.isExpanded = true;
     render(<AudioPlayer isDark={false} />);
-    await userEvent.click(screen.getByText('Lofi Chill'));
+    await userEvent.click(screen.getByText('Lofi Hip Hop'));
     expect(mockSelectStream).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'lofi', label: 'Lofi Chill' })
+      expect.objectContaining({ id: 'lofi-hiphop', label: 'Lofi Hip Hop' })
     );
   });
 
   it('highlights the currently playing stream', () => {
     storeState.isExpanded    = true;
-    storeState.currentStream = { id: 'rain', label: 'Rain & Thunder', url: 'https://stream.zeno.fm/yn065g0jnqhvv', emoji: '🌧️' };
+    storeState.currentStream = { id: 'jazz', label: 'Smooth Jazz', url: 'https://streaming.live365.com/a18141', emoji: '🎷' };
     const { container } = render(<AudioPlayer isDark={false} />);
     expect(container).toBeTruthy();
-    // Stream label is present (visual highlight is class-based so just confirm render)
-    expect(screen.getByText('Rain & Thunder')).toBeTruthy();
+    expect(screen.getByText('Smooth Jazz')).toBeTruthy();
   });
 
   it('shows volume control when expanded', () => {

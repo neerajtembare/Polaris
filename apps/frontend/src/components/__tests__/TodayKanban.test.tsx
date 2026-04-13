@@ -9,6 +9,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ListedActivity } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------
 // Mock heavy deps
@@ -16,9 +17,12 @@ import userEvent from '@testing-library/user-event';
 
 vi.mock('framer-motion', () => {
   // Generic factory that renders any HTML tag so motion.div, motion.li, motion.p etc all work
-  const makeEl = (tag: string) =>
-    ({ children, ...p }: React.HTMLAttributes<HTMLElement>) =>
+  const makeEl = (tag: string) => {
+    const El = ({ children, ...p }: React.HTMLAttributes<HTMLElement>) =>
       React.createElement(tag, p, children);
+    El.displayName = `motion.${tag}`;
+    return El;
+  };
   return {
     motion: new Proxy({} as Record<string, unknown>, {
       get: (_t, tag: string) => makeEl(tag),
@@ -33,13 +37,16 @@ vi.mock('react-hot-toast', () => ({ default: { success: vi.fn(), error: vi.fn() 
 const mockUpdateActivity = vi.fn().mockResolvedValue({});
 const mockDeleteActivity = vi.fn().mockResolvedValue({});
 
-const defaultTodayData = {
+type TodayData = { planned: ListedActivity[]; completed: ListedActivity[]; skipped: ListedActivity[] };
+type MockHookReturn = { data: TodayData; isLoading: boolean; error: unknown };
+
+const defaultTodayData: TodayData = {
   planned:   [],
   completed: [],
   skipped:   [],
 };
 
-const mockUseTodayActivities = vi.fn(() => ({
+const mockUseTodayActivities = vi.fn((): MockHookReturn => ({
   data:      defaultTodayData,
   isLoading: false,
   error:     null,
@@ -81,7 +88,7 @@ import { TodayKanban } from '../../components/activities/TodayKanban.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeActivity(overrides: Partial<{ id: string; title: string; status: string }> = {}) {
+function makeActivity(overrides: Partial<ListedActivity> = {}): ListedActivity {
   return {
     id:           'act-1',
     title:        'Read 30 pages',
@@ -91,15 +98,14 @@ function makeActivity(overrides: Partial<{ id: string; title: string; status: st
     unit:         'pages',
     goalId:       null,
     goalTitle:    null,
-    tags:         [],
-    loggedAt:     new Date().toISOString(),
-    activityDate: new Date().toISOString().split('T')[0],
+    tags:         [] as string[],
+    activityDate: new Date().toISOString().split('T')[0] ?? '',
     createdAt:    new Date().toISOString(),
     updatedAt:    new Date().toISOString(),
     completedAt:  null,
     notes:        null,
     rawInput:     null,
-    category:     'general',
+    category:     'growth' as const,
     aiGenerated:  false,
     aiCategorized: false,
     isDeleted:    false,
@@ -160,7 +166,7 @@ describe('TodayKanban', () => {
   });
 
   it('shows loading state while fetching', () => {
-    mockUseTodayActivities.mockReturnValue({ data: undefined, isLoading: true, error: null });
+    mockUseTodayActivities.mockReturnValue({ data: defaultTodayData, isLoading: true, error: null });
     const { container } = render(<TodayKanban isDark={false} />);
     // During load the board should still render (skeleton or spinner)
     expect(container).toBeTruthy();

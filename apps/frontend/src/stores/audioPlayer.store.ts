@@ -24,37 +24,37 @@ export interface AudioStream {
   emoji: string;
 }
 
-/** Curated direct-stream presets. Update URLs here if a stream goes down. */
+/** Curated direct-stream presets — community-rated stations from Radio Browser. */
 export const PRESET_STREAMS: AudioStream[] = [
   {
-    id: 'lofi',
-    label: 'Lofi Chill',
-    url: 'https://stream.zeno.fm/f3wvbbqmdg8uv',
+    id: 'lofi-hiphop',
+    label: 'Lofi Hip Hop',
+    url: 'https://streams.ilovemusic.de/iloveradio17.mp3',
     emoji: '🎵',
   },
   {
-    id: 'rain',
-    label: 'Rain & Thunder',
-    url: 'https://stream.zeno.fm/yn065g0jnqhvv',
-    emoji: '🌧️',
+    id: 'chillout',
+    label: 'Chillout Lounge',
+    url: 'http://streaming.radionomy.com/ChilloutLounge',
+    emoji: '🌙',
   },
   {
-    id: 'brown-noise',
-    label: 'Brown Noise',
-    url: 'https://stream.zeno.fm/a8e4smdphs8uv',
-    emoji: '🟫',
+    id: 'classical',
+    label: 'Classical Focus',
+    url: 'http://stream.srg-ssr.ch/m/rsc_de/mp3_128',
+    emoji: '🎻',
   },
   {
-    id: 'synthwave',
-    label: 'Synthwave',
-    url: 'https://stream.zeno.fm/0r0xa792kwzuv',
-    emoji: '🌆',
+    id: 'jazz',
+    label: 'Smooth Jazz',
+    url: 'https://streaming.live365.com/a18141',
+    emoji: '🎷',
   },
   {
-    id: 'coffee',
-    label: 'Coffee Shop',
-    url: 'https://stream.zeno.fm/scny4qn0e28uv',
-    emoji: '☕',
+    id: 'ambient',
+    label: 'Ambient / Drone',
+    url: 'https://live.radioreklama.fm/ambient128.mp3',
+    emoji: '🌊',
   },
 ];
 
@@ -69,6 +69,8 @@ interface AudioPlayerState {
   volume: number;
   /** Whether the player panel is expanded */
   isExpanded: boolean;
+  /** User-saved favorite stations */
+  favorites: AudioStream[];
 
   // Actions
   selectStream: (stream: AudioStream | null) => void;
@@ -79,6 +81,9 @@ interface AudioPlayerState {
   togglePlay: () => void;
   setVolume: (v: number) => void;
   toggleExpanded: () => void;
+  addFavorite: (stream: AudioStream) => void;
+  removeFavorite: (id: string) => void;
+  isFavorite: (id: string) => boolean;
 }
 
 export const useAudioPlayer = create<AudioPlayerState>()(
@@ -89,6 +94,7 @@ export const useAudioPlayer = create<AudioPlayerState>()(
       isPlaying: false,
       volume: 0.7,
       isExpanded: false,
+      favorites: [],
 
       selectStream: (stream) => {
         set({ currentStream: stream, isPlaying: stream !== null });
@@ -115,14 +121,30 @@ export const useAudioPlayer = create<AudioPlayerState>()(
       setVolume: (v) => set({ volume: Math.max(0, Math.min(1, v)) }),
 
       toggleExpanded: () => set((s) => ({ isExpanded: !s.isExpanded })),
+
+      addFavorite: (stream) => {
+        set((s) => {
+          if (s.favorites.some((f) => f.id === stream.id)) return s;
+          return { favorites: [...s.favorites, stream] };
+        });
+      },
+
+      removeFavorite: (id) => {
+        set((s) => ({ favorites: s.favorites.filter((f) => f.id !== id) }));
+      },
+
+      isFavorite: (id) => {
+        return get().favorites.some((f) => f.id === id);
+      },
     }),
     {
       name: 'polaris:audio',
-      // Only persist stream selection + volume, not transient playing state
+      // Only persist stream selection + volume + favorites, not transient playing state
       partialize: (s) => ({
         currentStream: s.currentStream,
         customUrl: s.customUrl,
         volume: s.volume,
+        favorites: s.favorites,
       }),
     }
   )

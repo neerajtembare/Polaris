@@ -24,6 +24,7 @@
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.7.0",
     "maath": "^0.10.8",
+    "radio-browser-api": "^6.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.6.0",

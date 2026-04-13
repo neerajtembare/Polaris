@@ -47,26 +47,34 @@ import { aiService } from '../ai.service.js';
 // ---------------------------------------------------------------------------
 
 const goals = [
-  { id: 'goal-1', title: 'Read 7200 pages this year', targetValue: 7200, unit: 'pages', currentValue: 1500 },
+  { id: 'goal-1', title: 'Read 7200 pages this year', targetUnit: 'pages' },
 ];
 
 const dashboardMetrics = {
   period:              'week' as const,
+  startDate:           '2026-04-07',
+  endDate:             '2026-04-14',
   totalActivities:     15,
   completedActivities: 12,
+  plannedActivities:   5,
+  goalsTouched:        3,
   completionRate:      80,
   currentStreak:       5,
   longestStreak:       17,
   totalFocusMinutes:   300,
-  heatmap:             [],
+  activityByDay:       {} as Record<string, number>,
   goalProgress:        [],
 };
 
 const polarisContext = {
-  goals:            goals.map(g => ({ id: g.id, title: g.title })),
+  activeGoals: [
+    { id: 'goal-1', title: 'Read 7200 pages this year', progress: 20, timeframe: 'long' },
+  ],
   recentActivities: [],
-  metrics:          dashboardMetrics,
-  todayIntentions:  [],
+  currentStreak:    5,
+  longestStreak:    17,
+  timeOfDay:        'morning' as const,
+  dayOfWeek:        'Monday',
 };
 
 // ---------------------------------------------------------------------------
@@ -123,7 +131,14 @@ describe('aiService (PolarisAI facade)', () => {
         suggestedActivities: [{ title: 'Read daily', frequency: 'daily', estimatedValue: 30, unit: 'pages' }],
       });
 
-      const result = await aiService.breakdownGoal({ title: 'Read 7200 pages', targetValue: 7200, unit: 'pages' });
+      const result = await aiService.breakdownGoal({
+        title:       'Read 7200 pages',
+        description: null,
+        timeframe:   'long',
+        targetValue: 7200,
+        targetUnit:  'pages',
+        targetDate:  null,
+      });
       expect(result.subGoals.length).toBeGreaterThan(0);
       expect(result.suggestedActivities.length).toBeGreaterThan(0);
     });
@@ -135,14 +150,14 @@ describe('aiService (PolarisAI facade)', () => {
     it('returns weekly insights with summary', async () => {
       mockAnalyzeWeek.mockResolvedValue({
         summary:     'Good week.',
-        highlights:  ['Completed 3 goals'],
+        insights:    ['Completed 3 goals'],
         suggestions: ['Rest tomorrow'],
-        streakNote:  '5-day streak',
+        provider:    'mock',
       });
 
       const result = await aiService.analyzeWeek(dashboardMetrics);
       expect(result.summary).toBe('Good week.');
-      expect(Array.isArray(result.highlights)).toBe(true);
+      expect(Array.isArray(result.insights)).toBe(true);
     });
   });
 
@@ -156,7 +171,7 @@ describe('aiService (PolarisAI facade)', () => {
         quote:      null,
       });
 
-      const result = await aiService.dailyCoach(polarisContext as Parameters<typeof aiService.dailyCoach>[0]);
+      const result = await aiService.dailyCoach(polarisContext);
       expect(result.message).toBe('Stay consistent.');
     });
   });
