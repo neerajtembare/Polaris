@@ -1,4 +1,7 @@
 /**
+ * DEAD CODE — BrowserRouter is not mounted in App.tsx. This page is never rendered.
+ * Do NOT delete yet — reserved for Phase 2+ when React Router is wired up.
+ *
  * @file pages/GoalDetail.tsx
  * @description Goal detail page showing full info, progress, and inline edit/delete.
  *   Read mode and edit mode are toggled in-place — no separate edit route needed.

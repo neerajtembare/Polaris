@@ -9,3 +9,5 @@ export * from './types/activity.js';
 export * from './types/api.js';
 export * from './types/api-responses.js';
 export * from './types/ai.js';
+export * from './types/focus-session.js';
+export * from './types/daily-coach.js';

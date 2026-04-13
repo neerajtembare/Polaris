@@ -55,11 +55,12 @@ function Start-Ollama {
         Start-Sleep 3
     }
     $models = & ollama list 2>$null
-    if (-not ($models -match "llama3.2:3b")) {
-        Write-Info "Pulling llama3.2:3b model (~2GB, first run only)…"
-        & ollama pull llama3.2:3b
+    $ollamaModel = (Get-Content apps\backend\.env -ErrorAction SilentlyContinue | Where-Object { $_ -match '^OLLAMA_MODEL=' } | ForEach-Object { ($_ -split '=', 2)[1].Trim('"') } | Select-Object -First 1) ?? 'gemma4:e4b'
+    if (-not ($models -match [regex]::Escape($ollamaModel))) {
+        Write-Info "Pulling $ollamaModel model (first run only)…"
+        & ollama pull $ollamaModel
     }
-    Write-Ok "Ollama ready (llama3.2:3b)"
+    Write-Ok "Ollama ready ($ollamaModel)"
 }
 
 function Start-Whisper {

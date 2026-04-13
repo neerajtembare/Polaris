@@ -10,7 +10,7 @@ Polaris is a **Local-First Web Application** for personal activity tracking and 
 |-----------|------------|---------|
 | Frontend | React + TypeScript | User interface |
 | Backend | Node.js + Fastify | API server |
-| Database | SQLite + Prisma | Local persistence |
+| Database | PostgreSQL + Prisma | Local/hosted persistence |
 | AI Layer | Provider-agnostic adapter | AI integration (Phase 3+) |
 
 All components run locally on the user's machine during MVP.
@@ -42,7 +42,7 @@ All components run locally on the user's machine during MVP.
               ┌────────────┴────────────┐
               ▼                         ▼
 ┌─────────────────────────┐   ┌─────────────────────────┐
-│     SQLite Database     │   │   AI Provider Adapter   │
+│   PostgreSQL Database   │   │   AI Provider Adapter   │
 │  (Goals, Activities,    │   │  (Ollama / OpenAI /     │
 │   Events, Insights)     │   │   Claude / Mock)        │
 └─────────────────────────┘   └─────────────────────────┘
@@ -176,16 +176,16 @@ apps/backend/
 
 ## 4.1 Database Choice
 
-**SQLite** for MVP:
-- Zero configuration
-- File-based (easy backup)
-- ACID compliant
-- Sufficient for single-user
-- Easy migration to PostgreSQL later
+**PostgreSQL** (migrated from SQLite in Phase 0A):
+- Full ACID compliance with concurrent access
+- Native JSON/JSONB support (used for `tags` column)
+- Connection pooling via `pg` driver
+- Production-grade reliability
+- Runs locally via Docker or managed via DATABASE_URL env
 
 ## 4.2 Key Principles
 
-- **WAL mode** enabled for better concurrent reads
+- **Connection pooling** via Prisma's built-in pool
 - **Foreign keys** enforced
 - **Soft delete** via `is_deleted` flag
 - **Timestamps** in UTC
@@ -721,7 +721,7 @@ cd backend && npm run dev
 cd frontend && npm run dev
 
 # Database
-# SQLite file created automatically
+# PostgreSQL via DATABASE_URL env var (see .env.example)
 
 # AI (Phase 3 - optional)
 ollama run llama3
@@ -737,7 +737,7 @@ Architecture designed for:
 
 | Future Feature | Extension Point |
 |----------------|-----------------|
-| PostgreSQL | Prisma migration + config change |
+
 | Redis cache | Cache adapter interface |
 | Background jobs | Job queue layer |
 | Multiple AI models | AI adapter interface |

@@ -8,7 +8,7 @@
  * - @fastify/cors
  * - @fastify/helmet
  * - @fastify/multipart
- * - @fastify/rate-limit
+ * - @fastify/rate-limit (AI endpoints only — global rate limiter removed in Phase 0)
  *
  * @relatedFiles
  * - src/index.ts
@@ -20,7 +20,6 @@ import type { FastifyError } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
-import rateLimit from '@fastify/rate-limit';
 import { registerRoutes } from './routes/index.js';
 import { config } from './config/index.js';
 
@@ -83,20 +82,6 @@ export async function buildApp() {
       ? ['http://localhost:5173']
       : (config.corsOrigin ? config.corsOrigin.split(',').map((o) => o.trim()) : false),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  });
-
-  // Rate limiting — global cap; AI endpoints get a stricter per-route override
-  await app.register(rateLimit, {
-    global: true,
-    max: 100,
-    timeWindow: '1 minute',
-    errorResponseBuilder: (_request, context) => ({
-      success: false,
-      error: {
-        code: 'RATE_LIMIT_EXCEEDED',
-        message: `Too many requests. Please slow down (limit: ${context.max} per ${context.after}).`,
-      },
-    }),
   });
 
   // Multipart — required for voice transcription audio file uploads

@@ -1,4 +1,7 @@
 /**
+ * DEAD CODE — BrowserRouter is not mounted in App.tsx. This page is never rendered.
+ * Do NOT delete yet — reserved for Phase 2+ when React Router is wired up.
+ *
  * @file pages/NotFound.tsx
  * @description 404 Not Found page — rendered for any unmatched route.
  * @module @polaris/frontend/pages

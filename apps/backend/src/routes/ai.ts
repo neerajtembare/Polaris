@@ -129,10 +129,46 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
   );
 
   /**
+   * GET /api/ai/analyze-week/stream
+   * Streams weekly analysis tokens as SSE.
+   * Events: { type:'token', token:string } | { type:'result', data:AIWeeklyAnalysis } | [DONE]
+   */
+  app.get('/analyze-week/stream', {}, AIController.analyzeWeekStreamHandler);
+
+  /**
    * GET /api/ai/config
    * Return the currently active AI provider name and Ollama model (if applicable).
    */
   app.get('/config', {}, AIController.getAiConfigHandler);
+
+  /**
+   * GET /api/ai/daily-coach
+   * Returns a personalised daily coaching message + suggested activity.
+   * The frontend caches this for the day using a localStorage date key.
+   */
+  app.get('/daily-coach', {}, AIController.dailyCoachHandler);
+
+  /**
+   * POST /api/ai/config
+   * Update the active Ollama model at runtime (no restart required).
+   * Body: { model: string }
+   */
+  app.post(
+    '/config',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['model'],
+          additionalProperties: false,
+          properties: {
+            model: { type: 'string', minLength: 1, maxLength: 200 },
+          },
+        },
+      },
+    },
+    AIController.setAiConfigHandler
+  );
 
   /**
    * GET /api/ai/ollama-models

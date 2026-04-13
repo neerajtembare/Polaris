@@ -23,7 +23,6 @@ import {
   Mic,
   MicOff,
   Loader2,
-  CheckCircle2,
   Flame,
   Target,
   Activity,
@@ -35,10 +34,14 @@ import {
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import ReactiveCard from './ui/ReactiveCard';
-import { useAiParse } from '@/hooks/useAiParse';
-import { useCreateActivity, useTodayActivities } from '@/hooks/useActivities';
 import { useMetrics } from '@/hooks/useMetrics';
 import { useGoals } from '@/hooks/useGoals';
+import { useTodayActivities } from '@/hooks/useActivities';
+import { useActivityInput } from '@/hooks/use-activity-input';
+import { ParsedActivityCard } from '@/components/activities/ParsedActivityCard';
+import { GoalSuggestionCard } from '@/components/activities/GoalSuggestionCard';
+import { TodayKanban } from '@/components/activities/TodayKanban';
+import { IntentionsPanel } from '@/components/IntentionsPanel';
 import type { Theme, ScreenId } from '@/types/navigation';
 import toast from 'react-hot-toast';
 
@@ -70,7 +73,8 @@ declare global {
 
 interface HubProps {
   theme: Theme;
-  onNavigate: (screen: ScreenId, transition?: 'none' | 'push') => void;
+  onNavigate:   (screen: ScreenId, transition?: 'none' | 'push') => void;
+  onStartFocus: () => void;
 }
 
 /** Format the current time HH:MM */
@@ -86,29 +90,41 @@ function useClock() {
   return { time, dateStr };
 }
 
-export default function Hub({ theme, onNavigate }: HubProps) {
+export default function Hub({ theme, onNavigate, onStartFocus }: HubProps) {
   const isDark = theme === 'dark';
   const { time, dateStr } = useClock();
 
   // Input state
   const [inputValue, setInputValue] = useState('');
-  const [feedback, setFeedback] = useState<{ message: string; provider: string } | null>(null);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
-
-  // Auto-clear feedback without leaking on unmount
-  useEffect(() => {
-    if (!feedback) return;
-    const timer = setTimeout(() => setFeedback(null), 5_000);
-    return () => clearTimeout(timer);
-  }, [feedback]);
 
   // Stop recognition on unmount
   useEffect(() => {
     return () => { recognitionRef.current?.abort(); };
   }, []);
 
-  // Speech-to-text: transcribes into input field only — user reviews, then clicks Log
+  // Central parse → confirm → save logic (same hook as SmartInputBar)
+  const {
+    parsedResult,
+    isAiParsing,
+    isSaving,
+    goals,
+    handleSubmitInput,
+    handleSave,
+    handleCreateGoal,
+    handleLogAsActivity,
+    handleDismiss,
+  } = useActivityInput({
+    onNavigateToGoalCreate: (params) => {
+      onNavigate('Goals', 'push');
+      toast(`Goal suggestion: ${params.get('title') ?? ''}`, { icon: '🎯' });
+    },
+  });
+
+  const isLogging = isAiParsing || isSaving;
+
+  // Speech-to-text: transcribes into input field — user reviews, then submits
   const handleMicClick = useCallback(() => {
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!SR) {
@@ -136,56 +152,24 @@ export default function Hub({ theme, onNavigate }: HubProps) {
     };
     recognition.start();
   }, [isListening]);
-  const { aiParse, isLoading: isParsingAi } = useAiParse();
-  const createActivity = useCreateActivity();
+
+  const handleLog = useCallback(() => {
+    const text = inputValue.trim();
+    if (!text || isLogging) return;
+    void handleSubmitInput(text);
+    setInputValue('');
+  }, [inputValue, isLogging, handleSubmitInput]);
+
   const { data: todayData } = useTodayActivities();
   const { data: metrics } = useMetrics('week');
   const { data: goalsData } = useGoals({ status: 'active', includeProgress: true });
 
-  const isLogging = isParsingAi || createActivity.isPending;
-
-  const handleLog = async () => {
-    const text = inputValue.trim();
-    if (!text || isLogging) return;
-
-    try {
-      // AI parse (falls back silently on error)
-      const aiResult = await aiParse(text);
-
-      const title = aiResult?.title ?? text;
-      const activityType = aiResult?.activityType ?? 'completion';
-      const value = aiResult?.value ?? null;
-      const unit = aiResult?.unit ?? null;
-      const goalId = aiResult?.goalId ?? undefined;
-
-      await createActivity.mutateAsync({
-        title,
-        activityType,
-        ...(value != null ? { value } : {}),
-        ...(unit != null ? { unit } : {}),
-        ...(goalId ? { goalId } : {}),
-        status: 'completed',
-        activityDate: format(new Date(), 'yyyy-MM-dd'),
-      });
-
-      setFeedback({
-        message: aiResult
-          ? `Logged: "${title}"${aiResult.provider !== 'mock' ? ` via ${aiResult.provider}` : ''}`
-          : `Logged: "${title}"`,
-        provider: aiResult?.provider ?? 'local',
-      });
-      setInputValue('');
-    } catch {
-      toast.error('Failed to log activity. Please try again.');
-    }
-  };
-
-  // Hooks
-
   // Derived metrics
-  const streak = metrics?.currentStreak ?? 14; // sample fallback
+  const streak = metrics?.currentStreak ?? 0;
+  const longestStreak = metrics?.longestStreak ?? 0;
   const completedToday = todayData?.completed?.length ?? 0;
   const plannedToday = todayData?.planned?.length ?? 0;
+  const streakAtRisk = streak > 0 && completedToday === 0;
 
   // Weekly bar chart — activityByDay is a Record<YYYY-MM-DD, number>
   const rawBars: number[] = metrics?.activityByDay
@@ -285,38 +269,51 @@ export default function Hub({ theme, onNavigate }: HubProps) {
             </button>
           </div>
 
-          {/* Feedback / hint */}
+          {/* Parsed result / confirm card — shown after user submits text */}
           <AnimatePresence mode="wait">
-            {feedback ? (
+            {parsedResult && parsedResult.intent === 'create_goal' ? (
               <motion.div
-                key="feedback"
+                key="goal-suggestion"
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10 }}
-                className={cn(
-                  'mt-4 p-4 rounded-2xl flex items-start gap-3 text-left border backdrop-blur-xl',
-                  isDark
-                    ? 'bg-dark-primary/10 border-dark-primary/30'
-                    : 'bg-primary/5 border-primary/20'
-                )}
+                className="mt-4"
               >
-                <CheckCircle2
-                  className={cn('w-5 h-5 shrink-0 mt-0.5', isDark ? 'text-dark-primary' : 'text-primary')}
+                <GoalSuggestionCard
+                  title={parsedResult.title}
+                  value={parsedResult.value}
+                  unit={parsedResult.unit}
+                  onCreateGoal={handleCreateGoal}
+                  onLogAsActivity={handleLogAsActivity}
+                  onDismiss={handleDismiss}
                 />
-                <p
-                  className={cn(
-                    'text-sm font-semibold',
-                    isDark ? 'text-dark-on-surface' : 'text-on-surface'
-                  )}
-                >
-                  {feedback.message}
-                </p>
+              </motion.div>
+            ) : parsedResult ? (
+              <motion.div
+                key="parsed-card"
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mt-4"
+              >
+                {isAiParsing && (
+                  <p className={cn('text-xs mb-2 text-center', isDark ? 'text-dark-primary/70' : 'text-primary/70')}>
+                    ✨ AI refining…
+                  </p>
+                )}
+                <ParsedActivityCard
+                  parsed={parsedResult}
+                  goals={goals}
+                  onSave={(fields) => void handleSave(fields)}
+                  onDismiss={handleDismiss}
+                  isSaving={isSaving}
+                />
               </motion.div>
             ) : (
               <motion.p
                 key="hint"
                 className={cn(
-                  'text-xs mt-4 font-medium transition-colors',
+                  'text-xs mt-4 font-medium transition-colors text-center',
                   isDark ? 'text-dark-on-surface-variant/60' : 'text-on-surface-variant/60'
                 )}
               >
@@ -327,12 +324,32 @@ export default function Hub({ theme, onNavigate }: HubProps) {
         </div>
       </section>
 
+      {/* ── Focus Mode CTA ──────────────────────────────────────────── */}
+      <div className="flex justify-center mb-4 relative z-10">
+        <button
+          onClick={onStartFocus}
+          className={cn(
+            'flex items-center gap-3 px-8 py-3 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all border',
+            isDark
+              ? 'bg-dark-primary/10 border-dark-primary/20 text-dark-primary hover:bg-dark-primary/20'
+              : 'bg-primary/5 border-primary/20 text-primary hover:bg-primary/10'
+          )}
+        >
+          <Activity className={cn('w-4 h-4', isDark ? 'text-dark-primary' : 'text-primary')} />
+          {isDark ? 'Enter Focus Mode' : 'Start Focus Session'}
+        </button>
+      </div>
+
       {/* ── Bento Grid ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 relative z-10">
 
         {/* ── Streak / Self-Mastery Card (col 4) ───────────────────── */}
         <ReactiveCard isDark={isDark} className="md:col-span-4 flex flex-col justify-between">
-          <div>
+          {/* Ambient glow when streak is active */}
+          {streak > 0 && isDark && (
+            <div className="absolute -top-12 -left-12 w-48 h-48 bg-orange-500/10 blur-[80px] pointer-events-none" />
+          )}
+          <div className="relative z-10">
             <h3
               className={cn(
                 'text-[10px] font-bold tracking-[0.3em] uppercase mb-6 md:mb-8',
@@ -341,33 +358,82 @@ export default function Hub({ theme, onNavigate }: HubProps) {
             >
               {isDark ? 'Self-Mastery Index' : 'Activity Streak'}
             </h3>
-            <div className="flex items-baseline gap-2">
-              <span
+            {/* Main streak number */}
+            <div className="flex items-end gap-3">
+              <Flame
                 className={cn(
-                  'text-6xl md:text-7xl font-black tracking-tighter',
-                  isDark ? 'text-dark-on-surface drop-shadow-[0_0_15px_rgba(129,236,255,0.3)]' : 'text-on-surface'
+                  'w-10 h-10 md:w-12 md:h-12 mb-1 transition-all',
+                  streak > 0
+                    ? streakAtRisk
+                      ? 'text-amber-400 opacity-60'
+                      : 'text-orange-400 drop-shadow-[0_0_12px_rgba(251,146,60,0.7)]'
+                    : 'opacity-15',
+                  !isDark && streak > 0 && !streakAtRisk && 'text-orange-500'
+                )}
+              />
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={cn(
+                    'text-6xl md:text-7xl font-black tracking-tighter',
+                    streak > 0
+                      ? isDark
+                        ? 'text-dark-on-surface drop-shadow-[0_0_15px_rgba(129,236,255,0.3)]'
+                        : 'text-on-surface'
+                      : isDark ? 'text-dark-on-surface-variant/30' : 'text-on-surface-variant/30'
+                  )}
+                >
+                  {streak}
+                </span>
+                <span
+                  className={cn('text-lg md:text-xl font-bold', isDark ? 'text-dark-primary' : 'text-on-surface-variant')}
+                >
+                  {isDark ? 'Cycles' : 'days'}
+                </span>
+              </div>
+            </div>
+
+            {/* Streak-at-risk warning */}
+            {streakAtRisk && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  'mt-3 flex items-center gap-2 text-xs font-bold px-3 py-2 rounded-xl border',
+                  isDark
+                    ? 'bg-amber-400/10 border-amber-400/30 text-amber-400'
+                    : 'bg-amber-50 border-amber-200 text-amber-700'
                 )}
               >
-                {streak}
-              </span>
-              <span
-                className={cn('text-lg md:text-xl font-bold', isDark ? 'text-dark-primary' : 'text-on-surface-variant')}
+                <Flame className="w-3.5 h-3.5 animate-pulse" />
+                Log today to keep your streak alive!
+              </motion.div>
+            )}
+
+            {/* Today's progress + longest streak */}
+            <div className="mt-4 flex items-center justify-between">
+              <p
+                className={cn(
+                  'text-sm leading-relaxed opacity-70',
+                  isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant'
+                )}
               >
-                {isDark ? 'Cycles' : 'days'}
-              </span>
-            </div>
-            <p
-              className={cn(
-                'mt-4 text-sm leading-relaxed opacity-70',
-                isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant'
+                {completedToday > 0
+                  ? `${completedToday} done today`
+                  : streak > 0
+                    ? 'Nothing logged yet today'
+                    : 'Start your streak today'}
+              </p>
+              {longestStreak > 0 && (
+                <span
+                  className={cn(
+                    'text-[10px] font-black uppercase tracking-widest opacity-40',
+                    isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant'
+                  )}
+                >
+                  Best: {longestStreak}d
+                </span>
               )}
-            >
-              {isDark
-                ? 'Your neural focus consistency is at peak efficiency.'
-                : completedToday > 0
-                  ? `${completedToday} done · ${plannedToday} planned today`
-                  : "You're in the top 5% of productive users this month."}
-            </p>
+            </div>
           </div>
           {/* Weekly bar chart */}
           <div className="mt-8 flex gap-2 overflow-hidden h-20 md:h-24">
@@ -485,6 +551,16 @@ export default function Hub({ theme, onNavigate }: HubProps) {
               Telemetry
             </button>
           </div>
+        </ReactiveCard>
+
+        {/* ── Today's Mission Log / Kanban (col 8) ─────────────────── */}
+        <ReactiveCard isDark={isDark} className="md:col-span-8">
+          <TodayKanban isDark={isDark} />
+        </ReactiveCard>
+
+        {/* ── Daily Intentions (col 4) ──────────────────────────────── */}
+        <ReactiveCard isDark={isDark} className="md:col-span-4">
+          <IntentionsPanel isDark={isDark} theme={theme} />
         </ReactiveCard>
 
         {/* ── Active Goal Progress (col 12) ────────────────────────── */}

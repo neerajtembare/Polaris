@@ -72,3 +72,20 @@ export interface GoalWithProgress extends Goal {
   progress?: GoalProgress;
   children?: GoalWithProgress[];
 }
+
+// ---------------------------------------------------------------------------
+// Dormancy
+// ---------------------------------------------------------------------------
+
+/** A goal flagged as dormant — untouched for >= DORMANCY_THRESHOLD_DAYS */
+export interface DormantGoal {
+  id: string;
+  title: string;
+  timeframe: GoalTimeframe;
+  /** Progress percentage 0–100 */
+  progress: number;
+  /** Days since the last completed activity on this goal (null = never) */
+  daysSinceLastActivity: number | null;
+  /** ISO date string of the last activity, or null */
+  lastActivityDate: string | null;
+}

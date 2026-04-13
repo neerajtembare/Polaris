@@ -19,7 +19,16 @@ import { api } from '../services/api.js';
 import type { ApiSuccess, AIActivityParse, UserIntent } from '@polaris/shared';
 
 /** Minimum local confidence score below which we bother calling the AI. */
-const AI_THRESHOLD = 0.85;
+const AI_THRESHOLD_KEY = 'polaris:ai-threshold';
+function getAiThreshold(): number {
+  try {
+    const raw = localStorage.getItem(AI_THRESHOLD_KEY);
+    const n = raw !== null ? parseFloat(raw) : NaN;
+    return isNaN(n) ? 0.85 : Math.max(0, Math.min(1, n));
+  } catch {
+    return 0.85;
+  }
+}
 
 export interface AiParseResult {
   intent:      UserIntent;
@@ -59,7 +68,7 @@ export function useAiParse(): UseAiParseReturn {
       if (!text) return null;
 
       // Skip if local parse is already high-confidence
-      if (localConfidence >= AI_THRESHOLD) return null;
+      if (localConfidence >= getAiThreshold()) return null;
 
       setIsLoading(true);
       try {

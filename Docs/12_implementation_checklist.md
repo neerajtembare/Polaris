@@ -16,7 +16,7 @@ This document provides a granular, ordered checklist for implementing Polaris MV
 
 ## 0.1 Project Setup
 
-- [ ] **0.1.1** Create monorepo directory structure:
+- [x] **0.1.1** Create monorepo directory structure:
   ```
   polaris/
   ├── apps/
@@ -28,7 +28,7 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   └── README.md
   ```
 
-- [ ] **0.1.2** Initialize root `package.json` with workspaces:
+- [x] **0.1.2** Initialize root `package.json` with workspaces:
   ```json
   {
     "name": "polaris",
@@ -37,23 +37,23 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   }
   ```
 
-- [ ] **0.1.3** Add root dev dependencies:
+- [x] **0.1.3** Add root dev dependencies:
   - TypeScript
   - ESLint
   - Prettier
   - concurrently (for running both apps)
 
-- [ ] **0.1.4** Create root `tsconfig.base.json` with shared compiler options
+- [x] **0.1.4** Create root `tsconfig.base.json` with shared compiler options
 
-- [ ] **0.1.5** Create `.gitignore` with node_modules, dist, .env, *.db
+- [x] **0.1.5** Create `.gitignore` with node_modules, dist, .env, *.db
 
-- [ ] **0.1.6** Initialize git repository and make initial commit
+- [x] **0.1.6** Initialize git repository and make initial commit
 
 ---
 
 ## 0.2 Backend Setup
 
-- [ ] **0.2.1** Initialize `apps/backend/package.json`:
+- [x] **0.2.1** Initialize `apps/backend/package.json`:
   ```json
   {
     "name": "@polaris/backend",
@@ -68,7 +68,7 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   }
   ```
 
-- [ ] **0.2.2** Install backend dependencies:
+- [x] **0.2.2** Install backend dependencies:
   - fastify
   - @fastify/cors
   - @fastify/helmet
@@ -77,15 +77,15 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   - @prisma/client
   - date-fns
 
-- [ ] **0.2.3** Install backend dev dependencies:
+- [x] **0.2.3** Install backend dev dependencies:
   - typescript
   - tsx
   - prisma
   - @types/node
 
-- [ ] **0.2.4** Create `apps/backend/tsconfig.json` extending base
+- [x] **0.2.4** Create `apps/backend/tsconfig.json` extending base
 
-- [ ] **0.2.5** Create directory structure:
+- [x] **0.2.5** Create directory structure:
   ```
   apps/backend/
   ├── src/
@@ -105,7 +105,7 @@ This document provides a granular, ordered checklist for implementing Polaris MV
       └── schema.prisma
   ```
 
-- [ ] **0.2.6** Create Fastify app (`app.ts`):
+- [x] **0.2.6** Create Fastify app (`app.ts`):
   ```typescript
   import Fastify from 'fastify';
   import cors from '@fastify/cors';
@@ -121,7 +121,7 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   export default app;
   ```
 
-- [ ] **0.2.7** Create entry point (`index.ts`):
+- [x] **0.2.7** Create entry point (`index.ts`):
   ```typescript
   import 'dotenv/config';
   import app from './app';
@@ -136,21 +136,21 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   });
   ```
 
-- [ ] **0.2.8** Create `/health` endpoint returning `{ status: "healthy" }`
+- [x] **0.2.8** Create `/health` endpoint returning `{ status: "healthy" }`
 
-- [ ] **0.2.9** Test: `npm run dev` starts server, `curl localhost:3001/health` returns OK
+- [x] **0.2.9** Test: `npm run dev` starts server, `curl localhost:3001/health` returns OK
 
 ---
 
 ## 0.3 Database Setup (Prisma)
 
-- [ ] **0.3.1** Initialize Prisma:
+- [x] **0.3.1** Initialize Prisma:
   ```bash
   cd apps/backend
   npx prisma init --datasource-provider sqlite
   ```
 
-- [ ] **0.3.2** Create `apps/backend/prisma/schema.prisma`:
+- [x] **0.3.2** Create `apps/backend/prisma/schema.prisma`:
   ```prisma
   datasource db {
     provider = "sqlite"
@@ -231,12 +231,12 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   }
   ```
 
-- [ ] **0.3.3** Create `.env` file in `apps/backend`:
+- [x] **0.3.3** Create `.env` file in `apps/backend`:
   ```
   DATABASE_URL="file:./data/polaris.db"
   ```
 
-- [ ] **0.3.4** Create Prisma client module (`src/lib/prisma.ts`):
+- [x] **0.3.4** Create Prisma client module (`src/lib/prisma.ts`):
   ```typescript
   import { PrismaClient } from '@prisma/client';
   
@@ -245,24 +245,24 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   export default prisma;
   ```
 
-- [ ] **0.3.5** Run initial migration:
+- [x] **0.3.5** Run initial migration:
   ```bash
   npx prisma migrate dev --name init
   ```
 
-- [ ] **0.3.6** Generate Prisma Client:
+- [x] **0.3.6** Generate Prisma Client:
   ```bash
   npx prisma generate
   ```
 
-- [ ] **0.3.7** Verify database created at `apps/backend/data/polaris.db`
+- [x] **0.3.7** Verify database created at `apps/backend/data/polaris.db`
 
-- [ ] **0.3.8** Test Prisma Studio:
+- [x] **0.3.8** Test Prisma Studio:
   ```bash
   npx prisma studio
   ```
 
-- [ ] **0.3.9** Update `/health` to include database status check:
+- [x] **0.3.9** Update `/health` to include database status check:
   ```typescript
   app.get('/health', async () => {
     await prisma.$queryRaw`SELECT 1`;
@@ -274,17 +274,17 @@ This document provides a granular, ordered checklist for implementing Polaris MV
 
 ## 0.4 Frontend Setup
 
-- [ ] **0.4.1** Create Vite React app:
+- [x] **0.4.1** Create Vite React app:
   ```bash
   cd apps
   npm create vite@latest frontend -- --template react-ts
   ```
 
-- [ ] **0.4.2** Update `apps/frontend/package.json`:
+- [x] **0.4.2** Update `apps/frontend/package.json`:
   - Name: `@polaris/frontend`
   - Ensure TypeScript configured
 
-- [ ] **0.4.3** Install frontend dependencies:
+- [x] **0.4.3** Install frontend dependencies:
   - @tanstack/react-query
   - zustand
   - react-router-dom
@@ -293,12 +293,12 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   - clsx
   - date-fns
 
-- [ ] **0.4.4** Configure Tailwind CSS:
+- [x] **0.4.4** Configure Tailwind CSS:
   - `npx tailwindcss init -p`
   - Configure `content` paths
   - Add base styles to `index.css`
 
-- [ ] **0.4.5** Create directory structure:
+- [x] **0.4.5** Create directory structure:
   ```
   apps/frontend/src/
   ├── main.tsx
@@ -315,24 +315,24 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   └── types/
   ```
 
-- [ ] **0.4.6** Create API service (`services/api.ts`):
+- [x] **0.4.6** Create API service (`services/api.ts`):
   - Base URL config (from env)
   - Fetch wrapper with error handling
   - Type-safe request methods
 
-- [ ] **0.4.7** Setup React Query provider in `main.tsx`
+- [x] **0.4.7** Setup React Query provider in `main.tsx`
 
-- [ ] **0.4.8** Setup React Router with basic routes:
+- [x] **0.4.8** Setup React Router with basic routes:
   - `/` → Today View (placeholder)
   - `/goals` → Goals List (placeholder)
   - `/goals/:id` → Goal Detail (placeholder)
 
-- [ ] **0.4.9** Create basic Layout component:
+- [x] **0.4.9** Create basic Layout component:
   - Header with app name
   - Navigation links
   - Main content area
 
-- [ ] **0.4.10** Configure proxy to backend in `vite.config.ts`:
+- [x] **0.4.10** Configure proxy to backend in `vite.config.ts`:
   ```typescript
   server: {
     proxy: {
@@ -341,13 +341,13 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   }
   ```
 
-- [ ] **0.4.11** Test: Frontend loads, shows layout, navigation works
+- [x] **0.4.11** Test: Frontend loads, shows layout, navigation works
 
 ---
 
 ## 0.5 Shared Package
 
-- [ ] **0.5.1** Create `packages/shared/package.json`:
+- [x] **0.5.1** Create `packages/shared/package.json`:
   ```json
   {
     "name": "@polaris/shared",
@@ -356,50 +356,50 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   }
   ```
 
-- [ ] **0.5.2** Create shared types (`packages/shared/src/types.ts`):
+- [x] **0.5.2** Create shared types (`packages/shared/src/types.ts`):
   - Goal interface
   - Activity interface
   - Timeframe enum
   - ActivityType enum
   - Status enums
 
-- [ ] **0.5.3** Create shared validation schemas (`packages/shared/src/schemas.ts`):
+- [x] **0.5.3** Create shared validation schemas (`packages/shared/src/schemas.ts`):
   - CreateGoalSchema (Zod)
   - UpdateGoalSchema
   - CreateActivitySchema
   - UpdateActivitySchema
 
-- [ ] **0.5.4** Export from `packages/shared/src/index.ts`
+- [x] **0.5.4** Export from `packages/shared/src/index.ts`
 
-- [ ] **0.5.5** Import shared types in backend and frontend
+- [x] **0.5.5** Import shared types in backend and frontend
 
 ---
 
 ## 0.6 Development Workflow
 
-- [ ] **0.6.1** Create root `dev` script to run both apps:
+- [x] **0.6.1** Create root `dev` script to run both apps:
   ```json
   "dev": "concurrently \"npm run dev -w @polaris/backend\" \"npm run dev -w @polaris/frontend\""
   ```
 
-- [ ] **0.6.2** Create `.env.example` with required variables:
+- [x] **0.6.2** Create `.env.example` with required variables:
   ```
   PORT=3001
   DATABASE_URL=./data/polaris.db
   NODE_ENV=development
   ```
 
-- [ ] **0.6.3** Add ESLint config for both apps
+- [x] **0.6.3** Add ESLint config for both apps
 
-- [ ] **0.6.4** Add Prettier config
+- [x] **0.6.4** Add Prettier config
 
-- [ ] **0.6.5** Test full dev workflow:
+- [x] **0.6.5** Test full dev workflow:
   - `npm install` from root
   - `npm run dev` starts both apps
   - Frontend loads and shows layout
   - Backend health check works
 
-- [ ] **0.6.6** Commit: "Phase 0 complete: Foundation setup"
+- [x] **0.6.6** Commit: "Phase 0 complete: Foundation setup"
 
 ---
 
@@ -409,12 +409,12 @@ This document provides a granular, ordered checklist for implementing Polaris MV
 
 ### Backend: Goals
 
-- [ ] **1.1.1** Create Goal types (`types/goal.ts`):
+- [x] **1.1.1** Create Goal types (`types/goal.ts`):
   - Goal interface (or use Prisma-generated types)
   - CreateGoalInput
   - UpdateGoalInput
 
-- [ ] **1.1.2** Create Goal service (`services/goalService.ts`):
+- [x] **1.1.2** Create Goal service (`services/goalService.ts`):
   - Uses Prisma client directly
   - `findAll(filters)` - list goals with filters
   - `findById(id)` - get single goal
@@ -423,50 +423,50 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   - `softDelete(id)` - set isDeleted = true
   - Event logging on mutations
 
-- [ ] **1.1.3** Create Goal controller (`controllers/goalController.ts`):
+- [x] **1.1.3** Create Goal controller (`controllers/goalController.ts`):
   - `getGoals` - handle GET /goals
   - `getGoal` - handle GET /goals/:id
   - `createGoal` - handle POST /goals
   - `updateGoal` - handle PATCH /goals/:id
   - `deleteGoal` - handle DELETE /goals/:id
 
-- [ ] **1.1.4** Create Goal routes (`routes/goals.ts`):
+- [x] **1.1.4** Create Goal routes (`routes/goals.ts`):
   - Wire up all endpoints
   - Apply validation middleware
 
-- [ ] **1.1.5** Register goal routes in main router
+- [x] **1.1.5** Register goal routes in main router
 
-- [ ] **1.1.6** Test with curl/Postman:
+- [x] **1.1.6** Test with curl/Postman:
   - Create goal
   - List goals
   - Get goal by ID
   - Update goal
   - Delete goal (soft)
 
-- [ ] **1.1.7** Create Goal progress endpoint (`routes/goals.ts`):
+- [x] **1.1.7** Create Goal progress endpoint (`routes/goals.ts`):
   - GET /goals/:id/progress — computed progress from activities
   - Returns current_value, percentage, activity_count, days_active
 
 ### Frontend: Goals
 
-- [ ] **1.1.8** Create Goal API hooks (`hooks/useGoals.ts`):
+- [x] **1.1.8** Create Goal API hooks (`hooks/useGoals.ts`):
   - `useGoals()` - fetch all goals
   - `useGoal(id)` - fetch single goal
   - `useCreateGoal()` - mutation
   - `useUpdateGoal()` - mutation
   - `useDeleteGoal()` - mutation
 
-- [ ] **1.1.9** Create GoalCard component (`components/GoalCard.tsx`):
+- [x] **1.1.9** Create GoalCard component (`components/GoalCard.tsx`):
   - Display title, timeframe, target
   - Click to navigate to detail
 
-- [ ] **1.1.10** Create GoalsList page (`pages/GoalsList.tsx`):
+- [x] **1.1.10** Create GoalsList page (`pages/GoalsList.tsx`):
   - Fetch and display all goals
   - Group by timeframe (long/medium/short)
   - Empty state when no goals
   - "Add Goal" button
 
-- [ ] **1.1.11** Create GoalForm component (`components/GoalForm.tsx`):
+- [x] **1.1.11** Create GoalForm component (`components/GoalForm.tsx`):
   - Title input (required)
   - Description textarea
   - Timeframe select
@@ -474,25 +474,25 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   - Parent goal select (optional)
   - Submit/Cancel buttons
 
-- [ ] **1.1.12** Create CreateGoal page (`pages/CreateGoal.tsx`):
+- [x] **1.1.12** Create CreateGoal page (`pages/CreateGoal.tsx`):
   - GoalForm with create mutation
   - Navigate to list on success
   - Error handling
 
-- [ ] **1.1.13** Create GoalDetail page (`pages/GoalDetail.tsx`):
+- [x] **1.1.13** Create GoalDetail page (`pages/GoalDetail.tsx`):
   - Display full goal info
   - Edit button → shows form
   - Delete button → confirms and deletes
   - Back navigation
 
-- [ ] **1.1.14** Test full Goals flow:
+- [x] **1.1.14** Test full Goals flow:
   - Create goal from UI
   - See goal in list
   - View goal details
   - Edit goal
   - Delete goal
 
-- [ ] **1.1.15** Commit: "Milestone 1.1 complete: Goals CRUD"
+- [x] **1.1.15** Commit: "Milestone 1.1 complete: Goals CRUD"
 
 ---
 
@@ -500,13 +500,13 @@ This document provides a granular, ordered checklist for implementing Polaris MV
 
 ### Backend: Activities
 
-- [ ] **1.2.1** Create Activity types (`types/activity.ts`):
+- [x] **1.2.1** Create Activity types (`types/activity.ts`):
   - Activity interface (or use Prisma-generated types)
   - CreateActivityInput
   - UpdateActivityInput
   - ActivityType enum
 
-- [ ] **1.2.2** Create Activity service (`services/activityService.ts`):
+- [x] **1.2.2** Create Activity service (`services/activityService.ts`):
   - Uses Prisma client directly
   - `findAll(filters)` - with date range, goal_id filters
   - `findById(id)`
@@ -516,11 +516,11 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   - `softDelete(id)`
   - Event logging on mutations
 
-- [ ] **1.2.3** Create Activity controller (`controllers/activityController.ts`):
+- [x] **1.2.3** Create Activity controller (`controllers/activityController.ts`):
   - Standard CRUD handlers
   - `getToday` handler for today's activities
 
-- [ ] **1.2.4** Create Activity routes (`routes/activities.ts`):
+- [x] **1.2.4** Create Activity routes (`routes/activities.ts`):
   - `GET /activities` - list with filters
   - `GET /activities/today` - today's activities
   - `GET /activities/:id`
@@ -528,25 +528,25 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   - `PATCH /activities/:id`
   - `DELETE /activities/:id`
 
-- [ ] **1.2.5** Register activity routes
+- [x] **1.2.5** Register activity routes
 
-- [ ] **1.2.6** Test with curl/Postman
+- [x] **1.2.6** Test with curl/Postman
 
 ### Frontend: Activities
 
-- [ ] **1.2.7** Create Activity API hooks (`hooks/useActivities.ts`):
+- [x] **1.2.7** Create Activity API hooks (`hooks/useActivities.ts`):
   - `useActivities(filters)`
   - `useTodayActivities()`
   - `useCreateActivity()`
   - `useUpdateActivity()`
   - `useDeleteActivity()`
 
-- [ ] **1.2.8** Create ActivityRow component (`components/ActivityRow.tsx`):
+- [x] **1.2.8** Create ActivityRow component (`components/ActivityRow.tsx`):
   - Display description, type, value
   - Status indicator (planned/completed/skipped)
   - Click to edit
 
-- [ ] **1.2.9** Create ActivityForm component (`components/ActivityForm.tsx`):
+- [x] **1.2.9** Create ActivityForm component (`components/ActivityForm.tsx`):
   - Description input
   - Activity type select
   - Value + unit inputs (conditional)
@@ -555,54 +555,54 @@ This document provides a granular, ordered checklist for implementing Polaris MV
   - Status select
   - Notes textarea
 
-- [ ] **1.2.10** Create ActivityList component (`components/ActivityList.tsx`):
+- [x] **1.2.10** Create ActivityList component (`components/ActivityList.tsx`):
   - Group by status (planned/completed)
   - Empty state
 
-- [ ] **1.2.11** Test Activities CRUD from UI
+- [x] **1.2.11** Test Activities CRUD from UI
 
-- [ ] **1.2.12** Commit: "Milestone 1.2 complete: Activities CRUD"
+- [x] **1.2.12** Commit: "Milestone 1.2 complete: Activities CRUD"
 
 ---
 
 ## Milestone 1.3: Today View (~1 week)
 
-- [ ] **1.3.1** Create TodayView page (`pages/TodayView.tsx`):
+- [x] **1.3.1** Create TodayView page (`pages/TodayView.tsx`):
   - Date header (Today, Day Month Date)
   - Planned activities section
   - Completed activities section
   - Quick-add bar at bottom
 
-- [ ] **1.3.2** Create QuickAdd component (`components/QuickAdd.tsx`):
+- [x] **1.3.2** Create QuickAdd component (`components/QuickAdd.tsx`):
   - Text input
   - Submit button
   - Opens ActivityForm modal/drawer
 
-- [ ] **1.3.3** Create ActivityModal component (`components/ActivityModal.tsx`):
+- [x] **1.3.3** Create ActivityModal component (`components/ActivityModal.tsx`):
   - Modal wrapper for ActivityForm
   - Create and Edit modes
 
-- [ ] **1.3.4** Implement complete activity action:
+- [x] **1.3.4** Implement complete activity action:
   - Click on planned activity
   - Quick complete button
   - Optional: edit value before completing
 
-- [ ] **1.3.5** Implement skip activity action:
+- [x] **1.3.5** Implement skip activity action:
   - Mark planned activity as skipped
 
-- [ ] **1.3.6** Make Dashboard the default route (`/`), Today View at `/today`
+- [x] **1.3.6** Make Dashboard the default route (`/`), Today View at `/today`
 
-- [ ] **1.3.7** Style Today View for readability:
+- [x] **1.3.7** Style Today View for readability:
   - Clear visual hierarchy
   - Touch-friendly targets
 
-- [ ] **1.3.8** Test Today View workflow:
+- [x] **1.3.8** Test Today View workflow:
   - Plan activities
   - Complete activities
   - Log ad-hoc activities
   - Skip activities
 
-- [ ] **1.3.9** Commit: "Milestone 1.3 complete: Today View"
+- [x] **1.3.9** Commit: "Milestone 1.3 complete: Today View"
 
 ---
 
@@ -610,7 +610,7 @@ This document provides a granular, ordered checklist for implementing Polaris MV
 
 ### Backend: Progress
 
-- [ ] **1.4.1** Create Progress service (`services/progressService.ts`):
+- [x] **1.4.1** Create Progress service (`services/progressService.ts`):
   - `calculateGoalProgress(goalId)`:
     - Sum activity values for goal
     - Calculate percentage if target exists
@@ -620,66 +620,66 @@ This document provides a granular, ordered checklist for implementing Polaris MV
     - Goals touched
     - Streak calculation
 
-- [ ] **1.4.2** Create Progress controller (`controllers/progressController.ts`):
+- [x] **1.4.2** Create Progress controller (`controllers/progressController.ts`):
   - `getGoalProgress` - GET /goals/:id/progress
   - `getDashboard` - GET /metrics/dashboard
 
-- [ ] **1.4.3** Create progress routes and register
+- [x] **1.4.3** Create progress routes and register
 
-- [ ] **1.4.4** Update Goal service to include progress:
+- [x] **1.4.4** Update Goal service to include progress:
   - Use Prisma aggregations
   - Attach progress to goal responses
 
-- [ ] **1.4.5** Test progress endpoints
+- [x] **1.4.5** Test progress endpoints
 
 ### Frontend: Progress
 
-- [ ] **1.4.6** Create ProgressBar component (`components/ui/ProgressBar.tsx`):
+- [x] **1.4.6** Create ProgressBar component (`components/ui/ProgressBar.tsx`):
   - Visual bar with percentage
   - Current / Target label
 
-- [ ] **1.4.7** Update GoalCard to show progress
+- [x] **1.4.7** Update GoalCard to show progress
 
-- [ ] **1.4.8** Update GoalDetail to show progress:
+- [x] **1.4.8** Update GoalDetail to show progress:
   - Progress bar
   - Activity count
   - Last activity date
 
-- [ ] **1.4.9** Create basic Dashboard metrics on TodayView:
+- [x] **1.4.9** Create basic Dashboard metrics on TodayView:
   - Goals with progress
   - This week's activity count
 
-- [ ] **1.4.10** Test progress displays correctly:
+- [x] **1.4.10** Test progress displays correctly:
   - Log activity
   - See goal progress update
   - Dashboard shows metrics
 
-- [ ] **1.4.11** Commit: "Milestone 1.4 complete: Progress Display"
+- [x] **1.4.11** Commit: "Milestone 1.4 complete: Progress Display"
 
 ---
 
 ## Phase 1 Completion
 
-- [ ] **1.5.1** Full integration test:
+- [x] **1.5.1** Full integration test:
   - Create a goal with target
   - Plan activities for today
   - Complete activities
   - See progress update
   - Navigate between views
 
-- [ ] **1.5.2** Fix any bugs found
+- [x] **1.5.2** Fix any bugs found
 
-- [ ] **1.5.3** Code cleanup:
+- [x] **1.5.3** Code cleanup:
   - Remove console.logs
   - Add missing types
   - Format code
 
-- [ ] **1.5.4** Update README with:
+- [x] **1.5.4** Update README with:
   - Setup instructions
   - Development workflow
   - Current status
 
-- [ ] **1.5.5** Commit: "Phase 1 complete: Manual Core MVP"
+- [x] **1.5.5** Commit: "Phase 1 complete: Manual Core MVP"
 
 ---
 
@@ -801,22 +801,29 @@ npm run lint
 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
-| 0 | Project Setup | ⬜ Not Started |
-| 0 | Backend Setup | ⬜ Not Started |
-| 0 | Database Setup | ⬜ Not Started |
-| 0 | Frontend Setup | ⬜ Not Started |
-| 0 | Shared Package | ⬜ Not Started |
-| 0 | Dev Workflow | ⬜ Not Started |
-| 1.1 | Goals CRUD | ⬜ Not Started |
-| 1.2 | Activities CRUD | ⬜ Not Started |
-| 1.3 | Today View | ⬜ Not Started |
-| 1.4 | Progress | ⬜ Not Started |
+| 0 | Project Setup | ✅ Complete |
+| 0 | Backend Setup | ✅ Complete |
+| 0 | Database Setup | ✅ Complete (PostgreSQL) |
+| 0 | Frontend Setup | ✅ Complete |
+| 0 | Shared Package | ✅ Complete |
+| 0 | Dev Workflow | ✅ Complete |
+| 1.1 | Goals CRUD | ✅ Complete |
+| 1.2 | Activities CRUD | ✅ Complete (+ tags) |
+| 1.3 | Today View | ✅ Complete (Hub/Dashboard) |
+| 1.4 | Progress | ✅ Complete |
 | 2.1 | Week View | ⬜ Not Started |
 | 2.2 | Visualizations | ⬜ Not Started |
 | 2.3 | Streaks | ⬜ Not Started |
 | 2.4 | Export | ⬜ Not Started |
 | 2.5 | PWA | ⬜ Not Started |
 | 2.6 | Polish | ⬜ Not Started |
+| 3 | FocusSession | ✅ Complete |
+| 3 | AudioPlayer / DailyCoach | ✅ Complete |
+| 3 | Activity Tags | ✅ Complete |
+| 3 | Settings Page | ✅ Complete |
+| 3 | Onboarding Flow | ✅ Complete |
+| 3 | Daily Intentions | ✅ Complete |
+| 3 | Dormant Goal Badge | ✅ Complete |
 
 **Legend:** ⬜ Not Started | 🔄 In Progress | ✅ Complete
 

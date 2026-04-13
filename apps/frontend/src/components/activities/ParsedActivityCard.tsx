@@ -24,6 +24,7 @@ export interface ParsedFields {
   goalTitle: string | null;
   confidence: number;
   source: 'ai' | 'local' | 'voice';
+  tags?: string[];
 }
 
 interface ParsedActivityCardProps {

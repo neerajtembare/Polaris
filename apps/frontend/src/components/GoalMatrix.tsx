@@ -29,11 +29,13 @@ import {
   X,
   Loader2,
   History,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactiveCard from './ui/ReactiveCard';
 import GoalConstellation from './3d/GoalConstellation';
 import { useGoals, useCreateGoal, useDeleteGoal } from '@/hooks/useGoals';
+import { useDormantGoals } from '@/hooks/useDormantGoals';
 import type { GoalWithProgress } from '@polaris/shared';
 import type { Theme, ScreenId } from '@/types/navigation';
 import toast from 'react-hot-toast';
@@ -369,6 +371,7 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
   const [showCreate, setShowCreate] = useState(false);
 
   const { data: goals = [], isLoading } = useGoals({ status: 'active', includeProgress: true });
+  const { data: dormant = [] } = useDormantGoals();
 
   return (
     <div className="px-4 md:px-12 lg:px-20 max-w-[1600px] mx-auto relative">
@@ -423,6 +426,16 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
             <Plus className="w-4 h-4" />
             {isDark ? 'Deploy' : 'New Goal'}
           </button>
+          {dormant.length > 0 && (
+            <button
+              onClick={() => onNavigate('WeeklyReview', 'push')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-400/10 border border-amber-400/30 text-amber-400 hover:bg-amber-400/20 transition-all"
+              title={`${dormant.length} dormant goal${dormant.length > 1 ? 's' : ''} — click to review`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {dormant.length}
+            </button>
+          )}
         </div>
       </header>
 

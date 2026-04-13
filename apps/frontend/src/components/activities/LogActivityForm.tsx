@@ -51,6 +51,7 @@ interface FormState {
   status:       ActivityStatus;
   notes:        string;
   rawInput:     string;
+  tags:         string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +100,9 @@ export function LogActivityForm({
     status:       editActivity?.status       ?? defaultStatus,
     notes:        editActivity?.notes        ?? '',
     rawInput:     '',
+    tags:         editActivity?.tags         ?? [],
   });
+  const [tagInput, setTagInput] = useState('');
   const [error,       setError]       = useState<string | null>(null);
   const [aiParsing,   setAiParsing]   = useState(false);
   const [aiError,     setAiError]     = useState<string | null>(null);
@@ -120,6 +123,17 @@ export function LogActivityForm({
   function set(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (error) setError(null);
+  }
+
+  function addTag(raw: string) {
+    const tag = raw.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!tag || form.tags.includes(tag)) return;
+    setForm((prev) => ({ ...prev, tags: [...prev.tags, tag] }));
+    setTagInput('');
+  }
+
+  function removeTag(tag: string) {
+    setForm((prev) => ({ ...prev, tags: prev.tags.filter((t) => t !== tag) }));
   }
 
   /** When user picks a goal, auto-fill unit + infer activityType from goal's targetUnit */
@@ -215,6 +229,7 @@ export function LogActivityForm({
             unit:         form.unit.trim()  || null,
             goalId:       form.goalId       || null,
             notes:        form.notes.trim() || null,
+            tags:         form.tags,
           },
         });
       } else {
@@ -224,6 +239,7 @@ export function LogActivityForm({
           activityType: form.activityType,
           activityDate: form.activityDate,
           status:       form.status,
+          tags:         form.tags,
           ...(needsValue && form.value && { value: Number(form.value) }),
           ...(form.unit.trim()     && { unit:     form.unit.trim() }),
           ...(form.goalId          && { goalId:   form.goalId }),
@@ -491,6 +507,45 @@ export function LogActivityForm({
               rows={2}
               placeholder="Any extra details…"
               className={`${inputCls} resize-none`}
+            />
+          </div>
+
+          {/* ── Tags ── */}
+          <div>
+            <label className="block text-xs font-medium text-on-surface-variant dark:text-dark-on-surface-variant mb-1">
+              Tags <span className="opacity-50">(optional)</span>
+            </label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {form.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-primary/10 dark:bg-dark-primary/15 text-primary dark:text-dark-primary border border-primary/20 dark:border-dark-primary/25"
+                >
+                  #{tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    aria-label={`Remove tag ${tag}`}
+                    className="opacity-50 hover:opacity-100 leading-none"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  addTag(tagInput);
+                }
+              }}
+              onBlur={() => { if (tagInput.trim()) addTag(tagInput); }}
+              placeholder="Type a tag and press Enter…"
+              className={inputCls}
             />
           </div>
 

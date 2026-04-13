@@ -208,7 +208,9 @@ async function main() {
   // ---- Create activities ----
   let activityCount = 0;
 
-  // Use a fixed seed-like sequence for determinism (Math.random is fine for seed data)
+  // Build all activity records first, then insert in batches of 50 for Postgres performance
+  const activityRecords: Parameters<typeof prisma.activity.create>[0]['data'][] = [];
+
   for (let d = 89; d >= 0; d--) {
     const dateStr  = daysAgo(d);
     const goalKeys = scheduleForDay(d);
@@ -218,21 +220,28 @@ async function main() {
       const status = chooseStatus(d);
       const value  = tpl.valueFn();
 
-      await prisma.activity.create({
-        data: {
-          title:        `[Seed] ${pick(tpl.titles)}`,
-          activityType: tpl.activityType,
-          value,
-          unit:         tpl.unit,
-          goalId:       goalIdMap[key],
-          activityDate: new Date(`${dateStr}T09:00:00.000Z`),
-          category:     'growth',
-          status,
-          completedAt:  status === 'completed' ? new Date(`${dateStr}T10:00:00.000Z`) : null,
-        },
+      activityRecords.push({
+        title:        `[Seed] ${pick(tpl.titles)}`,
+        activityType: tpl.activityType,
+        value,
+        unit:         tpl.unit,
+        goalId:       goalIdMap[key],
+        activityDate: new Date(`${dateStr}T09:00:00.000Z`),
+        category:     'growth',
+        status,
+        completedAt:  status === 'completed' ? new Date(`${dateStr}T10:00:00.000Z`) : null,
       });
-      activityCount++;
     }
+  }
+
+  // Batch-insert in chunks of 50 to avoid overwhelming connection pool
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < activityRecords.length; i += BATCH_SIZE) {
+    const batch = activityRecords.slice(i, i + BATCH_SIZE);
+    await prisma.$transaction(
+      batch.map((data) => prisma.activity.create({ data }))
+    );
+    activityCount += batch.length;
   }
 
   console.log(`  Created ${activityCount} activities across 90 days`);

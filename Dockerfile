@@ -8,6 +8,7 @@ COPY package.json package-lock.json* ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/ai/package.json ./packages/ai/
 
 RUN npm install
 
@@ -16,6 +17,9 @@ COPY . .
 
 # Build shared package (required by backend and frontend)
 RUN npm run build --workspace=packages/shared
+
+# Build AI package (required by backend)
+RUN npm run build --workspace=packages/ai
 
 # Generate Prisma client + build backend in one step (prisma generate must precede tsc)
 RUN cd apps/backend && npx prisma generate && cd /app && npm run build --workspace=apps/backend

@@ -2,7 +2,7 @@
 // Docs: https://pris.ly/d/prisma-schema
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -31,6 +31,9 @@ model Goal {
   // Status
   status String @default("active") // active, completed, paused, archived
 
+  // Multi-user (nullable now, required after auth is added in Phase 4)
+  userId String? @map("user_id")
+
   // Soft delete
   isDeleted Boolean @default(false) @map("is_deleted")
 
@@ -39,7 +42,8 @@ model Goal {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  activities Activity[]
+  activities    Activity[]
+  focusSessions FocusSession[]
 
   @@index([parentId])
   @@index([timeframe])
@@ -73,12 +77,18 @@ model Activity {
   // Classification
   category String @default("growth") // growth, maintenance
 
+  // Tags (JSON array of strings, e.g. ["gym","morning","focus"])
+  tags String @default("[]") // stored as JSON string
+
   // Status
   status String @default("planned") // planned, completed, skipped
 
   // AI tracking
   aiGenerated   Boolean @default(false) @map("ai_generated")
   aiCategorized Boolean @default(false) @map("ai_categorized")
+
+  // Multi-user (nullable now, required after auth is added in Phase 4)
+  userId String? @map("user_id")
 
   // Soft delete
   isDeleted Boolean @default(false) @map("is_deleted")
@@ -87,6 +97,8 @@ model Activity {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   completedAt DateTime? @map("completed_at")
+
+  focusSession FocusSession?
 
   @@index([activityDate])
   @@index([goalId])
@@ -117,6 +129,9 @@ model Event {
   // Additional context
   metadata String?
 
+  // Multi-user (nullable now, required after auth is added in Phase 4)
+  userId String? @map("user_id")
+
   // Timestamp
   timestamp DateTime @default(now())
 
@@ -125,4 +140,46 @@ model Event {
   @@index([eventType])
   @@index([timestamp])
   @@map("events")
+}
+
+// Focus/Pomodoro session — wired up in Phase 2
+model FocusSession {
+  id          String    @id @default(uuid())
+
+  // Linked goal and resulting activity (both optional)
+  goalId      String?   @map("goal_id")
+  goal        Goal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  activityId  String?   @unique @map("activity_id")
+  activity    Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  // Timer data
+  plannedMins Int       @map("planned_mins")
+  actualMins  Int?      @map("actual_mins")
+  breaks      Int       @default(0)
+
+  // Status
+  status      String    @default("active") @map("status") // active | completed | abandoned
+
+  // Timestamps
+  startedAt   DateTime  @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+
+  // Optional notes
+  notes       String?
+
+  // Multi-user (nullable now)
+  userId      String?   @map("user_id")
+
+  // Soft delete (consistent with Goal/Activity pattern)
+  isDeleted   Boolean   @default(false) @map("is_deleted")
+
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([goalId])
+  @@index([status])
+  @@index([isDeleted])
+  @@index([startedAt])
+  @@map("focus_sessions")
 }

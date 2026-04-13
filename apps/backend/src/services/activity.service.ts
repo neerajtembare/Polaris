@@ -38,6 +38,7 @@ interface ActivityWithGoal {
   goalId: string | null;
   activityDate: Date;
   category: string;
+  tags: string;         // raw JSON string from Prisma e.g. '["gym"]'
   status: string;
   aiGenerated: boolean;
   aiCategorized: boolean;
@@ -53,7 +54,7 @@ interface ActivityWithGoal {
  * Not exported — consumers use the shared ListedActivity type (string dates)
  * which is what the HTTP API actually returns after JSON serialization.
  */
-type ListedActivity = Omit<ActivityWithGoal, 'goal'> & { goalTitle: string | null };
+type ListedActivity = Omit<ActivityWithGoal, 'goal' | 'tags'> & { goalTitle: string | null; tags: string[] };
 
 export interface ListActivitiesFilter {
   date?: string;         // single day  YYYY-MM-DD
@@ -77,6 +78,16 @@ interface TodayActivities {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/** Safely parse a JSON-encoded tags string (e.g. '["gym","morning"]') → string[] */
+function parseTags(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as string[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 /** Parse a YYYY-MM-DD string into start/end DateTime boundaries for a full day (UTC-safe) */
 function dayBounds(dateStr: string): { gte: Date; lt: Date } {
@@ -165,9 +176,10 @@ export async function listActivities(filter: ListActivitiesFilter = {}) {
   ]);
 
   // Flatten goal title onto activity for convenience
-  const data: ListedActivity[] = activities.map(({ goal, ...a }: ActivityWithGoal) => ({
+  const data: ListedActivity[] = activities.map(({ goal, tags, ...a }: ActivityWithGoal) => ({
     ...a,
     goalTitle: goal?.title ?? null,
+    tags: parseTags(tags),
   }));
 
   return { data, meta: { total, limit, offset } };
@@ -183,7 +195,7 @@ export async function getActivityById(id: string) {
     include: { goal: { select: { id: true, title: true } } },
   });
   if (!activity) throw notFound('Activity', id);
-  return activity;
+  return { ...activity, tags: parseTags(activity.tags) };
 }
 
 /**
@@ -216,6 +228,7 @@ export async function createActivity(data: CreateActivityInput) {
       goalId: data.goalId ?? null,
       activityDate,
       category: data.category ?? 'growth',
+      tags: JSON.stringify(data.tags ?? []),
       status: data.status ?? 'planned',
       // For historical entries, stamp completedAt on the activity's own date
       // rather than today's server time (avoids misleading future audit queries)
@@ -224,7 +237,7 @@ export async function createActivity(data: CreateActivityInput) {
   });
 
   await logEvent(activity.id, 'created', activity);
-  return activity;
+  return { ...activity, tags: parseTags(activity.tags) };
 }
 
 /**
@@ -255,6 +268,7 @@ export async function updateActivity(id: string, data: UpdateActivityInput) {
       ...(data.goalId !== undefined && { goalId: data.goalId }),
       ...(data.activityDate !== undefined && { activityDate: new Date(data.activityDate) }),
       ...(data.category !== undefined && { category: data.category }),
+      ...(data.tags !== undefined && { tags: JSON.stringify(data.tags) }),
       ...(data.status !== undefined && { status: data.status }),
       ...(data.completedAt !== undefined
         ? { completedAt: data.completedAt ? new Date(data.completedAt) : null }
@@ -265,7 +279,7 @@ export async function updateActivity(id: string, data: UpdateActivityInput) {
   });
 
   await logEvent(id, 'updated', updated, existing);
-  return updated;
+  return { ...updated, tags: parseTags(updated.tags) };
 }
 
 /**
@@ -280,6 +294,23 @@ export async function deleteActivity(id: string) {
   await logEvent(id, 'deleted', { id, isDeleted: true }, existing);
 
   return { id, deleted: true };
+}
+
+/**
+ * Return a deduplicated, sorted list of all tags used across non-deleted activities.
+ */
+export async function getActivityTags(): Promise<string[]> {
+  const rows = await prisma.activity.findMany({
+    where:  { isDeleted: false },
+    select: { tags: true },
+  });
+  const tagSet = new Set<string>();
+  for (const row of rows) {
+    for (const tag of parseTags(row.tags)) {
+      if (tag) tagSet.add(tag);
+    }
+  }
+  return [...tagSet].sort();
 }
 
 /**

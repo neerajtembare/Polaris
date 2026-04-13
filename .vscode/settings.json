@@ -60,6 +60,8 @@
     "npx vitest": true,
     "npm install": true,
     "npx tsc": true,
-    "npx vite": true
+    "npx vite": true,
+    "npx prisma": true,
+    "psql": true
   }
 }

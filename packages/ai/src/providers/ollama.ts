@@ -2,7 +2,7 @@
  * @file ai/providers/ollama.ts
  * @description Ollama provider for activity parsing.
  *   Opt-in via AI_PROVIDER=ollama. Model is configurable via OLLAMA_MODEL
- *   (default: llama3.2:3b). OLLAMA_URL defaults to http://localhost:11434.
+ *   (default: gemma4:e4b). OLLAMA_URL defaults to http://localhost:11434.
  *   Includes structured observability logging for debugging.
  * @module @polaris/backend/ai
  */
@@ -18,8 +18,12 @@ import { getMockProvider } from './index.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Returns true if the model name suggests it is a small (≤8B) model */
+/** Returns true if the model name suggests it is a small (≤8B) model that needs few-shot prompting.
+ * Excludes gemma4 series — despite "4b" in the alias name (active params),
+ * gemma4 is a MoE model that performs like a much larger model and handles
+ * structured JSON output reliably without few-shot examples. */
 function isSmallModel(model: string): boolean {
+  if (/^gemma4/i.test(model)) return false;
   return /[1-8]b/i.test(model);
 }
 
@@ -36,7 +40,7 @@ export class OllamaProvider implements AIProvider {
 
   async parse(rawInput: string, goals: GoalContext[]): Promise<AIActivityParse> {
     const ollamaUrl = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
-    const model = process.env['OLLAMA_MODEL'] ?? 'llama3.2:3b';
+    const model = process.env['OLLAMA_MODEL'] ?? 'gemma4:e4b';
     const small = isSmallModel(model);
 
     // Model-aware prompt strategy: small models need few-shot examples

@@ -47,6 +47,7 @@ interface CreateActivityBody {
   unit?: string;
   goalId?: string;
   category?: string;
+  tags?: string[];
   status?: string;
   notes?: string;
   rawInput?: string;
@@ -61,6 +62,7 @@ interface UpdateActivityBody {
   goalId?: string | null;
   activityDate?: string;
   category?: string;
+  tags?: string[];
   status?: string;
   notes?: string | null;
   completedAt?: string | null;
@@ -114,6 +116,20 @@ export async function getTodayActivities(_request: FastifyRequest, reply: Fastif
 }
 
 /**
+ * GET /api/activities/tags
+ * Return all unique tags used across non-deleted activities.
+ * Must be registered BEFORE /:id.
+ */
+export async function getActivityTags(_request: FastifyRequest, reply: FastifyReply) {
+  try {
+    const data = await ActivityService.getActivityTags();
+    return reply.send({ success: true, data });
+  } catch (err) {
+    return handleError('ActivityController', err, reply);
+  }
+}
+
+/**
  * GET /api/activities/:id
  * Fetch a single activity by ID.
  */
@@ -147,6 +163,7 @@ export async function createActivity(
       ...(b.unit     !== undefined && { unit: b.unit }),
       ...(b.goalId   !== undefined && { goalId: b.goalId }),
       ...(b.category !== undefined && { category: b.category as 'growth' | 'maintenance' }),
+      ...(b.tags     !== undefined && { tags: b.tags }),
       ...(b.status   !== undefined && { status: b.status as 'planned' | 'completed' | 'skipped' }),
       ...(b.notes    !== undefined && { notes: b.notes }),
       ...(b.rawInput !== undefined && { rawInput: b.rawInput }),
@@ -175,6 +192,7 @@ export async function updateActivity(
       ...(b.goalId       !== undefined && { goalId: b.goalId }),
       ...(b.activityDate !== undefined && { activityDate: b.activityDate }),
       ...(b.category     !== undefined && { category: b.category as 'growth' | 'maintenance' }),
+      ...(b.tags         !== undefined && { tags: b.tags }),
       ...(b.status       !== undefined && { status: b.status as 'planned' | 'completed' | 'skipped' }),
       ...(b.notes        !== undefined && { notes: b.notes }),
       ...(b.completedAt  !== undefined && { completedAt: b.completedAt }),

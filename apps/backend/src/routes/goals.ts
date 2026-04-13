@@ -237,4 +237,36 @@ export const goalsRoutes: FastifyPluginAsync = async (app) => {
     },
     GoalController.getGoalProgress
   );
+
+  /** GET /api/goals/dormant — goals untouched for >= 7 days */
+  app.get(
+    '/dormant',
+    {
+      schema: {
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              success: { type: 'boolean' },
+              data: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id:                    { type: 'string' },
+                    title:                 { type: 'string' },
+                    timeframe:             { type: 'string' },
+                    progress:              { type: 'number' },
+                    daysSinceLastActivity: { type: ['number', 'null'] },
+                    lastActivityDate:      { type: ['string', 'null'] },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    GoalController.getDormantGoalsHandler
+  );
 };

@@ -26,12 +26,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: file:./data/polaris.db
+      DATABASE_URL: ${DATABASE_URL}
       # WHISPER_URL and OLLAMA_URL are intentionally omitted here.
       # Voice + AI features gracefully degrade to 503 when not configured.
       # Set them via docker-compose.ai.yml overlay to enable GPU AI services.
-    volumes:
-      - polaris_data:/app/apps/backend/data
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -54,6 +52,4 @@ services:
       backend:
         condition: service_healthy
 
-volumes:
-  polaris_data:
 

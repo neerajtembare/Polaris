@@ -19,13 +19,13 @@ import {
   Flag,
   Settings,
   History,
-  Bell,
   Sun,
   Moon,
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Background from './Background';
+import { AudioPlayer } from './AudioPlayer';
 import type { ScreenId, Theme, NavigationState } from '@/types/navigation';
 
 interface LayoutProps {
@@ -107,6 +107,11 @@ export default function Layout({ state, onNavigate, onToggleTheme, onLogout, chi
 
         {/* Right controls */}
         <div className="flex items-center gap-1 md:gap-2 relative z-10">
+          {/* Audio Player */}
+          <AudioPlayer isDark={isDark} />
+
+          <div className="h-6 w-[1px] bg-current opacity-10 mx-0.5" />
+
           <button
             onClick={onToggleTheme}
             title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -121,15 +126,6 @@ export default function Layout({ state, onNavigate, onToggleTheme, onLogout, chi
             <span className="text-[10px] font-bold uppercase tracking-widest hidden lg:block">
               {isDark ? 'Light' : 'Dark'}
             </span>
-          </button>
-
-          <button
-            className={cn(
-              'p-2 md:p-2.5 rounded-xl transition-all active:scale-90',
-              isDark ? 'text-dark-primary hover:bg-white/5' : 'text-on-surface-variant hover:bg-black/5'
-            )}
-          >
-            <Bell className="w-4 h-4" />
           </button>
 
           <div className="h-6 w-[1px] bg-current opacity-10 mx-1 md:mx-2" />
