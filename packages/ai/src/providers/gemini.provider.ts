@@ -56,7 +56,12 @@ interface GeminiRequest {
   contents:           GeminiContent[];
   systemInstruction?: { parts: Array<{ text: string }> };
   tools?:             Array<{ functionDeclarations: GeminiFunctionDeclaration[] }>;
-  generationConfig?:  { temperature?: number; maxOutputTokens?: number };
+  generationConfig?:  {
+    temperature?:      number;
+    maxOutputTokens?:  number;
+    /** Suppress chain-of-thought / thinking output (gemma-4, gemini-2.5+ models) */
+    thinkingConfig?:   { thinkingBudget: number };
+  };
 }
 
 interface GeminiCandidate {
@@ -201,8 +206,11 @@ export class GeminiProvider implements AIProvider {
     const body: GeminiRequest = {
       contents,
       generationConfig: {
-        temperature:      options.temperature ?? 0.7,
-        maxOutputTokens:  options.maxTokens   ?? 1024,
+        temperature:     options.temperature ?? 0.7,
+        maxOutputTokens: options.maxTokens   ?? 1024,
+        // Suppress chain-of-thought output from thinking models (gemma-4-26b, gemini-2.5+).
+        // Without this, the model outputs its reasoning as visible text in the response.
+        thinkingConfig:  { thinkingBudget: 0 },
       },
     };
 
@@ -249,7 +257,9 @@ export class GeminiProvider implements AIProvider {
       return { text: null, toolCall: { name, args }, provider: this.name, latencyMs };
     }
 
-    const text = candidate.content.parts.map((p) => p.text ?? '').join('') || null;
+    const raw  = candidate.content.parts.map((p) => p.text ?? '').join('') || null;
+    // Strip <think>…</think> blocks emitted by Gemini thinking models (gemma-4-26b, etc.)
+    const text = raw ? raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim() || raw.trim() : null;
     return { text, toolCall: null, provider: this.name, latencyMs };
   }
 
@@ -268,6 +278,7 @@ export class GeminiProvider implements AIProvider {
       generationConfig: {
         temperature:     options.temperature ?? 0.7,
         maxOutputTokens: options.maxTokens   ?? 1024,
+        thinkingConfig:  { thinkingBudget: 0 },
       },
     };
     if (systemInstruction) body.systemInstruction = systemInstruction;
@@ -305,7 +316,10 @@ export class GeminiProvider implements AIProvider {
             const candidate = parsed.candidates?.[0];
             if (!candidate) continue;
             for (const part of candidate.content.parts) {
-              if (part.text) yield part.text;
+              if (!part.text) continue;
+              // Strip <think>…</think> from streaming chunks (thinking models interleave these)
+              const clean = part.text.replace(/<think>[\s\S]*?<\/think>/g, '');
+              if (clean) yield clean;
             }
           } catch {
             // skip malformed lines — SSE chunks may split across reads

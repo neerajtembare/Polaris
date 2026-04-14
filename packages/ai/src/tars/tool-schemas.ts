@@ -26,7 +26,10 @@ export const LOG_ACTIVITY_TOOL: ToolSchema = {
   name: 'log_activity',
   description:
     'Log a completed activity. Use when the user describes something they ALREADY DID. ' +
+    'When the user confirms a previously proposed log (e.g. says "yes", "go ahead", "do it"), ' +
+    'call this tool using the details from your previous proposal in the conversation. ' +
     'Do NOT use for activities they plan to do — use plan_activity instead.',
+
   parameters: {
     type: 'object',
     properties: {
@@ -73,7 +76,10 @@ export const PLAN_ACTIVITY_TOOL: ToolSchema = {
   name: 'plan_activity',
   description:
     'Plan a future activity the user intends to do. Use when user says they WILL do something. ' +
+    'When the user confirms a previously proposed plan (e.g. says "yes", "go ahead"), ' +
+    'call this tool using the details from your previous proposal in the conversation. ' +
     'Creates a planned (not completed) activity entry.',
+
   parameters: {
     ...LOG_ACTIVITY_TOOL.parameters,
   },

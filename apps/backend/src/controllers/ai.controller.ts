@@ -52,7 +52,11 @@ interface SetApiKeyBody {
 }
 
 interface ChatBody {
-  message: string;
+  message:            string;
+  /** Up to 20 prior turns from the session — kept in-memory client-side, never persisted */
+  history?:           Array<{ role: 'user' | 'assistant'; content: string }>;
+  /** Type of the action TARS last proposed (e.g. 'log_activity') — routes confirmation words */
+  pendingActionType?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -457,26 +461,35 @@ export async function chatHandler(
   reply:   FastifyReply
 ): Promise<void> {
   try {
-    const { message } = request.body;
+    const { message, history, pendingActionType } = request.body;
     const startMs = Date.now();
 
     const [ctx, { intent, confidence }] = await Promise.all([
       assemblePolarisContext(),
-      Promise.resolve(classifyIntent(message)),
+      Promise.resolve(classifyIntent(message, pendingActionType ? { pendingActionType } : undefined)),
     ]);
 
-    const tools  = getToolsForIntent(intent);
-    const system = buildTarsSystemMessage(JSON.stringify(ctx, null, 2));
+    const tools   = getToolsForIntent(intent);
+    const system  = buildTarsSystemMessage(JSON.stringify(ctx, null, 2));
     const provider = getProvider();
+
+    // Build multi-turn message array: system + history (capped) + current user message
+    type Turn = { role: 'system' | 'user' | 'assistant'; content: string };
+    const historyTurns: Turn[] = (history ?? []).slice(-20).map((m) => ({
+      role:    m.role as 'user' | 'assistant',
+      content: m.content,
+    }));
 
     const result = await provider.chat(
       [
         { role: 'system', content: system },
+        ...historyTurns,
         { role: 'user',   content: message },
       ],
       {
         temperature: 0.5,
-        maxTokens:   400,
+        // Tool calls need more room for JSON args — bump budget when tools are present
+        maxTokens:   tools.length > 0 ? 600 : 400,
         ...(tools.length > 0 ? { tools } : {}),
       }
     );
@@ -487,6 +500,10 @@ export async function chatHandler(
     if (result.toolCall) {
       const validated = validateToolCall(result.toolCall.name, result.toolCall.args);
       if (validated.ok) {
+        request.log.info(
+          { intent, confidence, provider: provider.name, latencyMs, tool: result.toolCall.name },
+          '[TARS] chat'
+        );
         return reply.send({
           success: true,
           data: {
@@ -500,8 +517,17 @@ export async function chatHandler(
           },
         });
       }
-      // Tool call failed validation — fall through with text-only response
+      // Tool call present but validation failed — log and fall through with text
+      request.log.warn(
+        { toolName: result.toolCall.name, args: result.toolCall.args },
+        '[TARS] tool call validation failed — returning text-only response'
+      );
     }
+
+    request.log.info(
+      { intent, confidence, provider: provider.name, latencyMs },
+      '[TARS] chat'
+    );
 
     return reply.send({
       success: true,

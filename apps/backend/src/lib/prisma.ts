@@ -13,7 +13,11 @@
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient({
-  log: process.env['NODE_ENV'] === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  // 'query' omitted intentionally — full SQL logs flood the console without adding signal.
+  // Set DEBUG_SQL=true to re-enable when diagnosing slow/incorrect queries.
+  log: process.env['DEBUG_SQL'] === 'true'
+    ? ['query', 'warn', 'error']
+    : ['warn', 'error'],
 });
 
 export default prisma;

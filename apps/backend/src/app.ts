@@ -41,7 +41,12 @@ export async function buildApp() {
         },
       } as const);
 
-  const app = Fastify({ logger: loggerOptions });
+  const app = Fastify({
+    logger: loggerOptions,
+    // Suppress the verbose multi-line "incoming request" / "request completed" default logs.
+    // A compact single-line hook below replaces them.
+    disableRequestLogging: true,
+  });
 
   // ------------------------------------------------------------------
   // Global error handler — normalises ALL errors (including Fastify's
@@ -87,6 +92,15 @@ export async function buildApp() {
   // Multipart — required for voice transcription audio file uploads
   // 25 MB limit covers ~10 minutes of compressed webm audio
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } });
+
+  // Compact request logging — one line per request: METHOD /path STATUS XXXms
+  app.addHook('onResponse', (request, reply, done) => {
+    const ms = reply.elapsedTime.toFixed(1);
+    const status = reply.statusCode;
+    const level = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
+    app.log[level](`${request.method} ${request.url} → ${status} (${ms}ms)`);
+    done();
+  });
 
   // Routes (registered as a Fastify plugin)
   await app.register(registerRoutes);

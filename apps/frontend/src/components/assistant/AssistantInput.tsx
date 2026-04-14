@@ -49,12 +49,16 @@ const SPEECH_SUPPORTED = getSpeechRecognitionCtor() !== null;
 // ---------------------------------------------------------------------------
 
 interface AssistantInputProps {
-  onSend:    (message: string) => void;
-  disabled?: boolean;
-  isDark:    boolean;
+  onSend:        (message: string) => void;
+  /** Called when the user clicks the stop button while TARS is processing */
+  onCancel?:     () => void;
+  disabled?:     boolean;
+  /** When true, the stop button is shown in place of the send button */
+  isProcessing?: boolean;
+  isDark:        boolean;
 }
 
-export function AssistantInput({ onSend, disabled, isDark }: AssistantInputProps) {
+export function AssistantInput({ onSend, onCancel, disabled, isProcessing, isDark }: AssistantInputProps) {
   const [value, setValue]         = useState('');
   const [isListening, setIsListening] = useState(false);
   const textareaRef               = useRef<HTMLTextAreaElement>(null);
@@ -212,24 +216,44 @@ export function AssistantInput({ onSend, disabled, isDark }: AssistantInputProps
         )}
       />
 
-      {/* Send button */}
-      <button
-        type="button"
-        onClick={submit}
-        disabled={disabled || !value.trim()}
-        aria-label="Send message"
-        className={cn(
-          'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all',
-          value.trim() && !disabled
-            ? 'bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95'
-            : 'opacity-25 cursor-not-allowed',
-          isDark ? '' : 'shadow-sm'
-        )}
-      >
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12zm0 0h7.5" />
-        </svg>
-      </button>
+      {/* Stop button (while processing) or Send button */}
+      {isProcessing ? (
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="Stop TARS response"
+          title="Stop"
+          className={cn(
+            'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95',
+            isDark
+              ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/20'
+              : 'bg-red-100 text-red-500 hover:bg-red-200 border border-red-200'
+          )}
+        >
+          {/* Square stop icon */}
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+          </svg>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={submit}
+          disabled={disabled || !value.trim()}
+          aria-label="Send message"
+          className={cn(
+            'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all',
+            value.trim() && !disabled
+              ? 'bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95'
+              : 'opacity-25 cursor-not-allowed',
+            isDark ? '' : 'shadow-sm'
+          )}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12zm0 0h7.5" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

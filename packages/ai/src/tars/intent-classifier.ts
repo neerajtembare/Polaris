@@ -58,17 +58,57 @@ export interface ClassifyResult {
   method:     'heuristic' | 'fallback';
 }
 
+export interface ClassifyOptions {
+  /**
+   * The type of the last action TARS proposed (from the frontend pendingAction).
+   * When set, short confirmation/denial words are routed to the right intent
+   * so that the correct tool schemas are included in the LLM call.
+   */
+  pendingActionType?: string;
+}
+
+// Short phrases that confirm a previous TARS proposal
+const CONFIRM_PATTERNS =
+  /^(yes|yeah|yep|yup|sure|ok|okay|correct|right|do it|go ahead|confirm|let's go|proceed|sounds good|yes please|affirmative|go for it|make it happen)\.?$/i;
+
+// Short phrases that cancel/deny a previous TARS proposal
+const DENY_PATTERNS =
+  /^(no|nope|cancel|never mind|nevermind|stop|don't|dont|abort|dismiss|negative|skip it|forget it|not now|not today)\.?$/i;
+
 /**
  * Classify the intent of a user message.
  * Returns immediately from heuristics for ~80% of inputs.
  * Falls back to 'chat' for ambiguous inputs (the LLM will handle them).
  *
+ * When `options.pendingActionType` is set (there's an outstanding TARS proposal),
+ * short confirmation/denial words are mapped to the right intent so the correct
+ * tool schemas are included in the LLM call — fixing the "I don't have context
+ * for 'yes'" problem.
+ *
  * NOTE: Fixed commands (play music, go to goals, etc.) should be matched
  * client-side BEFORE calling this. If navigation patterns are detected here,
  * classify as 'chat' to let the LLM handle the response gracefully.
  */
-export function classifyIntent(input: string): ClassifyResult {
+export function classifyIntent(input: string, options?: ClassifyOptions): ClassifyResult {
   const lower = input.toLowerCase().trim();
+
+  // ── Confirmation-aware routing ────────────────────────────────────────────
+  // If there's a pending action proposal and the user responds with a short
+  // confirmation/denial, route to the right intent so tools are included.
+  if (options?.pendingActionType) {
+    const pendingIntent = options.pendingActionType as IntentType;
+    const isWriteIntent = ['log_activity', 'plan_activity', 'create_goal'].includes(pendingIntent);
+
+    if (isWriteIntent && CONFIRM_PATTERNS.test(lower)) {
+      // e.g. "yes" while log_activity is pending → intent = log_activity → tools included
+      return { intent: pendingIntent, confidence: 'high', method: 'heuristic' };
+    }
+    if (DENY_PATTERNS.test(lower)) {
+      // User is canceling — use chat so the LLM can acknowledge naturally
+      return { intent: 'chat', confidence: 'high', method: 'heuristic' };
+    }
+  }
+  // ── End confirmation-aware routing ───────────────────────────────────────
 
   // Navigation — shouldn't reach backend, but handle gracefully
   if (NAVIGATION_PATTERNS.test(lower)) {

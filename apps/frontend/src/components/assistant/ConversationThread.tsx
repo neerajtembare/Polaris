@@ -18,11 +18,13 @@ import { AssistantMessage } from './AssistantMessage';
 import { UserMessage } from './UserMessage';
 
 interface ConversationThreadProps {
-  messages: ConversationMessage[];
-  isDark:   boolean;
+  messages:  ConversationMessage[];
+  isDark:    boolean;
+  /** Called with the last user message when the retry button on an error is clicked */
+  onRetry?:  (lastUserMessage: string) => void;
 }
 
-export function ConversationThread({ messages, isDark }: ConversationThreadProps) {
+export function ConversationThread({ messages, isDark, onRetry }: ConversationThreadProps) {
   const bottomRef    = useRef<HTMLDivElement>(null);
   const markRead     = useAssistantStore((s) => s.markMessageRead);
 
@@ -43,19 +45,31 @@ export function ConversationThread({ messages, isDark }: ConversationThreadProps
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 scroll-smooth">
-      {messages.map((msg) =>
-        msg.role === 'user' ? (
-          <UserMessage key={msg.id} content={msg.content} isDark={isDark} />
-        ) : (
+      {messages.map((msg, idx) => {
+        if (msg.role === 'user') {
+          return <UserMessage key={msg.id} content={msg.content} isDark={isDark} />;
+        }
+
+        // Detect error messages from the assistant
+        const isError = msg.content.startsWith('Something went wrong') || msg.content === 'Cancelled.';
+
+        // Find the last user message before this assistant message for retry
+        const lastUserMsg = isError && onRetry
+          ? [...messages].slice(0, idx).reverse().find((m) => m.role === 'user')?.content
+          : undefined;
+
+        return (
           <AssistantMessage
             key={msg.id}
             content={msg.content}
             {...(msg.isNew ? { isNew: true } : {})}
             isDark={isDark}
             onDone={() => markRead(msg.id)}
+            isError={isError}
+            {...(lastUserMsg && onRetry ? { onRetry: () => onRetry(lastUserMsg) } : {})}
           />
-        )
-      )}
+        );
+      })}
       <div ref={bottomRef} />
     </div>
   );

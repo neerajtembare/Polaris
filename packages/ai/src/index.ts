@@ -22,7 +22,7 @@ export type { AIProvider, ChatMessage, ChatOptions, ChatResult, ToolSchema, Tool
 // TARS — conversational assistant core
 export type { TARSAction, ActivityDraft, GoalDraft, ScreenId } from './tars/action-types.js';
 export { requiresConfirmation, isImmediateAction } from './tars/action-types.js';
-export type { IntentType, ClassifyResult } from './tars/intent-classifier.js';
+export type { IntentType, ClassifyResult, ClassifyOptions } from './tars/intent-classifier.js';
 export { classifyIntent, getToolsForIntent } from './tars/intent-classifier.js';
 export type { ValidateResult } from './tars/action-validator.js';
 export { validateToolCall } from './tars/action-validator.js';

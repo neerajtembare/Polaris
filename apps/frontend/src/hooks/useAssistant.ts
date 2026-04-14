@@ -4,7 +4,8 @@
  *   Handles the full send → receive → action flow for the assistant panel.
  *   - Fixed commands are matched client-side (no API call)
  *   - All other messages go to POST /api/ai/chat
- *   - Conversation history is managed in assistant.store.ts (Zustand)
+ *   - Conversation history (last 20 turns) is sent with each request for multi-turn context
+ *   - AbortController allows cancelling in-flight requests
  * @module @polaris/frontend/hooks
  *
  * @dependencies
@@ -17,7 +18,7 @@
  * - components/assistant/AssistantInput.tsx
  */
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useAssistantStore } from '@/stores/assistant.store';
 import type { TARSAction, ScreenId } from '@/stores/assistant.store';
 import { useCommandMatcher } from './useCommandMatcher';
@@ -52,28 +53,32 @@ interface UseAssistantOptions {
 
 /**
  * Primary hook for the TARS assistant panel.
- * Returns a `sendMessage` function — call it with the user's raw input.
+ * Returns `sendMessage` and `cancelRequest` — call sendMessage with the user's raw input.
  * All state lives in useAssistantStore.
  */
 export function useAssistant({ onNavigate }: UseAssistantOptions = {}) {
-  const { addMessage, setTarsState, setPendingAction } = useAssistantStore();
-  const matchCommand = useCommandMatcher();
+  const { addMessage, setTarsState, setPendingAction, messages, pendingAction } = useAssistantStore();
+  const matchCommand  = useCommandMatcher();
+  const abortRef      = useRef<AbortController | null>(null);
 
   const executeAction = useCallback((action: TARSAction, requiresConfirmation: boolean) => {
-    // Immediate actions — execute without confirmation
     if (!requiresConfirmation) {
       if (action.type === 'navigate' && onNavigate) {
         onNavigate(action.screen as ScreenId);
       }
-      // audio.* / focus.* / show_* — Sprint 5 will wire these via useAssistantActions
-      // For now, they're reflected in the store's pendingAction so the panel can show them
     }
-
-    // Write actions always go to pendingAction for ToolConfirmCard (Sprint 3)
     if (requiresConfirmation || action.type === 'log_activity' || action.type === 'plan_activity' || action.type === 'create_goal') {
       setPendingAction(action);
     }
   }, [onNavigate, setPendingAction]);
+
+  /** Cancel the in-flight LLM request (shows stop button while processing). */
+  const cancelRequest = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setTarsState('idle');
+    addMessage({ role: 'assistant', content: 'Cancelled.', isNew: false });
+  }, [setTarsState, addMessage]);
 
   const sendMessage = useCallback(async (rawInput: string) => {
     const trimmed = rawInput.trim();
@@ -94,11 +99,23 @@ export function useAssistant({ onNavigate }: UseAssistantOptions = {}) {
     // 3. Send to /api/ai/chat
     setTarsState('processing');
 
+    // Build conversation history from store (strip internal fields, cap at 20 turns)
+    const history = messages
+      .slice(-20)
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+    // Include pending action type so the backend can route confirmations correctly
+    const pendingActionType = pendingAction?.type;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const res = await fetch(`${BASE_URL}/ai/chat`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ message: trimmed }),
+        body:    JSON.stringify({ message: trimmed, history, pendingActionType }),
+        signal:  controller.signal,
       });
 
       if (!res.ok) {
@@ -120,6 +137,8 @@ export function useAssistant({ onNavigate }: UseAssistantOptions = {}) {
         executeAction(action, requiresConfirmation);
       }
     } catch (err) {
+      // Ignore abort errors — cancelRequest already added the 'Cancelled.' message
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       const msg = err instanceof Error ? err.message : 'Unknown error';
       addMessage({
         role:    'assistant',
@@ -127,11 +146,12 @@ export function useAssistant({ onNavigate }: UseAssistantOptions = {}) {
         isNew:   true,
       });
     } finally {
+      abortRef.current = null;
       setTarsState('idle');
     }
-  }, [addMessage, matchCommand, setTarsState, executeAction]);
+  }, [addMessage, matchCommand, setTarsState, executeAction, messages, pendingAction]);
 
-  return { sendMessage };
+  return { sendMessage, cancelRequest };
 }
 
 // ---------------------------------------------------------------------------
