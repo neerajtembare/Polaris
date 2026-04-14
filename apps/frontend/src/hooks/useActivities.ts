@@ -221,6 +221,9 @@ export function useDeleteActivity() {
       void queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: activityKeys.today() });
       queryClient.removeQueries({ queryKey: activityKeys.detail(id) });
+      // Also refresh goal progress — a deleted activity changes a goal's progress metrics
+      void queryClient.invalidateQueries({ queryKey: goalKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: goalKeys.details() });
       toast.success('Activity deleted');
     },
     onError: () => {

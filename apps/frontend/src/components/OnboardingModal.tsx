@@ -336,7 +336,7 @@ export function OnboardingModal({ theme, onComplete }: OnboardingModalProps) {
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         className={cn(
-          'w-full max-w-md rounded-3xl border shadow-2xl p-8 space-y-6',
+          'w-full max-w-md rounded-3xl border shadow-2xl p-5 sm:p-8 space-y-6',
           isDark
             ? 'bg-dark-surface-container border-white/10'
             : 'bg-surface border-outline-variant/20'

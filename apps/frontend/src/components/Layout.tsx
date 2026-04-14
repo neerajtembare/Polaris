@@ -165,7 +165,7 @@ export default function Layout({ state, onNavigate, onToggleTheme, onLogout, chi
       </nav>
 
       {/* ── Main Content ─────────────────────────────────────────────── */}
-      <main className="pt-20 pb-24 relative z-10">
+      <main className="pt-20 pb-24 sm:pb-8 relative">
         <AnimatePresence mode="wait">
           <motion.div
             key={`${state.screen}-${state.theme}`}
@@ -183,7 +183,7 @@ export default function Layout({ state, onNavigate, onToggleTheme, onLogout, chi
       {/* ── Mobile Bottom Navigation ──────────────────────────────────── */}
       <nav
         className={cn(
-          'sm:hidden fixed bottom-0 w-full z-50 flex justify-around items-center px-2 pb-6 pt-3 backdrop-blur-2xl rounded-t-[1.5rem]',
+          'sm:hidden fixed bottom-0 w-full z-50 flex justify-around items-center px-2 pt-3 backdrop-blur-2xl rounded-t-[1.5rem] safe-area-bottom',
           isDark
             ? 'bg-dark-bg/90 border-t border-white/5'
             : 'bg-white/90 shadow-[0_-8px_30px_rgba(0,0,0,0.06)]'

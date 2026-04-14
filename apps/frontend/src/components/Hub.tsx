@@ -200,7 +200,7 @@ export default function Hub({ theme, onNavigate, onStartFocus }: HubProps) {
   return (
     <div className="px-4 md:px-12 max-w-7xl mx-auto relative">
       {/* ── Hero: Clock + AI Input ──────────────────────────────────── */}
-      <section className="flex flex-col items-center mb-12 md:mb-16 text-center relative py-12">
+      <section className="flex flex-col items-center mb-12 md:mb-16 text-center relative py-8 md:py-12">
         {/* Live Clock */}
         <div className="mb-4 relative z-10">
           <h1

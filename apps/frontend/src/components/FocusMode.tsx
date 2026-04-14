@@ -277,8 +277,8 @@ function FocusTimer({ isDark, session, plannedMins, onComplete, onAbandon }: Tim
       </div>
 
       {/* Circular progress ring + time */}
-      <div className="relative flex items-center justify-center">
-        <svg width="280" height="280" className="-rotate-90">
+      <div className="relative flex items-center justify-center w-full max-w-[280px]">
+        <svg viewBox="0 0 280 280" className="w-full h-auto -rotate-90">
           {/* Background ring */}
           <circle
             cx="140" cy="140" r="120"
@@ -300,7 +300,7 @@ function FocusTimer({ isDark, session, plannedMins, onComplete, onAbandon }: Tim
           />
         </svg>
         {/* Time display */}
-        <div className="absolute text-center">
+        <div className="absolute inset-0 flex items-center justify-center text-center">
           <span className={cn(
             'text-5xl font-black tracking-tighter tabular-nums',
             isDark ? 'text-dark-on-surface' : 'text-on-surface'

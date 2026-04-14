@@ -86,6 +86,9 @@ export function useActivityInput(
   const [parsedResult, setParsedResult] = useState<ParsedFields | null>(null);
   const [isAiParsing, setIsAiParsing]   = useState(false);
 
+  // Track whether the user has already saved so we can discard a late AI response
+  const savedRef = useRef(false);
+
   // Preserve the original user text for rawInput — cleared when the input
   // field resets, but the ref survives until save fires.
   const rawInputRef = useRef('');
@@ -112,6 +115,7 @@ export function useActivityInput(
       if (!trimmed) return;
 
       rawInputRef.current = trimmed;
+      savedRef.current = false; // reset saved flag for each new submission
 
       // Step 1: instant rule-based parse
       const localParsed = parseInput(trimmed);
@@ -135,7 +139,7 @@ export function useActivityInput(
       setIsAiParsing(true);
       try {
         const aiResult = await aiParse(trimmed, initial.confidence);
-        if (aiResult && aiResult.confidence > initial.confidence) {
+        if (!savedRef.current && aiResult && aiResult.confidence > initial.confidence) {
           setParsedResult({
             intent:       aiResult.intent,
             title:        aiResult.title,
@@ -187,6 +191,7 @@ export function useActivityInput(
 
   const handleSave = useCallback(
     async (fields: ParsedFields): Promise<void> => {
+      savedRef.current = true;
       await createActivity.mutateAsync({
         title:        fields.title,
         activityType: fields.activityType,

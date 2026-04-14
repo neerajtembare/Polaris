@@ -245,7 +245,7 @@ export function AudioPlayer({ isDark }: AudioPlayerProps) {
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.18 }}
             className={cn(
-              'absolute right-0 top-12 w-80 rounded-2xl shadow-2xl border z-50 overflow-hidden flex flex-col',
+              'absolute right-0 top-12 w-80 max-w-[calc(100vw-1rem)] rounded-2xl shadow-2xl border z-50 overflow-hidden flex flex-col',
               isDark
                 ? 'bg-dark-surface/95 backdrop-blur-xl border-white/10'
                 : 'bg-white/95 backdrop-blur-xl border-black/5'

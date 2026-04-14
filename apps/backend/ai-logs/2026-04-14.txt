@@ -1,0 +1,80 @@
+
+════════════════════════════════════════════════════════════════════════════════
+  2026-04-14 04:56:59  |  OLLAMA  |  AnalyzeWeek  |  149698ms
+════════════════════════════════════════════════════════════════════════════════
+
+── USER INPUT ──────────────────────────────────────────────────────────────────
+  "Period: week (2026-04-08 to 2026-04-14)
+
+Metrics:
+- Total activities: 16
+- Completed: 12
+- Planned: 1
+- Completion rate: 75%
+- Goals touched: 4
+- Current streak: 6 days
+- Longest streak: 17 days
+
+Activity by day: 2026-04-08: 2, 2026-04-09: 1, 2026-04-10: 3, 2026-04-11: 2, 2026-04-12: 1, 2026-04-13: 3
+
+Goal progress: [Seed] Read 7200 pages this year: 1540/7200 pages (21%); [Seed] Run 500 km this year: 136.4/500 km (27%); [Seed] Study Python — 100 hours: 34.34999999999999/100 hours (34%); [Seed] Save ₹1,00,000 this year: 238880/100000 ₹ (100%)
+
+Return JSON:
+{
+  "summary": "1-2 sentence overview of the week",
+  "insights": ["insight 1", "insight 2", ...],
+  "suggestions": ["suggestion 1", "suggestion 2", ...]
+}"
+
+── SYSTEM PROMPT SENT ──────────────────────────────────────────────────────────
+  You are a behavioral insights assistant for a goal-tracking app.
+  Given dashboard metrics for a week (activity counts, completion rate, streaks, goal progress), generate:
+  1. A brief 1–2 sentence summary of the week.
+  2. 2–4 concrete insights (patterns, wins, areas to improve).
+  3. 2–4 actionable suggestions for the coming week.
+  Be encouraging but honest. Respond ONLY with valid JSON — no prose, no markdown.
+
+── USER PROMPT SENT ────────────────────────────────────────────────────────────
+  Period: week (2026-04-08 to 2026-04-14)
+  
+  Metrics:
+  - Total activities: 16
+  - Completed: 12
+  - Planned: 1
+  - Completion rate: 75%
+  - Goals touched: 4
+  - Current streak: 6 days
+  - Longest streak: 17 days
+  
+  Activity by day: 2026-04-08: 2, 2026-04-09: 1, 2026-04-10: 3, 2026-04-11: 2, 2026-04-12: 1, 2026-04-13: 3
+  
+  Goal progress: [Seed] Read 7200 pages this year: 1540/7200 pages (21%); [Seed] Run 500 km this year: 136.4/500 km (27%); [Seed] Study Python — 100 hours: 34.34999999999999/100 hours (34%); [Seed] Save ₹1,00,000 this year: 238880/100000 ₹ (100%)
+  
+  Return JSON:
+  {
+    "summary": "1-2 sentence overview of the week",
+    "insights": ["insight 1", "insight 2", ...],
+    "suggestions": ["suggestion 1", "suggestion 2", ...]
+  }
+
+── RAW RESPONSE FROM OLLAMA ────────────────────────────────────────────────────
+  {
+  "summary": "You maintained a strong streak this week, completing 75% of your planned activities. Keep leveraging your momentum, especially in your financial goal, while focusing on balancing your efforts across all areas.",
+  "insights": [
+    "Your consistency is excellent, evidenced by the 6-day streak and the impressive 17-day longest streak.",
+    "The 'Save ₹1,000,000' goal is complete! This is a massive win and shows strong focus and discipline.",
+    "Activity volume was highest mid-week (April 10th and 13th), suggesting that planning for the middle of the week helps boost productivity.",
+    "The completion rate of 75% is solid, but the low number of planned activities (1) might be limiting overall growth."
+  ],
+  "suggestions": [
+    "To capitalize on your momentum, try scheduling 2-3 smaller, non-critical activities on the weekends to maintain the habit loop.",
+    "Since the financial goal is complete, consider replacing it with a new, challenging goal to maintain high engagement and focus.",
+    "Review the progress on Python and running; scheduling specific, smaller blocks of time for these goals might improve the completion rate.",
+    "Aim to plan 3-4 activities next week to increase your overall activity count and push your completion rate above 80%."
+  ]
+}
+
+── PARSED RESULT ───────────────────────────────────────────────────────────────
+    "{\n  \"summary\": \"You maintained a strong streak this week, completing 75% of your planned activities. Keep leveraging your momentum, especially in your financial goal, while focusing on balancing your efforts across all areas.\",\n  \"insights\": [\n    \"Your consistency is excellent, evidenced by the 6-day streak and the impressive 17-day longest streak.\",\n    \"The 'Save ₹1,000,000' goal is complete! This is a massive win and shows strong focus and discipline.\",\n    \"Activity volume was highest mid-week (April 10th and 13th), suggesting that planning for the middle of the week helps boost productivity.\",\n    \"The completion rate of 75% is solid, but the low number of planned activities (1) might be limiting overall growth.\"\n  ],\n  \"suggestions\": [\n    \"To capitalize on your momentum, try scheduling 2-3 smaller, non-critical activities on the weekends to maintain the habit loop.\",\n    \"Since the financial goal is complete, consider replacing it with a new, challenging goal to maintain high engagement and focus.\",\n    \"Review the progress on Python and running; scheduling specific, smaller blocks of time for these goals might improve the completion rate.\",\n    \"Aim to plan 3-4 activities next week to increase your overall activity count and push your completion rate above 80%.\"\n  ]\n}"
+
+── STATUS: ✅  SUCCESS

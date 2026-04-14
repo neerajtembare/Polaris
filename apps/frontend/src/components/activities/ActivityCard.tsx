@@ -85,6 +85,7 @@ export function ActivityCard({
   }
 
   function handleConfirmValue() {
+    if (promptValue.trim() && isNaN(Number(promptValue.trim()))) return;
     const numVal = promptValue.trim() ? Number(promptValue) : undefined;
     onComplete(activity.id, numVal);
     setShowValuePrompt(false);

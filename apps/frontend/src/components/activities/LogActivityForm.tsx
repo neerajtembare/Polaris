@@ -211,6 +211,10 @@ export function LogActivityForm({
     setError(null);
 
     if (!form.title.trim()) { setError('Title is required.'); return; }
+    if (needsValue && !form.value.trim()) {
+      setError(`${form.activityType === 'duration' ? 'Duration' : 'Amount'} is required for ${form.activityType} activities.`);
+      return;
+    }
     if (needsValue && form.value && isNaN(Number(form.value))) {
       setError('Value must be a number.'); return;
     }
@@ -260,7 +264,7 @@ export function LogActivityForm({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-4 pb-4 sm:pb-0"
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm px-4 pb-4 sm:pb-0"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
       aria-modal="true"

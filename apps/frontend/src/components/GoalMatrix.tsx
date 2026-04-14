@@ -34,6 +34,7 @@ import {
 import { cn } from '@/lib/utils';
 import ReactiveCard from './ui/ReactiveCard';
 import GoalConstellation from './3d/GoalConstellation';
+import { ConfirmModal } from './ui/ConfirmModal';
 import { useGoals, useCreateGoal, useDeleteGoal } from '@/hooks/useGoals';
 import { useDormantGoals } from '@/hooks/useDormantGoals';
 import type { GoalWithProgress } from '@polaris/shared';
@@ -119,7 +120,7 @@ function CreateGoalForm({ isDark, onClose }: CreateGoalFormProps) {
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.92, y: 20 }}
         className={cn(
-          'w-full max-w-lg rounded-[2rem] p-8 shadow-2xl border',
+          'w-full max-w-lg rounded-2xl sm:rounded-[2rem] p-5 sm:p-8 shadow-2xl border',
           isDark ? 'bg-dark-bg border-white/10' : 'bg-white border-outline-variant/20'
         )}
       >
@@ -179,9 +180,9 @@ function CreateGoalForm({ isDark, onClose }: CreateGoalFormProps) {
           </div>
 
           {/* Target */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap sm:flex-nowrap">
             <input
-              className={cn(inputClass, 'flex-1')}
+              className={cn(inputClass, 'flex-1 min-w-[120px]')}
               placeholder="Target (e.g. 100)"
               type="number"
               min="0"
@@ -225,12 +226,25 @@ interface GoalCardProps {
 
 function GoalCard({ goal, isDark, colorClass, IconComponent, featured }: GoalCardProps) {
   const deleteGoal = useDeleteGoal();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const percentage = goal.progress?.percentage ?? 0;
   const current = goal.progress?.currentValue ?? 0;
   const target = goal.targetValue;
   const streakDays = goal.progress?.daysActive ?? 0;
 
   return (
+    <>
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        message="Delete this goal?"
+        detail={goal.title}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          void deleteGoal.mutateAsync(goal.id).catch(() => toast.error('Delete failed'));
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     <ReactiveCard
       isDark={isDark}
       className={cn('group overflow-hidden', featured && 'md:col-span-2')}
@@ -274,9 +288,11 @@ function GoalCard({ goal, isDark, colorClass, IconComponent, featured }: GoalCar
             </div>
           </div>
           <button
-            onClick={() => deleteGoal.mutateAsync(goal.id).catch(() => toast.error('Delete failed'))}
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={deleteGoal.isPending}
+            aria-label={`Delete goal: ${goal.title}`}
             className={cn(
-              'opacity-30 hover:opacity-80 p-1 rounded-lg transition-all relative z-20',
+              'opacity-30 hover:opacity-80 p-1 rounded-lg transition-all relative z-20 disabled:cursor-wait',
               isDark ? 'text-dark-on-surface hover:text-red-400' : 'text-on-surface hover:text-red-500'
             )}
           >
@@ -362,6 +378,7 @@ function GoalCard({ goal, isDark, colorClass, IconComponent, featured }: GoalCar
         </div>
       </div>
     </ReactiveCard>
+    </>
   );
 }
 
