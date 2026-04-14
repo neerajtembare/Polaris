@@ -6,7 +6,7 @@
  */
 
 import type { AIActivityParse } from '@polaris/shared';
-import type { AIProvider, GoalContext } from '../types.js';
+import type { AIProvider, GoalContext, ChatMessage, ChatOptions, ChatResult } from '../types.js';
 import { buildActivityParseUserPrompt, ACTIVITY_PARSE_SYSTEM_PROMPT } from '../prompts/activity-parse.prompt.js';
 import { parseAndValidateActivityResponse } from '../utils/validate-response.js';
 import { logAiExchange } from '../utils/ai-logger.js';
@@ -82,5 +82,144 @@ export class OpenAIProvider implements AIProvider {
       error: 'JSON validation failed — fell back to mock',
     });
     return await getMockProvider().parse(rawInput, goals);
+  }
+
+  // ---------------------------------------------------------------------------
+  // chat() — multi-turn via chat completions
+  // ---------------------------------------------------------------------------
+
+  async chat(messages: ChatMessage[], options: ChatOptions = {}): Promise<ChatResult> {
+    const apiKey = process.env['OPENAI_API_KEY'];
+    if (!apiKey) throw new Error('OPENAI_API_KEY not set');
+
+    const startMs = Date.now();
+    const model   = process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini';
+
+    type OAIMessage = { role: string; content: string };
+    const oaiMessages: OAIMessage[] = messages.map((m) => ({
+      role:    m.role,
+      content: m.content,
+    }));
+
+    const body: Record<string, unknown> = {
+      model,
+      temperature: options.temperature ?? 0.7,
+      max_tokens:  options.maxTokens   ?? 1024,
+      messages:    oaiMessages,
+    };
+
+    if (options.responseFormat === 'json') {
+      body['response_format'] = { type: 'json_object' };
+    }
+
+    if (options.tools && options.tools.length > 0) {
+      body['tools'] = options.tools.map((t) => ({
+        type:     'function',
+        function: { name: t.name, description: t.description, parameters: t.parameters },
+      }));
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
+      throw new Error(`OpenAI chat error: ${response.status} ${response.statusText} — ${errBody.slice(0, 200)}`);
+    }
+
+    type OAIResponse = {
+      choices: Array<{
+        message: {
+          content:    string | null;
+          tool_calls?: Array<{ function: { name: string; arguments: string } }>;
+        };
+      }>;
+    };
+    const json      = (await response.json()) as OAIResponse;
+    const latencyMs = Date.now() - startMs;
+    const choice    = json.choices[0];
+
+    if (!choice) return { text: null, toolCall: null, provider: this.name, latencyMs };
+
+    // Function/tool call takes priority
+    const toolCall = choice.message.tool_calls?.[0];
+    if (toolCall) {
+      let args: Record<string, unknown> = {};
+      try { args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>; } catch { /* noop */ }
+      return { text: null, toolCall: { name: toolCall.function.name, args }, provider: this.name, latencyMs };
+    }
+
+    return { text: choice.message.content, toolCall: null, provider: this.name, latencyMs };
+  }
+
+  // ---------------------------------------------------------------------------
+  // chatStream() — streaming via stream: true
+  // ---------------------------------------------------------------------------
+
+  async *chatStream(
+    messages: ChatMessage[],
+    options:  Omit<ChatOptions, 'tools' | 'responseFormat'> = {}
+  ): AsyncIterable<string> {
+    const apiKey = process.env['OPENAI_API_KEY'];
+    if (!apiKey) throw new Error('OPENAI_API_KEY not set');
+
+    const model = process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini';
+
+    type OAIMessage = { role: string; content: string };
+    const oaiMessages: OAIMessage[] = messages.map((m) => ({ role: m.role, content: m.content }));
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: options.temperature ?? 0.7,
+        max_tokens:  options.maxTokens   ?? 1024,
+        messages:    oaiMessages,
+        stream:      true,
+      }),
+    });
+
+    if (!response.ok || !response.body) {
+      throw new Error(`OpenAI stream error: ${response.status} ${response.statusText}`);
+    }
+
+    const reader  = response.body.getReader();
+    const decoder = new TextDecoder();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        // OpenAI streaming returns SSE: "data: {...}\n\n" lines
+        for (const line of chunk.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const jsonStr = trimmed.slice(5).trim();
+          if (jsonStr === '[DONE]') return;
+          try {
+            const parsed = JSON.parse(jsonStr) as {
+              choices?: Array<{ delta?: { content?: string } }>;
+            };
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) yield content;
+          } catch {
+            // skip malformed lines
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 }

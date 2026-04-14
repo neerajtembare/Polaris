@@ -8,7 +8,7 @@
  */
 
 import type { AIActivityParse } from '@polaris/shared';
-import type { AIProvider, GoalContext } from '../types.js';
+import type { AIProvider, GoalContext, ChatMessage, ChatOptions, ChatResult } from '../types.js';
 import { buildActivityParseUserPrompt, ACTIVITY_PARSE_SYSTEM_PROMPT, buildFewShotActivityParseUserPrompt } from '../prompts/activity-parse.prompt.js';
 import { parseAndValidateActivityResponse } from '../utils/validate-response.js';
 import { logAiExchange } from '../utils/ai-logger.js';
@@ -155,6 +155,114 @@ export class OllamaProvider implements AIProvider {
       error: 'JSON validation failed — fell back to mock',
     });
     return await getMockProvider().parse(rawInput, goals);
+  }
+
+  // ---------------------------------------------------------------------------
+  // chat() — multi-turn via /api/chat endpoint
+  // ---------------------------------------------------------------------------
+
+  async chat(messages: ChatMessage[], options: ChatOptions = {}): Promise<ChatResult> {
+    const ollamaUrl = process.env['OLLAMA_URL']   ?? 'http://localhost:11434';
+    const model     = process.env['OLLAMA_MODEL'] ?? 'gemma4:e4b';
+    const startMs   = Date.now();
+
+    type OllamaChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+    const ollamaMessages: OllamaChatMessage[] = messages.map((m) => ({
+      role:    m.role,
+      content: m.content,
+    }));
+
+    const body: Record<string, unknown> = {
+      model,
+      messages: ollamaMessages,
+      stream:   false,
+      options: {
+        temperature:  options.temperature ?? 0.7,
+        num_predict:  options.maxTokens   ?? 1024,
+      },
+    };
+
+    if (options.responseFormat === 'json') body['format'] = 'json';
+
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
+      throw new Error(`Ollama chat error: ${response.status} ${response.statusText} — ${errBody.slice(0, 200)}`);
+    }
+
+    type OllamaChatResponse = { message?: { content?: string } };
+    const json    = (await response.json()) as OllamaChatResponse;
+    const text    = json.message?.content ?? null;
+    return { text, toolCall: null, provider: this.name, latencyMs: Date.now() - startMs };
+  }
+
+  // ---------------------------------------------------------------------------
+  // chatStream() — streaming via /api/chat with stream: true (NDJSON)
+  // ---------------------------------------------------------------------------
+
+  async *chatStream(
+    messages: ChatMessage[],
+    options:  Omit<ChatOptions, 'tools' | 'responseFormat'> = {}
+  ): AsyncIterable<string> {
+    const ollamaUrl = process.env['OLLAMA_URL']   ?? 'http://localhost:11434';
+    const model     = process.env['OLLAMA_MODEL'] ?? 'gemma4:e4b';
+
+    type OllamaChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+    const ollamaMessages: OllamaChatMessage[] = messages.map((m) => ({
+      role:    m.role,
+      content: m.content,
+    }));
+
+    const body = {
+      model,
+      messages: ollamaMessages,
+      stream:   true,
+      options: {
+        temperature: options.temperature ?? 0.7,
+        num_predict: options.maxTokens   ?? 1024,
+      },
+    };
+
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(body),
+      signal:  AbortSignal.timeout(300_000),
+    });
+
+    if (!response.ok || !response.body) {
+      throw new Error(`Ollama stream error: ${response.status} ${response.statusText}`);
+    }
+
+    const reader  = response.body.getReader();
+    const decoder = new TextDecoder();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        // Ollama streaming returns NDJSON: one JSON object per line
+        for (const line of chunk.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const obj = JSON.parse(trimmed) as { message?: { content?: string }; done?: boolean };
+            if (obj.message?.content) yield obj.message.content;
+            if (obj.done) return;
+          } catch {
+            // skip malformed lines
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 }
 

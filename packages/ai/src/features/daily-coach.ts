@@ -21,10 +21,6 @@ import type { AIProvider } from '../types.js';
 import { DAILY_COACH_SYSTEM_PROMPT, buildDailyCoachPrompt } from '../prompts/daily-coach.prompt.js';
 import { getQuoteForToday } from './fallback-quotes.js';
 
-// ---------------------------------------------------------------------------
-// Response shape coming back from the LLM
-// ---------------------------------------------------------------------------
-
 interface RawCoachResponse {
   message?:       string;
   streakMessage?: string;
@@ -91,67 +87,6 @@ function parseCoachResponse(content: string, ctx: PolarisContext): DailyCoachRes
 }
 
 // ---------------------------------------------------------------------------
-// Ollama raw call (provider interface only exposes `parse`; for custom prompts
-// we call Ollama directly via its REST API, same as the provider does)
-// ---------------------------------------------------------------------------
-
-async function callOllama(systemPrompt: string, userPrompt: string): Promise<string> {
-  const ollamaUrl = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
-  const model     = process.env['OLLAMA_MODEL'] ?? 'gemma4:e4b';
-
-  const body = {
-    model,
-    system: systemPrompt,
-    prompt: userPrompt,
-    stream: false,
-    format: 'json',
-    options: { temperature: 0.4, num_predict: 400 },
-  };
-
-  const res = await fetch(`${ollamaUrl}/api/generate`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
-    signal:  AbortSignal.timeout(30_000),
-  });
-
-  if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
-
-  const json = (await res.json()) as { response?: string };
-  return json.response ?? '';
-}
-
-// For OpenAI provider: call chat completions
-async function callOpenAI(systemPrompt: string, userPrompt: string): Promise<string> {
-  const apiKey = process.env['OPENAI_API_KEY'] ?? '';
-  const model  = process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini';
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method:  'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userPrompt  },
-      ],
-      max_tokens:  400,
-      temperature: 0.4,
-    }),
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`);
-
-  const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  return json.choices?.[0]?.message?.content ?? '';
-}
-
-// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 
@@ -166,18 +101,20 @@ export async function dailyCoach(
   const userPrompt = buildDailyCoachPrompt(ctx);
 
   try {
-    let rawContent: string;
-
-    if (provider.name === 'ollama') {
-      rawContent = await callOllama(DAILY_COACH_SYSTEM_PROMPT, userPrompt);
-    } else if (provider.name === 'openai') {
-      rawContent = await callOpenAI(DAILY_COACH_SYSTEM_PROMPT, userPrompt);
-    } else {
-      // Mock provider — return a deterministic fallback
+    if (provider.name === 'mock') {
       return buildFallbackResponse(ctx);
     }
 
-    const parsed = parseCoachResponse(rawContent, ctx);
+    const result = await provider.chat(
+      [
+        { role: 'system', content: DAILY_COACH_SYSTEM_PROMPT },
+        { role: 'user',   content: userPrompt },
+      ],
+      { temperature: 0.4, maxTokens: 400, responseFormat: 'json' }
+    );
+
+    const rawContent = result.text ?? '';
+    const parsed     = parseCoachResponse(rawContent, ctx);
     if (parsed) return parsed;
 
     console.error('[DailyCoach] Bad JSON from provider — falling back to quote');

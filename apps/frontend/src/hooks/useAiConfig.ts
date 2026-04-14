@@ -1,7 +1,7 @@
 /**
  * @file hooks/useAiConfig.ts
  * @description TanStack Query hooks for AI configuration.
- *   Fetches active provider name, Ollama model, and available Ollama models.
+ *   Fetches active provider name, model, and connection status.
  *
  * @module @polaris/frontend/hooks
  *
@@ -19,9 +19,11 @@ import type { ApiSuccess } from '@polaris/shared';
 // ---------------------------------------------------------------------------
 
 export interface AiConfig {
-  provider: 'mock' | 'openai' | 'ollama' | string;
-  ollamaModel: string | null;
-  ollamaUrl: string | null;
+  provider:       'mock' | 'openai' | 'ollama' | 'gemini' | string;
+  model:          string;
+  status:         'connected' | 'error' | 'unknown' | 'slow';
+  statusMessage?: string;
+  latencyMs?:     number;
 }
 
 interface OllamaModelsData {
@@ -42,7 +44,7 @@ export const aiConfigKeys = {
 // Hooks
 // ---------------------------------------------------------------------------
 
-/** Fetches the active AI provider + Ollama model from the backend */
+/** Fetches the active AI provider, model and connection status from the backend */
 export function useAiConfig() {
   return useQuery<AiConfig, Error>({
     queryKey: aiConfigKeys.config(),
@@ -54,7 +56,7 @@ export function useAiConfig() {
   });
 }
 
-/** Fetches the list of locally installed Ollama models */
+/** Fetches the list of locally installed Ollama models (only useful when provider is 'ollama') */
 export function useOllamaModels(enabled = true) {
   return useQuery<string[], Error>({
     queryKey: aiConfigKeys.models(),
@@ -69,7 +71,7 @@ export function useOllamaModels(enabled = true) {
 }
 
 /**
- * Mutation: switch the active Ollama model at runtime.
+ * Mutation: switch the active model at runtime.
  * Calls POST /api/ai/config and refetches the config query on success.
  * Takes effect on the backend immediately — no server restart needed.
  */

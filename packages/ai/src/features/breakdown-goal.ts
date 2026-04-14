@@ -8,7 +8,7 @@
 
 import type { AIGoalBreakdown, AISubGoal, AISuggestedActivity } from '@polaris/shared';
 import { buildGoalBreakdownUserPrompt, GOAL_BREAKDOWN_SYSTEM_PROMPT } from '../prompts/goal-breakdown.prompt.js';
-import { callProviderText } from '../utils/call-provider-text.js';
+import { getProvider } from '../providers/index.js';
 
 export type { AIGoalBreakdown, AISubGoal, AISuggestedActivity };
 
@@ -59,13 +59,23 @@ export async function breakdownGoal(input: GoalInput): Promise<AIGoalBreakdown> 
 
   const userPrompt = buildGoalBreakdownUserPrompt(goal);
 
-  const result = await callProviderText({
-    systemPrompt: GOAL_BREAKDOWN_SYSTEM_PROMPT,
-    userPrompt,
-    maxTokens: 900,
-    temperature: 0.3,
-    logPrefix: 'Breakdown',
-  });
+  const provider = getProvider();
+  if (provider.name === 'mock') return mockBreakdown(goal);
+
+  let result: string | null = null;
+  try {
+    const chatResult = await provider.chat(
+      [
+        { role: 'system', content: GOAL_BREAKDOWN_SYSTEM_PROMPT },
+        { role: 'user',   content: userPrompt },
+      ],
+      { temperature: 0.3, maxTokens: 900, responseFormat: 'json' }
+    );
+    result = chatResult.text;
+  } catch (err) {
+    console.error('[Breakdown] ✗ Provider call failed:', err);
+    return mockBreakdown(goal);
+  }
 
   if (!result) return mockBreakdown(goal);
 
@@ -105,8 +115,8 @@ export async function breakdownGoal(input: GoalInput): Promise<AIGoalBreakdown> 
     return act;
   });
 
-  const provider = process.env['AI_PROVIDER'] ?? 'mock';
-  return { subGoals, suggestedActivities, provider };
+  const providerName = provider.name;
+  return { subGoals, suggestedActivities, provider: providerName };
 }
 
 

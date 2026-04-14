@@ -48,7 +48,7 @@ interface SettingsProps {
   onToggleTheme: () => void;
 }
 
-type ProviderKey = 'mock' | 'openai' | 'ollama';
+type ProviderKey = 'mock' | 'openai' | 'ollama' | 'gemini';
 
 interface ProviderInfo {
   key: ProviderKey;
@@ -58,6 +58,12 @@ interface ProviderInfo {
 }
 
 const PROVIDERS: ProviderInfo[] = [
+  {
+    key: 'gemini',
+    label: 'Gemini (Google)',
+    description: 'Primary cloud provider. Fast, function calling, streaming. Requires GEMINI_API_KEY in your backend .env file.',
+    Icon: Globe,
+  },
   {
     key: 'mock',
     label: 'Mock (Built-in)',
@@ -73,9 +79,17 @@ const PROVIDERS: ProviderInfo[] = [
   {
     key: 'ollama',
     label: 'Ollama (Local LLM)',
-    description: 'Run locally on your machine. No data leaves your system. Requires Ollama installed.',
+    description: 'Run locally on your machine. No data leaves your system. High latency (72-278s) — offline fallback only.',
     Icon: Server,
   },
+];
+
+/** Hard-coded Gemini model options (free tier) */
+const GEMINI_MODELS = [
+  { id: 'gemma-4-26b-a4b-it',             label: 'Gemma 4 26b',          rpdLabel: '1,500 RPD' },
+  { id: 'gemini-2.5-flash',               label: 'Gemini 2.5 Flash',     rpdLabel: '20 RPD' },
+  { id: 'gemini-3-flash-preview',         label: 'Gemini 3 Flash',       rpdLabel: '20 RPD' },
+  { id: 'gemini-3.1-flash-lite-preview',  label: 'Gemini 3.1 Flash Lite', rpdLabel: '500 RPD' },
 ];
 
 export default function Settings({ theme, onNavigate: _onNavigate, onToggleTheme }: SettingsProps) {
@@ -89,9 +103,9 @@ export default function Settings({ theme, onNavigate: _onNavigate, onToggleTheme
 
   const activeProvider = (aiConfig?.provider ?? 'mock') as ProviderKey;
 
-  // Custom model input state (only visible when Ollama is active)
+  // Custom model input state (Ollama: custom name; Gemini: handled via chips)
   const [customModel, setCustomModel] = useState('');
-  const displayModel = aiConfig?.ollamaModel ?? '';
+  const displayModel = aiConfig?.model ?? '';
   const pendingModel = customModel.trim();
   const hasUnsaved  = pendingModel.length > 0 && pendingModel !== displayModel;
 
@@ -268,6 +282,35 @@ export default function Settings({ theme, onNavigate: _onNavigate, onToggleTheme
                                 <CheckCircle2 className="w-3 h-3" /> Active
                               </span>
                             )}
+                            {/* Status badge — shown only on active provider card */}
+                            {isActive && aiConfig?.status && (
+                              <span
+                                className={cn(
+                                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border',
+                                  aiConfig.status === 'connected'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    : aiConfig.status === 'slow'
+                                    ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                                    : aiConfig.status === 'error'
+                                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                    : 'bg-white/5 text-gray-400 border-white/10'
+                                )}
+                              >
+                                <span className={cn(
+                                  'w-1.5 h-1.5 rounded-full',
+                                  aiConfig.status === 'connected' ? 'bg-emerald-400' :
+                                  aiConfig.status === 'slow'      ? 'bg-yellow-400' :
+                                  aiConfig.status === 'error'     ? 'bg-red-400' : 'bg-gray-400'
+                                )} />
+                                {aiConfig.status === 'connected'
+                                  ? `Connected${aiConfig.latencyMs != null ? ` (${aiConfig.latencyMs}ms)` : ''}`
+                                  : aiConfig.status === 'slow'
+                                  ? `Slow (${aiConfig.latencyMs ?? '?'}ms)`
+                                  : aiConfig.status === 'error'
+                                  ? 'Error'
+                                  : 'Unknown'}
+                              </span>
+                            )}
                           </div>
                           <p
                             className={cn(
@@ -278,31 +321,43 @@ export default function Settings({ theme, onNavigate: _onNavigate, onToggleTheme
                             {provider.description}
                           </p>
 
+                          {/* Active model label (all providers) */}
+                          {isActive && displayModel && (
+                            <p className={cn('text-xs font-mono mt-2', isDark ? 'text-dark-primary' : 'text-primary')}>
+                              Model: {displayModel}
+                            </p>
+                          )}
+
+                          {/* Gemini model chips */}
+                          {isActive && provider.key === 'gemini' && (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {GEMINI_MODELS.map((m) => (
+                                <button
+                                  key={m.id}
+                                  onClick={() => handleSelectModel(m.id)}
+                                  disabled={setAiModel.isPending}
+                                  title={`${m.rpdLabel} free tier`}
+                                  className={cn(
+                                    'px-2 py-0.5 rounded text-[10px] font-mono border transition-all',
+                                    m.id === displayModel
+                                      ? isDark
+                                        ? 'bg-dark-primary/20 text-dark-primary border-dark-primary/30'
+                                        : 'bg-primary/10 text-primary border-primary/20'
+                                      : isDark
+                                      ? 'bg-white/5 text-dark-on-surface-variant border-white/10 hover:bg-white/10 hover:text-dark-on-surface cursor-pointer'
+                                      : 'bg-surface-container-low text-on-surface-variant border-outline-variant/10 hover:bg-surface-container cursor-pointer'
+                                  )}
+                                >
+                                  {m.label}
+                                  <span className="opacity-50 ml-1 text-[9px]">{m.rpdLabel}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
                           {/* Ollama model selector */}
                           {isActive && provider.key === 'ollama' && (
                             <div className="mt-3 space-y-3">
-                              {aiConfig?.ollamaUrl && (
-                                <p
-                                  className={cn(
-                                    'text-xs font-mono opacity-50',
-                                    isDark
-                                      ? 'text-dark-on-surface-variant'
-                                      : 'text-on-surface-variant'
-                                  )}
-                                >
-                                  Endpoint: {aiConfig.ollamaUrl}
-                                </p>
-                              )}
-                              {aiConfig?.ollamaModel && (
-                                <p
-                                  className={cn(
-                                    'text-xs font-mono',
-                                    isDark ? 'text-dark-primary' : 'text-primary'
-                                  )}
-                                >
-                                  Active model: {aiConfig.ollamaModel}
-                                </p>
-                              )}
                               {/* Installed model chips — click to switch */}
                               {modelsLoading ? (
                                 <p className="text-xs opacity-40">Loading installed models…</p>

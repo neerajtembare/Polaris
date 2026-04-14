@@ -6,7 +6,7 @@
  */
 
 import type { ActivityType, AIActivityParse, UserIntent } from '@polaris/shared';
-import type { AIProvider, GoalContext } from '../types.js';
+import type { AIProvider, GoalContext, ChatMessage, ChatOptions, ChatResult } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Word-to-number normalization
@@ -223,5 +223,36 @@ export class MockProvider implements AIProvider {
     const trimmed = rawInput.trim();
     if (!trimmed) return 'Activity';
     return (trimmed.charAt(0).toUpperCase() + trimmed.slice(1)).slice(0, 200);
+  }
+
+  // ---------------------------------------------------------------------------
+  // chat() / chatStream() — canned responses for testing and zero-config usage
+  // ---------------------------------------------------------------------------
+
+  async chat(messages: ChatMessage[], _options?: ChatOptions): Promise<ChatResult> {
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    const input    = lastUser?.content ?? '';
+    const lower    = input.toLowerCase();
+
+    let text: string;
+    if (/streak|progress|doing|goals|activities/i.test(lower)) {
+      text = "You're making progress. Keep logging your activities consistently.";
+    } else if (/coach|advice|suggest/i.test(lower)) {
+      text = "Set a small daily target. Consistency beats intensity every time.";
+    } else if (/briefing|today|plan/i.test(lower)) {
+      text = "Good day. Your active goals are on track. Focus on what matters most today.";
+    } else {
+      text = "Understood. Stay consistent and keep tracking your progress.";
+    }
+
+    return { text, toolCall: null, provider: this.name, latencyMs: 0 };
+  }
+
+  async *chatStream(
+    messages: ChatMessage[],
+    _options?: Omit<ChatOptions, 'tools' | 'responseFormat'>
+  ): AsyncIterable<string> {
+    const result = await this.chat(messages);
+    if (result.text) yield result.text;
   }
 }

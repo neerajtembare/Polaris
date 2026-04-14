@@ -8,7 +8,7 @@
 
 import type { AIWeeklyAnalysis, DashboardMetrics } from '@polaris/shared';
 import { buildWeeklyAnalysisUserPrompt, WEEKLY_ANALYSIS_SYSTEM_PROMPT } from '../prompts/weekly-analysis.prompt.js';
-import { callProviderText } from '../utils/call-provider-text.js';
+import { getProvider } from '../providers/index.js';
 
 export type { AIWeeklyAnalysis };
 
@@ -44,13 +44,23 @@ function mockAnalysis(metrics: DashboardMetrics): AIWeeklyAnalysis {
 export async function analyzeWeek(metrics: DashboardMetrics): Promise<AIWeeklyAnalysis> {
   const userPrompt = buildWeeklyAnalysisUserPrompt(metrics);
 
-  const result = await callProviderText({
-    systemPrompt: WEEKLY_ANALYSIS_SYSTEM_PROMPT,
-    userPrompt,
-    maxTokens: 700,
-    temperature: 0.4,
-    logPrefix: 'AnalyzeWeek',
-  });
+  const provider = getProvider();
+  if (provider.name === 'mock') return mockAnalysis(metrics);
+
+  let result: string | null = null;
+  try {
+    const chatResult = await provider.chat(
+      [
+        { role: 'system', content: WEEKLY_ANALYSIS_SYSTEM_PROMPT },
+        { role: 'user',   content: userPrompt },
+      ],
+      { temperature: 0.4, maxTokens: 700, responseFormat: 'json' }
+    );
+    result = chatResult.text;
+  } catch (err) {
+    console.error('[AnalyzeWeek] ✗ Provider call failed:', err);
+    return mockAnalysis(metrics);
+  }
 
   if (!result) return mockAnalysis(metrics);
 
@@ -62,12 +72,11 @@ export async function analyzeWeek(metrics: DashboardMetrics): Promise<AIWeeklyAn
     return mockAnalysis(metrics);
   }
 
-  const provider = process.env['AI_PROVIDER'] ?? 'mock';
   return {
     summary:     typeof parsed.summary === 'string' ? parsed.summary : mockAnalysis(metrics).summary,
     insights:    Array.isArray(parsed.insights) ? parsed.insights.map(String).slice(0, 6) : [],
     suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.map(String).slice(0, 6) : [],
-    provider,
+    provider:    provider.name,
   };
 }
 

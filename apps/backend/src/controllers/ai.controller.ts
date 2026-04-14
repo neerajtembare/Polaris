@@ -19,6 +19,7 @@ import { getGoalById }         from '../services/goal.service.js';
 import { getDashboardMetrics } from '../services/metrics.service.js';
 import { assemblePolarisContext } from '../services/polaris-context.service.js';
 import { handleError }         from '../lib/handleError.js';
+import { getProvider }         from '@polaris/ai';
 
 // ---------------------------------------------------------------------------
 // Request body shapes
@@ -123,16 +124,12 @@ export async function analyzeWeekHandler(
  * GET /api/ai/analyze-week/stream
  * Streams the weekly analysis as Server-Sent Events.
  * Each event is `data: <chunk>\n\n`. A final `data: [DONE]\n\n` marks completion.
- * Falls back to a single non-streamed event if Ollama streaming is unavailable.
+ * Uses the active provider's chatStream() — works for Gemini, Ollama, OpenAI, and mock.
  */
 export async function analyzeWeekStreamHandler(
   _request: FastifyRequest,
   reply:   FastifyReply
 ): Promise<void> {
-  const ollamaUrl = process.env['OLLAMA_URL']   ?? 'http://localhost:11434';
-  const model     = process.env['OLLAMA_MODEL'] ?? 'gemma4:e4b';
-  const provider  = process.env['AI_PROVIDER']  ?? 'mock';
-
   // Fetch data BEFORE committing headers so errors can still be returned as HTTP errors
   let metrics: Awaited<ReturnType<typeof getDashboardMetrics>>;
   try {
@@ -153,23 +150,12 @@ export async function analyzeWeekStreamHandler(
     reply.raw.write(`data: ${data}\n\n`);
   };
 
-  try {
-    if (provider !== 'ollama') {
-      // Non-streaming providers: generate all at once then emit as one event
-      const result = await aiService.analyzeWeek(metrics);
-      sendEvent(JSON.stringify({ type: 'result', data: result }));
-      sendEvent('[DONE]');
-      reply.raw.end();
-      return;
-    }
+  const completionRate =
+    metrics.totalActivities > 0
+      ? Math.round((metrics.completedActivities / metrics.totalActivities) * 100)
+      : 0;
 
-    // Build prompt (mirrors analyze-week.ts logic)
-    const completionRate =
-      metrics.totalActivities > 0
-        ? Math.round((metrics.completedActivities / metrics.totalActivities) * 100)
-        : 0;
-
-    const userPrompt = `Weekly metrics:
+  const userPrompt = `Weekly metrics:
 - Activities completed: ${metrics.completedActivities} / ${metrics.totalActivities} (${completionRate}%)
 - Goals touched: ${metrics.goalsTouched}
 - Current streak: ${metrics.currentStreak} days
@@ -177,25 +163,14 @@ export async function analyzeWeekStreamHandler(
 
 Return JSON with: { "summary": "string", "insights": ["string"], "suggestions": ["string"] }`;
 
-    const systemPrompt = `You are a productivity coach analyzing a week of user data.
+  const systemPrompt = `You are a productivity coach analyzing a week of user data.
 Return only valid JSON. Be specific, actionable, and encouraging.`;
 
-    const res = await fetch(`${ollamaUrl}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        system: systemPrompt,
-        prompt: userPrompt,
-        stream: true,
-        format: 'json',
-        options: { temperature: 0.4, num_predict: 700 },
-      }),
-      signal: AbortSignal.timeout(60_000),
-    });
+  try {
+    const provider = getProvider();
 
-    if (!res.ok || !res.body) {
-      // Fallback to non-streamed
+    // Mock provider: send a single non-streamed result
+    if (provider.name === 'mock') {
       const result = await aiService.analyzeWeek(metrics);
       sendEvent(JSON.stringify({ type: 'result', data: result }));
       sendEvent('[DONE]');
@@ -203,63 +178,48 @@ Return only valid JSON. Be specific, actionable, and encouraging.`;
       return;
     }
 
-    // Stream token chunks
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
     let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-
-      // Each line from Ollama is a JSON object: { response: "token", done: bool }
-      for (const line of chunk.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        try {
-          const obj = JSON.parse(trimmed) as { response?: string; done?: boolean };
-          if (obj.response) {
-            buffer += obj.response;
-            sendEvent(JSON.stringify({ type: 'token', token: obj.response }));
-          }
-          if (obj.done) {
-            // Attempt to parse completed buffer and send as structured result
-            try {
-              const parsed = JSON.parse(buffer) as {
-                summary?: string;
-                insights?: string[];
-                suggestions?: string[];
-              };
-              sendEvent(JSON.stringify({
-                type: 'result',
-                data: {
-                  summary:     parsed.summary     ?? '',
-                  insights:    parsed.insights    ?? [],
-                  suggestions: parsed.suggestions ?? [],
-                  provider:    'ollama',
-                },
-              }));
-            } catch {
-              // Buffer wasn't valid JSON (partial) — send raw
-              sendEvent(JSON.stringify({ type: 'result', data: { summary: buffer, insights: [], suggestions: [], provider: 'ollama' } }));
-            }
-          }
-        } catch {
-          // Non-JSON line — skip
-        }
-      }
+    for await (const chunk of provider.chatStream(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userPrompt },
+      ],
+      { temperature: 0.4, maxTokens: 700 }
+    )) {
+      buffer += chunk;
+      sendEvent(JSON.stringify({ type: 'token', token: chunk }));
     }
 
-    sendEvent('[DONE]');
-    reply.raw.end();
+    // Parse accumulated buffer into structured result
+    try {
+      const parsed = JSON.parse(buffer) as {
+        summary?:     string;
+        insights?:    string[];
+        suggestions?: string[];
+      };
+      sendEvent(JSON.stringify({
+        type: 'result',
+        data: {
+          summary:     parsed.summary     ?? '',
+          insights:    parsed.insights    ?? [],
+          suggestions: parsed.suggestions ?? [],
+          provider:    provider.name,
+        },
+      }));
+    } catch {
+      // Buffer wasn't valid JSON — send raw as summary
+      sendEvent(JSON.stringify({
+        type: 'result',
+        data: { summary: buffer, insights: [], suggestions: [], provider: provider.name },
+      }));
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     sendEvent(JSON.stringify({ type: 'error', message: msg }));
-    sendEvent('[DONE]');
-    reply.raw.end();
   }
+
+  sendEvent('[DONE]');
+  reply.raw.end();
 }
 
 /**
@@ -282,40 +242,107 @@ export async function dailyCoachHandler(
 
 /**
  * GET /api/ai/config
+ * Returns the active provider, model, and live connection status.
+ * Status is checked via a lightweight health ping (cached 30s on the client via staleTime).
  */
 export async function getAiConfigHandler(
   _request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  const provider   = process.env['AI_PROVIDER']  ?? 'mock';
-  const ollamaModel = process.env['OLLAMA_MODEL'] ?? 'gemma4:e4b';
-  const ollamaUrl   = process.env['OLLAMA_URL']   ?? 'http://localhost:11434';
+  const providerName = process.env['AI_PROVIDER'] ?? 'mock';
+
+  const model =
+    providerName === 'gemini' ? (process.env['GEMINI_MODEL'] ?? 'gemma-4-26b-a4b-it') :
+    providerName === 'ollama' ? (process.env['OLLAMA_MODEL'] ?? 'gemma4:e4b') :
+    providerName === 'openai' ? (process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini') :
+    'mock';
+
+  let status: 'connected' | 'error' | 'unknown' | 'slow' = 'unknown';
+  let statusMessage: string | undefined;
+  let latencyMs: number | undefined;
+
+  try {
+    if (providerName === 'gemini') {
+      const apiKey = process.env['GEMINI_API_KEY'];
+      if (!apiKey) {
+        status = 'error';
+        statusMessage = 'GEMINI_API_KEY is not set';
+      } else {
+        const startMs = Date.now();
+        const pingRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'ping' }] }] }),
+            signal:  AbortSignal.timeout(8_000),
+          }
+        );
+        latencyMs = Date.now() - startMs;
+        if (pingRes.ok) {
+          status = latencyMs > 10_000 ? 'slow' : 'connected';
+          statusMessage = `Gemini API responding (${latencyMs}ms)`;
+        } else {
+          const body = await pingRes.text().catch(() => '');
+          status = 'error';
+          statusMessage = `HTTP ${pingRes.status}: ${body.slice(0, 120)}`;
+        }
+      }
+    } else if (providerName === 'ollama') {
+      const ollamaUrl = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
+      const startMs   = Date.now();
+      const pingRes   = await fetch(`${ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(5_000) });
+      latencyMs = Date.now() - startMs;
+      if (pingRes.ok) {
+        status = latencyMs > 10_000 ? 'slow' : 'connected';
+        statusMessage = `Ollama responding (${latencyMs}ms)`;
+      } else {
+        status = 'error';
+        statusMessage = `Ollama unreachable: HTTP ${pingRes.status}`;
+      }
+    } else if (providerName === 'openai') {
+      // Don't ping OpenAI — wastes quota. Return unknown.
+      status = 'unknown';
+      statusMessage = 'OpenAI status not checked (API credits)';
+    } else {
+      // mock
+      status = 'connected';
+      statusMessage = 'Mock provider always available';
+    }
+  } catch (err) {
+    status = 'error';
+    statusMessage = err instanceof Error ? err.message : 'Health check failed';
+  }
 
   return reply.send({
     success: true,
-    data: {
-      provider,
-      ollamaModel: provider === 'ollama' ? ollamaModel : null,
-      ollamaUrl:   provider === 'ollama' ? ollamaUrl   : null,
-    },
+    data: { provider: providerName, model, status, statusMessage, latencyMs },
   });
 }
 
 /**
  * POST /api/ai/config
- * Update the active Ollama model at runtime.
- * Takes effect immediately on the next inference call — no restart required.
+ * Switch the active model at runtime. Takes effect on the next inference call.
  * Body: { model: string }
  */
 export async function setAiConfigHandler(
   request: FastifyRequest<{ Body: SetAiConfigBody }>,
   reply:   FastifyReply
 ): Promise<void> {
-  const { model } = request.body;
-  // OllamaProvider reads process.env['OLLAMA_MODEL'] per-request, so this
-  // takes effect immediately without restarting the server.
-  process.env['OLLAMA_MODEL'] = model;
-  return reply.send({ success: true, data: { model } });
+  const { model }    = request.body;
+  const providerName = process.env['AI_PROVIDER'] ?? 'mock';
+
+  // Set the correct env var based on active provider
+  if (providerName === 'gemini') {
+    process.env['GEMINI_MODEL'] = model;
+  } else if (providerName === 'ollama') {
+    process.env['OLLAMA_MODEL'] = model;
+  } else if (providerName === 'openai') {
+    process.env['OPENAI_MODEL'] = model;
+  }
+  // mock: no-op
+
+  return reply.send({ success: true, data: { provider: providerName, model } });
 }
 
 /**

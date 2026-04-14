@@ -17,4 +17,4 @@ export { analyzeWeek } from './features/analyze-week.js';
 export { dailyCoach } from './features/daily-coach.js';
 
 // Types
-export type { AIProvider } from './types.js';
+export type { AIProvider, ChatMessage, ChatOptions, ChatResult, ToolSchema, ToolCall } from './types.js';
