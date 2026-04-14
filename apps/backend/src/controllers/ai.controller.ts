@@ -19,7 +19,15 @@ import { getGoalById }         from '../services/goal.service.js';
 import { getDashboardMetrics } from '../services/metrics.service.js';
 import { assemblePolarisContext } from '../services/polaris-context.service.js';
 import { handleError }         from '../lib/handleError.js';
-import { getProvider }         from '@polaris/ai';
+import {
+  getProvider,
+  classifyIntent,
+  getToolsForIntent,
+  validateToolCall,
+  streamBriefing,
+  buildTarsSystemMessage,
+  requiresConfirmation,
+} from '@polaris/ai';
 
 // ---------------------------------------------------------------------------
 // Request body shapes
@@ -35,6 +43,10 @@ interface BreakdownBody {
 
 interface SetAiConfigBody {
   model: string;
+}
+
+interface ChatBody {
+  message: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -371,4 +383,121 @@ export async function getOllamaModelsHandler(
   } catch {
     return reply.send({ success: true, data: { models: [] } });
   }
+}
+
+/**
+ * POST /api/ai/chat
+ * Conversational TARS endpoint.
+ * - Classifies intent heuristically (no extra LLM call for 80% of inputs)
+ * - Injects PolarisContext into the system prompt
+ * - Calls provider.chat() with function-calling tools when write intent is detected
+ * - Validates tool call output via Zod and returns a typed TARSAction
+ */
+export async function chatHandler(
+  request: FastifyRequest<{ Body: ChatBody }>,
+  reply:   FastifyReply
+): Promise<void> {
+  try {
+    const { message } = request.body;
+    const startMs = Date.now();
+
+    const [ctx, { intent, confidence }] = await Promise.all([
+      assemblePolarisContext(),
+      Promise.resolve(classifyIntent(message)),
+    ]);
+
+    const tools  = getToolsForIntent(intent);
+    const system = buildTarsSystemMessage(JSON.stringify(ctx, null, 2));
+    const provider = getProvider();
+
+    const result = await provider.chat(
+      [
+        { role: 'system', content: system },
+        { role: 'user',   content: message },
+      ],
+      {
+        temperature: 0.5,
+        maxTokens:   400,
+        ...(tools.length > 0 ? { tools } : {}),
+      }
+    );
+
+    const latencyMs = Date.now() - startMs;
+
+    // If the LLM called a tool, validate and return a TARSAction
+    if (result.toolCall) {
+      const validated = validateToolCall(result.toolCall.name, result.toolCall.args);
+      if (validated.ok) {
+        return reply.send({
+          success: true,
+          data: {
+            response:             result.text,
+            action:               validated.action,
+            requiresConfirmation: requiresConfirmation(validated.action),
+            intent,
+            confidence,
+            provider:             provider.name,
+            latencyMs,
+          },
+        });
+      }
+      // Tool call failed validation — fall through with text-only response
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        response:             result.text,
+        action:               null,
+        requiresConfirmation: false,
+        intent,
+        confidence,
+        provider:             provider.name,
+        latencyMs,
+      },
+    });
+  } catch (err) {
+    return handleError('AIController.chat', err, reply);
+  }
+}
+
+/**
+ * GET /api/ai/briefing
+ * Streams the daily briefing as Server-Sent Events.
+ * Each event: `data: {"type":"token","token":"<chunk>"}\n\n`
+ * Final event: `data: [DONE]\n\n`
+ */
+export async function briefingHandler(
+  _request: FastifyRequest,
+  reply:   FastifyReply
+): Promise<void> {
+  let ctx: Awaited<ReturnType<typeof assemblePolarisContext>>;
+  try {
+    ctx = await assemblePolarisContext();
+  } catch (err) {
+    return handleError('AIController.briefing', err, reply);
+  }
+
+  void reply.raw.writeHead(200, {
+    'Content-Type':      'text/event-stream',
+    'Cache-Control':     'no-cache',
+    'Connection':        'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  const sendEvent = (data: string) => {
+    reply.raw.write(`data: ${data}\n\n`);
+  };
+
+  try {
+    for await (const token of streamBriefing(ctx)) {
+      sendEvent(JSON.stringify({ type: 'token', token }));
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Briefing stream error';
+    sendEvent(JSON.stringify({ type: 'error', message: msg }));
+  }
+
+  sendEvent('[DONE]');
+  reply.raw.end();
 }

@@ -68,9 +68,11 @@ const dashboardMetrics = {
 
 const polarisContext = {
   activeGoals: [
-    { id: 'goal-1', title: 'Read 7200 pages this year', progress: 20, timeframe: 'long' },
+    { id: 'goal-1', title: 'Read 7200 pages this year', progress: 20, timeframe: 'long', lastActivityDaysAgo: 2 },
   ],
   recentActivities: [],
+  todayPlanned:     [],
+  todayCompleted:   [],
   currentStreak:    5,
   longestStreak:    17,
   timeOfDay:        'morning' as const,

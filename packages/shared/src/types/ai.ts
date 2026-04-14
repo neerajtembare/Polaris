@@ -90,12 +90,25 @@ export interface PolarisContext {
     /** 0–100 */
     progress: number;
     timeframe: string;
+    /** Days since the last completed activity on this goal. -1 = never logged. */
+    lastActivityDaysAgo: number;
   }>;
   /** Last 7 days of activities — title + date string + type */
   recentActivities: Array<{
     title: string;
     date: string;
     type: string;
+  }>;
+  /** Activities scheduled for today that are not yet completed */
+  todayPlanned: Array<{
+    title: string;
+    goalTitle?: string | null;
+  }>;
+  /** Activities completed today */
+  todayCompleted: Array<{
+    title: string;
+    value?: number | null;
+    unit?: string | null;
   }>;
   currentStreak: number;
   longestStreak: number;

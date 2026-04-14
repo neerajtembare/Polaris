@@ -176,6 +176,38 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
    * Returns empty array if Ollama is unreachable.
    */
   app.get('/ollama-models', {}, AIController.getOllamaModelsHandler);
+
+  /**
+   * POST /api/ai/chat
+   * Conversational TARS endpoint.
+   * - Classifies intent and injects PolarisContext into system prompt
+   * - Calls provider.chat() with function-calling tools for write intents
+   * - Returns response text + optional TARSAction + requiresConfirmation flag
+   * Body: { message: string }
+   */
+  app.post(
+    '/chat',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['message'],
+          additionalProperties: false,
+          properties: {
+            message: { type: 'string', minLength: 1, maxLength: 2000 },
+          },
+        },
+      },
+    },
+    AIController.chatHandler
+  );
+
+  /**
+   * GET /api/ai/briefing
+   * Streams the daily briefing as Server-Sent Events.
+   * Events: { type:'token', token:string } | { type:'error', message:string } | [DONE]
+   */
+  app.get('/briefing', {}, AIController.briefingHandler);
 };
 
 export default aiRoutes;

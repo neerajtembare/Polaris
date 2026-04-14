@@ -100,7 +100,11 @@ function daysBetween(earlier: string, later: string): number {
  * Safe to call on every AI request — all queries are fast and capped.
  */
 export async function assemblePolarisContext(): Promise<PolarisContext> {
-  // Active goals (max 10)
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayStr = todayStart.toISOString().split('T')[0] as string;
+
+  // Active goals (max 10) — include latest completed activity date for dormancy
   const goals = await prisma.goal.findMany({
     where: { isDeleted: false, status: 'active' },
     select: {
@@ -110,7 +114,8 @@ export async function assemblePolarisContext(): Promise<PolarisContext> {
       targetValue: true,
       activities: {
         where: { isDeleted: false, status: 'completed' },
-        select: { value: true },
+        select: { value: true, activityDate: true },
+        orderBy: { activityDate: 'desc' },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -123,11 +128,16 @@ export async function assemblePolarisContext(): Promise<PolarisContext> {
       g.targetValue && g.targetValue > 0
         ? Math.min(100, Math.round((total / g.targetValue) * 100))
         : 0;
+    const latestActivity = g.activities[0];
+    const lastActivityDaysAgo = latestActivity
+      ? daysBetween(latestActivity.activityDate.toISOString().split('T')[0] as string, todayStr)
+      : -1;
     return {
       id: g.id,
       title: g.title,
       progress,
       timeframe: g.timeframe,
+      lastActivityDaysAgo,
     };
   });
 
@@ -153,15 +163,52 @@ export async function assemblePolarisContext(): Promise<PolarisContext> {
     type:  a.activityType,
   }));
 
+  // Today's planned activities (status = 'planned', date = today)
+  const plannedRows = await prisma.activity.findMany({
+    where: {
+      isDeleted: false,
+      status: 'planned',
+      activityDate: { gte: todayStart },
+    },
+    select: { title: true, goal: { select: { title: true } } },
+    orderBy: { createdAt: 'asc' },
+    take: 20,
+  });
+
+  const todayPlanned = plannedRows.map((a) => ({
+    title: a.title,
+    goalTitle: a.goal?.title ?? null,
+  }));
+
+  // Today's completed activities
+  const completedTodayRows = await prisma.activity.findMany({
+    where: {
+      isDeleted: false,
+      status: 'completed',
+      activityDate: { gte: todayStart },
+    },
+    select: { title: true, value: true, unit: true },
+    orderBy: { activityDate: 'asc' },
+    take: 20,
+  });
+
+  const todayCompleted = completedTodayRows.map((a) => ({
+    title: a.title,
+    value: a.value,
+    unit:  a.unit,
+  }));
+
   const { current, longest } = await getCurrentStreak();
 
   return {
     activeGoals,
     recentActivities,
+    todayPlanned,
+    todayCompleted,
     currentStreak: current,
     longestStreak: longest,
     timeOfDay: getTimeOfDay(),
     dayOfWeek: dayOfWeekStr(),
-    currentDate: new Date().toISOString().split('T')[0] as string,
+    currentDate: todayStr,
   };
 }

@@ -18,3 +18,23 @@ export { dailyCoach } from './features/daily-coach.js';
 
 // Types
 export type { AIProvider, ChatMessage, ChatOptions, ChatResult, ToolSchema, ToolCall } from './types.js';
+
+// TARS — conversational assistant core
+export type { TARSAction, ActivityDraft, GoalDraft, ScreenId } from './tars/action-types.js';
+export { requiresConfirmation, isImmediateAction } from './tars/action-types.js';
+export type { IntentType, ClassifyResult } from './tars/intent-classifier.js';
+export { classifyIntent, getToolsForIntent } from './tars/intent-classifier.js';
+export type { ValidateResult } from './tars/action-validator.js';
+export { validateToolCall } from './tars/action-validator.js';
+export { streamBriefing } from './tars/briefing.js';
+export { TARS_SYSTEM_PROMPT, buildTarsSystemMessage } from './prompts/tars-system.prompt.js';
+export { BRIEFING_SYSTEM_PROMPT, buildBriefingPrompt } from './prompts/briefing.prompt.js';
+export {
+  LOG_ACTIVITY_TOOL,
+  PLAN_ACTIVITY_TOOL,
+  CREATE_GOAL_TOOL,
+  LOG_ACTIVITY_TOOLS,
+  PLAN_ACTIVITY_TOOLS,
+  CREATE_GOAL_TOOLS,
+  ALL_WRITE_TOOLS,
+} from './tars/tool-schemas.js';
