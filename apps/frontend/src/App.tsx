@@ -26,6 +26,7 @@ import { WeeklyReview } from './components/screens/WeeklyReview';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { AssistantPanel, AssistantToggle } from './components/assistant/AssistantPanel';
+import { StartupBriefing } from './components/assistant/StartupBriefing';
 import { useAssistantStore } from './stores/assistant.store';
 import { useGoals } from './hooks/useGoals';
 import { useActivities } from './hooks/useActivities';
@@ -81,6 +82,7 @@ export default function App() {
   });
   const [showFocus,  setShowFocus]  = useState(false);
   const [showBanner, setShowBanner] = useState(() => !isBannerDismissedToday());
+  const [showBriefing, setShowBriefing] = useState(true);
   const toggleAssistant = useAssistantStore((s) => s.toggle);
 
   // Global keybind: Cmd+/ (or Ctrl+/) toggles the assistant panel
@@ -210,6 +212,16 @@ export default function App() {
         onNavigate={navigate}
       />
       <AssistantToggle isDark={navState.theme === 'dark'} />
+      {/* Startup briefing — shown once per day, before anything else */}
+      <AnimatePresence>
+        {showBriefing && (
+          <StartupBriefing
+            isDark={navState.theme === 'dark'}
+            onDismiss={() => setShowBriefing(false)}
+            onNavigate={navigate}
+          />
+        )}
+      </AnimatePresence>
       <ToastConfig isDark={navState.theme === 'dark'} />
     </ErrorBoundary>
   );
