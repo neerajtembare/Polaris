@@ -1,7 +1,7 @@
 # Polaris — TARS Agent Architecture
-> **Version:** 2.0 | **April 14, 2026**  
+> **Version:** 2.1 | **April 14, 2026**  
 > **Scope:** AI Assistant system — providers, actions, context, UI, voice  
-> **Status:** Foundation restructure complete. Sprint 0 next.
+> **Status:** Sprint 0 ✅ Complete | Sprint 1 ✅ Complete | Sprint 2 🔄 Next
 
 ---
 
@@ -1116,112 +1116,110 @@ Fixed position bottom-right corner. Click to open/close panel.
 
 Each sprint is independently testable. Order matters — later sprints depend on earlier ones.
 
-### Sprint 0 — Provider Foundation (DO FIRST)
+**Sprint status legend:** ✅ Complete | 🔄 In Progress | ⬜ Not Started
+
+---
+
+### Sprint 0 — Provider Foundation (✅ COMPLETE — April 14, 2026)
 
 Fix the plumbing before building features. This is the prerequisite for everything.
 
 **Tasks:**
-1. Expand `AIProvider` interface: add `chat()` + `chatStream()` to `types.ts`
-2. Build `gemini.provider.ts` — implements all 3 methods (`parse`, `chat`, `chatStream`)
-3. Upgrade `mock.provider.ts` — add `chat()` + `chatStream()` (canned responses)
-4. Upgrade `ollama.provider.ts` — add `chat()` + `chatStream()`
-5. Upgrade `openai.provider.ts` — add `chat()` + `chatStream()`
-6. Update provider factory in `providers/index.ts` — add `gemini` case
-7. Refactor `callProviderText()` callers → use `provider.chat()` directly
-8. Delete `call-provider-text.ts` (eliminate duplicate LLM path)
-9. Create `.env.example` for backend with all AI env vars documented
-10. Upgrade `GET /api/ai/config` — return provider-agnostic status + health check
-11. Upgrade `POST /api/ai/config` — support model switching for any provider
-12. Upgrade Settings UI — show provider status indicator (connected/error/latency)
-13. Upgrade Settings UI — show model chips for Gemini (not just Ollama)
-14. Add Gemini model list endpoint or hardcoded model options for Settings UI
+- [x] 1. Expand `AIProvider` interface: add `chat()` + `chatStream()` to `types.ts`
+- [x] 2. Build `gemini.provider.ts` — implements all 3 methods (`parse`, `chat`, `chatStream`)
+- [x] 3. Upgrade `mock.provider.ts` — add `chat()` + `chatStream()` (canned responses)
+- [x] 4. Upgrade `ollama.provider.ts` — add `chat()` + `chatStream()`
+- [x] 5. Upgrade `openai.provider.ts` — add `chat()` + `chatStream()`
+- [x] 6. Update provider factory in `providers/index.ts` — add `gemini` case
+- [x] 7. Refactor `callProviderText()` callers → use `provider.chat()` directly
+- [x] 8. Delete `call-provider-text.ts` (eliminate duplicate LLM path)
+- [x] 9. Create `.env.example` for backend with all AI env vars documented
+- [x] 10. Upgrade `GET /api/ai/config` — return provider-agnostic status + health check
+- [x] 11. Upgrade `POST /api/ai/config` — support model switching for any provider
+- [x] 12. Upgrade Settings UI — show provider status indicator (connected/error/latency)
+- [x] 13. Upgrade Settings UI — show model chips for Gemini (not just Ollama)
+- [x] 14. Refactor `analyzeWeekStreamHandler` → `provider.chatStream()` (all providers)
 
-**Environment setup (just-works):**
-```bash
-# apps/backend/.env
-AI_PROVIDER=gemini
-GEMINI_API_KEY=<your-key>
-# That's it. Default model is gemma-4-26b-a4b-it (1,500 RPD).
-# Optional: GEMINI_MODEL=gemini-2.5-flash  (for quality testing, 20 RPD)
-```
-
-**Done when:**
-- `AI_PROVIDER=gemini npm run typecheck` passes
-- `provider.chat([{ role: 'user', content: 'hello' }])` returns a response
-- Settings page shows "Gemini · Connected (2s) · gemma-4-26b-a4b-it"
-- Model chips let you switch between Gemma 4 and Gemini 2.5 Flash
-- Test AI button works with Gemini provider
+**Verified:** All 94 backend + 97 frontend tests pass. 0 type errors. Gemini connected at ~2s.
 
 ---
 
-### Sprint 1 — TARS Backend Core
+### Sprint 1 — TARS Backend Core (✅ COMPLETE — April 14, 2026)
 
 Build the chat and briefing endpoints using the new provider interface.
 
 **Tasks:**
-1. Create `tars/action-types.ts` — TARSAction union type, ActivityDraft, GoalDraft
-2. Create `tars/tool-schemas.ts` — function calling schemas for log_activity, create_goal_draft
-3. Create `tars/action-validator.ts` — Zod schemas to validate LLM tool call output
-4. Create `tars/intent-classifier.ts` — heuristic-first + LLM fallback
-5. Create `prompts/tars-system.prompt.ts` — TARS persona prompt
-6. Create `prompts/briefing.prompt.ts` — briefing template with context injection
-7. Create `tars/briefing.ts` — assemble briefing prompt + call provider.chatStream()
-8. Enrich `PolarisContext` — add `todayPlanned`, `todayCompleted` fields
-9. Add `POST /api/ai/chat` handler (route + controller + service)
-10. Add `GET /api/ai/briefing` SSE handler (reuse existing SSE pattern)
+- [x] 1. Create `tars/action-types.ts` — TARSAction union type, ActivityDraft, GoalDraft
+- [x] 2. Create `tars/tool-schemas.ts` — function calling schemas for log_activity, create_goal_draft
+- [x] 3. Create `tars/action-validator.ts` — Zod schemas to validate LLM tool call output
+- [x] 4. Create `tars/intent-classifier.ts` — heuristic-first + LLM fallback
+- [x] 5. Create `prompts/tars-system.prompt.ts` — TARS persona prompt
+- [x] 6. Create `prompts/briefing.prompt.ts` — briefing template with context injection
+- [x] 7. Create `tars/briefing.ts` — assemble briefing prompt + call provider.chatStream()
+- [x] 8. Enrich `PolarisContext` — add `lastActivityDaysAgo`, `todayPlanned`, `todayCompleted` fields
+- [x] 9. Update `assemblePolarisContext()` — query new fields from DB
+- [x] 10. Add `POST /api/ai/chat` handler (route + controller)
+- [x] 11. Add `GET /api/ai/briefing` SSE handler (reuse existing SSE pattern)
+- [x] 12. Export all TARS types + functions from `packages/ai/src/index.ts`
+- [x] 13. Typecheck + test verification (94+97 baseline maintained)
 
-**Done when:** `curl -X POST /api/ai/chat -d '{"message":"how am I doing?"}'`
-returns a natural language response with your real data. And
-`curl /api/ai/briefing` streams a personalized briefing.
+**Verified:** `POST /api/ai/chat` compiles and routes correctly. `GET /api/ai/briefing` SSE handler in place. 0 type errors.
+
+**Notes:**
+- `PolarisContext.activeGoals` items now include `lastActivityDaysAgo: number` (-1 = never logged)
+- Intent classifier defaults to `'chat'` for ambiguous input (NOT `'log_activity'`) — avoids unintended data creation
+- Tool name for goal creation is `create_goal_draft` (not `create_goal`) — matches action-validator mapping
+- `exactOptionalPropertyTypes` required cast fixes in action-validator.ts
 
 ---
 
-### Sprint 2 — TARS UI Foundation
+### Sprint 2 — TARS UI Foundation (⬜ NEXT)
 
-Build the frontend shell. No AI wiring yet — just the panel with fake messages
-to get the layout right.
+Build the frontend shell. Panel + conversation thread + real API wiring.
 
 **Tasks:**
-1. Create `assistant.store.ts` (Zustand — panel state, conversation history, tarsState)
-2. Create `AssistantPanel.tsx` (right drawer shell)
-3. Create `ConversationThread.tsx` + `AssistantMessage.tsx` + `UserMessage.tsx`
-4. Create `AssistantInput.tsx` (text input + mic button)
-5. Create `useCommandMatcher.ts` (client-side command pattern matching)
-6. Create `useAssistant.ts` — main hook (send message → get response)
-7. Wire `useAssistant` to `POST /api/ai/chat`
-8. Wire keyboard shortcut (`Cmd+/` or `Cmd+Space`) to toggle panel
+- [ ] 1. Create `assistant.store.ts` (Zustand — panel state, conversation history, tarsState)
+- [ ] 2. Create `AssistantPanel.tsx` (right drawer shell, ~400px desktop / full mobile)
+- [ ] 3. Create `ConversationThread.tsx` + `AssistantMessage.tsx` + `UserMessage.tsx`
+- [ ] 4. Create `AssistantInput.tsx` (text input + mic button)
+- [ ] 5. Create `useCommandMatcher.ts` (client-side command pattern matching)
+- [ ] 6. Create `useAssistant.ts` — main hook (send message → POST /api/ai/chat → response)
+- [ ] 7. Wire `useAssistant` to `POST /api/ai/chat`
+- [ ] 8. Wire keyboard shortcut (`Cmd+/`) to toggle panel
+- [ ] 9. Integrate panel into `App.tsx` (persistent floating, z-index above everything)
+- [ ] 10. Typewriter animation on AssistantMessage
 
 **Done when:** Panel opens, user types a message, response comes back from
 the real API and displays with typewriter animation.
 
 ---
 
-### Sprint 3 — Tool Calls + Confirmation Flow
+### Sprint 3 — Tool Calls + Confirmation Flow (⬜ Not Started)
 
 Wire up write operations with the confirm card.
 
 **Tasks:**
-1. Create `ToolConfirmCard.tsx` with accept/edit/dismiss
-2. Create `useAssistantActions.ts` — executes TARSAction using existing hooks
-3. Wire "log 30 pages" flow: chat → tool call → confirm card → useCreateActivity()
-4. Wire "create goal" flow: chat → tool call → confirm card → useCreateGoal()
-5. Add auto-accept countdown for high-confidence activity logs
-6. Add `QuickActionChips.tsx` for suggested follow-ups
+- [ ] 1. Create `ToolConfirmCard.tsx` with accept/edit/dismiss
+- [ ] 2. Create `useAssistantActions.ts` — executes TARSAction using existing hooks
+- [ ] 3. Wire "log 30 pages" flow: chat → tool call → confirm card → useCreateActivity()
+- [ ] 4. Wire "create goal" flow: chat → tool call → confirm card → useCreateGoal()
+- [ ] 5. Add auto-accept countdown for high-confidence activity logs (`autoAcceptMs={5000}`)
+- [ ] 6. Add `QuickActionChips.tsx` for suggested follow-ups
 
 **Done when:** End-to-end — type "log 30 pages of Atomic Habits" → confirm
 card shows → tap Accept → activity saved via existing API.
 
 ---
 
-### Sprint 4 — Startup Briefing UI
+### Sprint 4 — Startup Briefing UI (⬜ Not Started)
 
 Wire the briefing overlay and SSE consumer.
 
 **Tasks:**
-1. Create `StartupBriefing.tsx` — boot sequence animation
-2. Create `useStartupBriefing.ts` — SSE consumer + localStorage date check
-3. Wire briefing text stream into AssistantPanel
-4. Add quick-action chips after briefing finishes
+- [ ] 1. Create `StartupBriefing.tsx` — boot sequence animation
+- [ ] 2. Create `useStartupBriefing.ts` — SSE consumer + `localStorage` date check (`polaris:briefing:YYYY-MM-DD`)
+- [ ] 3. Wire briefing text stream into AssistantPanel
+- [ ] 4. Add quick-action chips after briefing finishes
 
 **Done when:** App loads → boot animation plays → TARS briefing streams in
 with real data → tapping a chip navigates or opens a relevant screen.

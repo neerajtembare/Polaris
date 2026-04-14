@@ -824,6 +824,13 @@ npm run lint
 | 3 | Onboarding Flow | ✅ Complete |
 | 3 | Daily Intentions | ✅ Complete |
 | 3 | Dormant Goal Badge | ✅ Complete |
+| TARS | Sprint 0 — Provider Foundation | ✅ Complete (April 14, 2026) |
+| TARS | Sprint 1 — Backend Core (chat + briefing endpoints) | ✅ Complete (April 14, 2026) |
+| TARS | Sprint 2 — UI Foundation (AssistantPanel + hooks) | 🔄 In Progress |
+| TARS | Sprint 3 — Tool Calls + Confirmation Flow | ⬜ Not Started |
+| TARS | Sprint 4 — Startup Briefing UI | ⬜ Not Started |
+| TARS | Sprint 5 — Avatar + Voice + Polish | ⬜ Not Started |
+| TARS | Sprint 6 — Session Memory + Multi-Turn | ⬜ Not Started |
 
 **Legend:** ⬜ Not Started | 🔄 In Progress | ✅ Complete
 

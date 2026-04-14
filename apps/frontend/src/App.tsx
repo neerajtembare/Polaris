@@ -25,6 +25,8 @@ import { MorningBanner } from './components/MorningBanner';
 import { WeeklyReview } from './components/screens/WeeklyReview';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { AssistantPanel, AssistantToggle } from './components/assistant/AssistantPanel';
+import { useAssistantStore } from './stores/assistant.store';
 import { useGoals } from './hooks/useGoals';
 import { useActivities } from './hooks/useActivities';
 import type { ScreenId, Theme, NavigationState } from './types/navigation';
@@ -79,6 +81,19 @@ export default function App() {
   });
   const [showFocus,  setShowFocus]  = useState(false);
   const [showBanner, setShowBanner] = useState(() => !isBannerDismissedToday());
+  const toggleAssistant = useAssistantStore((s) => s.toggle);
+
+  // Global keybind: Cmd+/ (or Ctrl+/) toggles the assistant panel
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        toggleAssistant();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [toggleAssistant]);
 
   // Onboarding: show if not completed yet (detected once data is loaded)
   const [onboardingDone, setOnboardingDone] = useState(() => {
@@ -190,6 +205,11 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+      <AssistantPanel
+        isDark={navState.theme === 'dark'}
+        onNavigate={navigate}
+      />
+      <AssistantToggle isDark={navState.theme === 'dark'} />
       <ToastConfig isDark={navState.theme === 'dark'} />
     </ErrorBoundary>
   );

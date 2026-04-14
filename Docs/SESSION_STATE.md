@@ -8,11 +8,196 @@
 
 | Item | Value |
 |------|-------|
-| **Phase** | Phase 3 — Complete + Test Suite Added |
-| **Milestone** | Full test coverage pass: 94 backend + 97 frontend tests passing |
-| **Last Completed** | Docs cleanup — archived 8 redundant files, merged 06_ai_implementation into 05_ai_strategy |
-| **Current Task** | All done. Pending: audio streams replacement, Phase 1 deferred tasks. |
-| **Blockers** | Audio streams (Zeno.fm is paid/broken) — deferred to future pass |
+| **Phase** | TARS Sprint 1 — Complete |
+| **Milestone** | TARS Backend Core: chat + briefing endpoints live |
+| **Last Completed** | Sprint 1 — POST /api/ai/chat + GET /api/ai/briefing + PolarisContext enrichment |
+| **Current Task** | Sprint 2 — TARS Frontend (AssistantPanel, stores, hooks) |
+| **Next Up** | Sprint 2: assistant.store.ts → AssistantPanel → ConversationThread → useAssistant → wire to API |
+| **Test Baseline** | 94 backend + 97 frontend tests passing. 0 type errors. |
+| **Blockers** | None |
+
+---
+
+## TARS Build Status
+
+| Sprint | Description | Status | Completed |
+|--------|-------------|--------|-----------|
+| Sprint 0 | Provider Foundation | ✅ Complete | April 14, 2026 |
+| Sprint 1 | TARS Backend Core | ✅ Complete | April 14, 2026 |
+| Sprint 2 | TARS UI Foundation | 🔄 Next | — |
+| Sprint 3 | Tool Calls + Confirmation Flow | ⬜ Not Started | — |
+| Sprint 4 | Startup Briefing UI | ⬜ Not Started | — |
+| Sprint 5 | Avatar + Voice + Polish | ⬜ Not Started | — |
+| Sprint 6 | Session Memory + Multi-Turn | ⬜ Not Started | — |
+
+---
+
+## Sprint 0 — Provider Foundation (✅ Complete)
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Expand `AIProvider` interface: `chat()` + `chatStream()` + new types | ✅ |
+| 2 | Build `gemini.provider.ts` (parse, chat, chatStream, SSE) | ✅ |
+| 3 | Upgrade `mock.provider.ts` — chat() + chatStream() | ✅ |
+| 4 | Upgrade `ollama.provider.ts` — chat() + chatStream() | ✅ |
+| 5 | Upgrade `openai.provider.ts` — chat() + chatStream() | ✅ |
+| 6 | Provider factory — add `gemini` case | ✅ |
+| 7 | Refactor `breakdown-goal.ts`, `analyze-week.ts`, `daily-coach.ts` → `provider.chat()` | ✅ |
+| 8 | Delete `call-provider-text.ts` | ✅ |
+| 9 | Create `apps/backend/.env.example` | ✅ |
+| 10 | Upgrade `GET /api/ai/config` — provider-agnostic + live health check | ✅ |
+| 11 | Upgrade `POST /api/ai/config` — model switching per-provider | ✅ |
+| 12 | Settings UI — provider status badges (connected/error/slow/unknown) | ✅ |
+| 13 | Settings UI — Gemini model chips (gemma-4-26b, gemini-2.5-flash, etc.) | ✅ |
+| 14 | Refactor `analyzeWeekStreamHandler` → `provider.chatStream()` (all providers) | ✅ |
+
+---
+
+## Sprint 1 — TARS Backend Core (✅ Complete)
+
+| # | Task | File(s) | Status |
+|---|------|---------|--------|
+| 1 | `TARSAction` union type, `ActivityDraft`, `GoalDraft`, `ScreenId` | `tars/action-types.ts` | ✅ |
+| 2 | LLM function-calling tool schemas | `tars/tool-schemas.ts` | ✅ |
+| 3 | Zod validation for tool call output | `tars/action-validator.ts` | ✅ |
+| 4 | Heuristic-first intent classifier | `tars/intent-classifier.ts` | ✅ |
+| 5 | TARS persona system prompt | `prompts/tars-system.prompt.ts` | ✅ |
+| 6 | Briefing prompt template | `prompts/briefing.prompt.ts` | ✅ |
+| 7 | `streamBriefing()` async generator | `tars/briefing.ts` | ✅ |
+| 8 | Enrich `PolarisContext` — `lastActivityDaysAgo`, `todayPlanned`, `todayCompleted` | `packages/shared/src/types/ai.ts` | ✅ |
+| 9 | Update `assemblePolarisContext()` — query new fields | `polaris-context.service.ts` | ✅ |
+| 10 | `POST /api/ai/chat` — route + controller handler | `ai.controller.ts`, `ai.routes.ts` | ✅ |
+| 11 | `GET /api/ai/briefing` — SSE handler | `ai.controller.ts`, `ai.routes.ts` | ✅ |
+| 12 | Export all TARS types + functions from `packages/ai/src/index.ts` | `index.ts` | ✅ |
+| 13 | Typecheck all packages + test verification (94+97) | — | ✅ |
+
+---
+
+## Sprint 2 — TARS UI Foundation (🔄 Next)
+
+Tasks to build (in order — each depends on previous):
+
+| # | Task | File(s) | Status |
+|---|------|---------|--------|
+| 1 | `assistant.store.ts` — Zustand: panel state, conversation history, tarsState | `stores/assistant.store.ts` | ⬜ |
+| 2 | `AssistantPanel.tsx` — right drawer shell (400px desktop, full mobile) | `components/assistant/AssistantPanel.tsx` | ⬜ |
+| 3 | `ConversationThread.tsx` — scrollable message history | `components/assistant/ConversationThread.tsx` | ⬜ |
+| 4 | `AssistantMessage.tsx` — TARS bubble + typewriter animation | `components/assistant/AssistantMessage.tsx` | ⬜ |
+| 5 | `UserMessage.tsx` — user bubble | `components/assistant/UserMessage.tsx` | ⬜ |
+| 6 | `AssistantInput.tsx` — text input + mic button | `components/assistant/AssistantInput.tsx` | ⬜ |
+| 7 | `useCommandMatcher.ts` — client-side pattern matching (no API call) | `hooks/useCommandMatcher.ts` | ⬜ |
+| 8 | `useAssistant.ts` — send message → POST /api/ai/chat → response | `hooks/useAssistant.ts` | ⬜ |
+| 9 | Wire keyboard shortcut (`Cmd+/`) to toggle panel | `App.tsx` or `AssistantPanel` | ⬜ |
+| 10 | Integrate panel into App.tsx (floating, persistent) | `App.tsx` | ⬜ |
+
+**Done when:** Panel opens, user types a message, real API response displays with typewriter animation.
+
+---
+
+## Phase Completion Summary
+
+| Phase | Status | Completed |
+|-------|--------|-----------|
+| Phase 0A — Postgres migration | ✅ Complete | Earlier sessions |
+| Phase 0B — Dead code cleanup | ✅ Complete | Earlier sessions |
+| Phase 0C — AI/input refactor | ✅ Complete | Earlier sessions |
+| Phase 1 (partial) — Core loop polish | 🟡 Partial | Tasks 1,2,7,8,9,10 done; 3,4,5,6,11 pending |
+| Phase 2A — Focus Sessions | ✅ Complete | April 13, 2026 |
+| Phase 2B — Audio Player | ✅ Complete | April 13, 2026 |
+| Phase 2C — Daily Coach | ✅ Complete | April 13, 2026 |
+| Phase 3 — Depth + Retention | ✅ Complete | April 13, 2026 |
+| TARS Sprint 0 — Provider Foundation | ✅ Complete | April 14, 2026 |
+| TARS Sprint 1 — Backend Core | ✅ Complete | April 14, 2026 |
+| TARS Sprint 2 — UI Foundation | 🔄 Next | — |
+
+---
+
+## Phase 3 Completed Tasks
+
+| # | Task | Implementation |
+|---|------|---------------|
+| 1 | Weekly Review screen | `WeeklyReview.tsx` — stats grid, AI panel, dormant goals |
+| 2 | AI weekly analysis streaming | `GET /api/ai/analyze-week/stream` SSE + `useWeeklyAnalysisStream` hook |
+| 3 | Goal dormancy detection | `dormancy.service.ts` + `GET /api/goals/dormant` + `useDormantGoals` |
+| 4 | Smart "add to today" from dormant | `useAddDormantToToday` mutation + DormantGoalCard |
+| 5 | Daily Intentions | `IntentionsPanel.tsx` + `useIntentions` (localStorage-scoped by day) |
+| 6 | Activity tagging | `tags: string[]` on Activity (Prisma JSON col) + LogActivityForm chips + History filter |
+| 7 | Settings page completion | Appearance toggle, Audio prefs (volume + stream preset), NLP threshold slider |
+| 8 | Onboarding flow | `OnboardingModal.tsx` — 3-step: welcome → first goal → first activity |
+
+---
+
+## Phase 1 Skipped Tasks (to revisit post-TARS)
+
+| # | Task | Why skipped |
+|---|------|-------------|
+| 3 | Activity templates | Low urgency, deferred |
+| 4 | LogActivityForm cleanup | UX polish, deferred |
+| 5 | GoalConstellation data-driven | Nice-to-have, deferred |
+| 6 | ProgressBar animations | Polish, deferred |
+| 11 | React Router cleanup | Tech debt, deferred |
+
+---
+
+## Key localStorage Keys (documented to avoid collisions)
+
+| Key | Purpose |
+|-----|---------|
+| `polaris:theme` | `'dark' \| 'light'` |
+| `polaris:auth` | `'true' \| 'false'` |
+| `polaris:audio` | Zustand audio player state (stream + volume) |
+| `polaris:daily-coach:YYYY-MM-DD` | Cached DailyCoachResponse for that day |
+| `polaris:banner-dismissed:YYYY-MM-DD` | Whether morning banner was dismissed that day |
+| `polaris:ai-threshold` | NLP parse confidence threshold (0–1, default 0.85) |
+| `polaris:onboarded` | `'1'` once user completes onboarding — never show again |
+| `polaris:intentions:YYYY-MM-DD` | Daily intention strings for that date |
+| `polaris:briefing:YYYY-MM-DD` | Whether briefing was shown today (prevents duplicate SSE calls) |
+
+---
+
+## Environment Status
+
+```
+Backend:   Node.js + Fastify + Prisma + PostgreSQL
+Frontend:  React 19 + Vite + TanStack Query v5 + Tailwind v4
+AI:        AI_PROVIDER=gemini (default), GEMINI_MODEL=gemma-4-26b-a4b-it (1,500 RPD)
+           AI_PROVIDER=ollama also supported (OLLAMA_MODEL=gemma4:e4b)
+Build:     All 4 packages typecheck clean (April 14, 2026)
+Tests:     94 backend + 97 frontend passing
+```
+
+---
+
+## Active Decisions
+
+| Decision | Reason | Date |
+|----------|--------|------|
+| `tags` stored as JSON string in Prisma (not `String[]`) | PostgreSQL native array requires migration; JSON string works cross-DB | April 13, 2026 |
+| Intentions are localStorage-only (not DB-backed) | Phase 3 scope — lightweight, can migrate to DB later | April 13, 2026 |
+| Onboarding detection: 0 goals AND 0 activities | Most reliable proxy for "new user" without auth | April 13, 2026 |
+| Gemini as primary AI provider (not Ollama) | Ollama latency 72-278s measured in logs — unusable for chat UX | April 14, 2026 |
+| Default model: `gemma-4-26b-a4b-it` (not gemini-2.5-flash) | 1,500 RPD free tier vs 20 RPD — sustainable for dev sessions | April 14, 2026 |
+| Context assembled server-side only | Security: never trust client-sent context — could be stale/manipulated | April 14, 2026 |
+| Command matcher runs client-side (no API call) | Fixed commands (play/navigate) don't need LLM — saves quota + latency | April 14, 2026 |
+
+---
+
+## Known Issues
+
+| Issue | Severity | Workaround | Fix In |
+|-------|----------|------------|--------|
+| Hub quick-log doesn't expose tags field | Low | Use LogActivityForm (full modal) to add tags | Post-TARS |
+| Audio streams (Zeno.fm) paid/broken | Medium | Deferred | Future pass |
+
+---
+
+## File Change Log
+
+| Session | Files Created | Files Modified |
+|---------|---------------|----------------|
+| April 13 Phase 3 | `WeeklyReview.tsx`, `OnboardingModal.tsx`, `IntentionsPanel.tsx`, `dormancy.service.ts`, `useDormantGoals.ts`, `useWeeklyAnalysisStream.ts`, `useIntentions.ts` | `App.tsx`, `Hub.tsx`, `GoalMatrix.tsx`, `History.tsx`, `Settings.tsx`, `activity.service.ts`, `ai.controller.ts` |
+| April 14 TARS Sprint 0 | `gemini.provider.ts`, `.env.example` | `types.ts` (AIProvider), `ollama.provider.ts`, `openai.provider.ts`, `mock.provider.ts`, `providers/index.ts`, `daily-coach.ts`, `breakdown-goal.ts`, `analyze-week.ts`, `ai.controller.ts`, `useAiConfig.ts`, `Settings.tsx` |
+| April 14 TARS Sprint 1 | `tars/action-types.ts`, `tars/tool-schemas.ts`, `tars/action-validator.ts`, `tars/intent-classifier.ts`, `prompts/tars-system.prompt.ts`, `prompts/briefing.prompt.ts`, `tars/briefing.ts` | `packages/shared/types/ai.ts`, `polaris-context.service.ts`, `ai.controller.ts`, `ai.routes.ts`, `packages/ai/index.ts`, `ai.service.test.ts` |
 
 ---
 
