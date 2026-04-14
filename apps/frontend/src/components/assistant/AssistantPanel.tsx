@@ -22,8 +22,10 @@ import { cn } from '@/lib/utils';
 import { useAssistantStore } from '@/stores/assistant.store';
 import type { ScreenId } from '@/stores/assistant.store';
 import { useAssistant } from '@/hooks/useAssistant';
+import { useAssistantActions } from '@/hooks/useAssistantActions';
 import { ConversationThread } from './ConversationThread';
 import { AssistantInput } from './AssistantInput';
+import { ToolConfirmCard } from './ToolConfirmCard';
 
 interface AssistantPanelProps {
   isDark:     boolean;
@@ -31,8 +33,9 @@ interface AssistantPanelProps {
 }
 
 export function AssistantPanel({ isDark, onNavigate }: AssistantPanelProps) {
-  const { isOpen, close, messages, tarsState } = useAssistantStore();
+  const { isOpen, close, messages, tarsState, pendingAction } = useAssistantStore();
   const { sendMessage } = useAssistant({ onNavigate });
+  const { executeConfirmedAction, dismissAction } = useAssistantActions({ onNavigate });
 
   // Close on Escape key
   useEffect(() => {
@@ -146,6 +149,23 @@ export function AssistantPanel({ isDark, onNavigate }: AssistantPanelProps) {
 
             {/* Conversation thread */}
             <ConversationThread messages={messages} isDark={isDark} />
+
+            {/* Pending action confirmation card */}
+            {pendingAction && (
+              <div className={cn(
+                'px-4 pb-3 flex-shrink-0',
+                isDark ? 'border-t border-white/8 pt-3' : 'border-t border-slate-200 pt-3'
+              )}>
+                <ToolConfirmCard
+                  action={pendingAction}
+                  isDark={isDark}
+                  onAccept={executeConfirmedAction}
+                  onDismiss={dismissAction}
+                  {...(pendingAction.type === 'log_activity' ? { autoAcceptMs: 5000 } : {})}
+                  onNavigate={onNavigate}
+                />
+              </div>
+            )}
 
             {/* Input */}
             <AssistantInput
