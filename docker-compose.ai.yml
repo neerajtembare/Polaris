@@ -72,12 +72,12 @@ services:
               count: 1
               capabilities: [gpu]
     volumes:
-      # Cache pulled models across container restarts (~2GB for llama3.2:3b)
+      # Cache pulled models across container restarts
       - polaris_models:/root/.ollama
     entrypoint: >
       sh -c "ollama serve &
         sleep 5 &&
-        ollama pull llama3.2:3b &&
+        ollama pull ${OLLAMA_MODEL:-gemma4:e4b} &&
         wait"
     healthcheck:
       test: ["CMD", "ollama", "list"]

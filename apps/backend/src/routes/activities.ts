@@ -33,6 +33,7 @@ const activityProperties = {
   goalId:        { type: ['string', 'null'] },
   activityDate:  { type: 'string' },
   category:      { type: 'string', enum: ['growth', 'maintenance'] },
+  tags:          { type: 'array', items: { type: 'string' } },
   status:        { type: 'string', enum: ['planned', 'completed', 'skipped'] },
   aiGenerated:   { type: 'boolean' },
   aiCategorized: { type: 'boolean' },
@@ -57,6 +58,7 @@ const createActivityBodySchema = {
     goalId:       { type: 'string' },
     activityDate: { type: 'string' },   // YYYY-MM-DD
     category:     { type: 'string', enum: ['growth', 'maintenance'] },
+    tags:         { type: 'array', items: { type: 'string', maxLength: 50 }, maxItems: 20 },
     status:       { type: 'string', enum: ['planned', 'completed', 'skipped'] },
     notes:        { type: 'string', maxLength: 2000 },
     rawInput:     { type: 'string', maxLength: 2000 },
@@ -76,6 +78,7 @@ const updateActivityBodySchema = {
     goalId:       { type: ['string', 'null'] },
     activityDate: { type: 'string' },
     category:     { type: 'string', enum: ['growth', 'maintenance'] },
+    tags:         { type: 'array', items: { type: 'string', maxLength: 50 }, maxItems: 20 },
     status:       { type: 'string', enum: ['planned', 'completed', 'skipped'] },
     notes:        { type: ['string', 'null'] },
     completedAt:  { type: ['string', 'null'] },
@@ -93,6 +96,9 @@ const updateActivityBodySchema = {
 export const activitiesRoutes: FastifyPluginAsync = async (app) => {
   /** GET /api/activities/today — must come before /:id */
   app.get('/today', {}, ActivityController.getTodayActivities);
+
+  /** GET /api/activities/tags — all unique tags; must come before /:id */
+  app.get('/tags', {}, ActivityController.getActivityTags);
 
   /** GET /api/activities */
   app.get(

@@ -1,4 +1,7 @@
 /**
+ * DEAD CODE — BrowserRouter is not mounted in App.tsx. This page is never rendered.
+ * Do NOT delete yet — reserved for Phase 2+ when React Router is wired up.
+ *
  * @file pages/GoalCreate.tsx
  * @description Create Goal form page.
  *   Controlled form with validation; submits via useCreateGoal mutation.

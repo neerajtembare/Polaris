@@ -54,7 +54,7 @@ export function ConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
       onClick={onCancel}
       role="dialog"
       aria-modal="true"

@@ -94,6 +94,9 @@ model Activity {
   // Classification
   category     String    @default("growth")  // growth, maintenance
   
+  // Tags (JSON array of strings, e.g. ["gym","morning","focus"])
+  tags         String    @default("[]")  // stored as JSON string
+  
   // Status
   status       String    @default("planned")  // planned, completed, skipped
   
@@ -339,6 +342,9 @@ CREATE TABLE activities (
   -- Classification
   category        TEXT NOT NULL DEFAULT 'growth' 
                   CHECK (category IN ('growth', 'maintenance')),
+  
+  -- Tags (JSON array of strings)
+  tags            TEXT NOT NULL DEFAULT '[]',           -- e.g. '["gym","morning"]'
   
   -- Status
   status          TEXT NOT NULL DEFAULT 'planned' 

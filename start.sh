@@ -57,13 +57,17 @@ ensure_env() {
     warn "apps/backend/.env not found — creating defaults."
     warn "Run ./setup.sh for a full first-time setup."
     cat > apps/backend/.env <<'ENVEOF'
-DATABASE_URL="file:./data/polaris.db"
+DATABASE_URL="postgresql://polaris:polaris@localhost:5432/polaris_dev"
 PORT=3001
 NODE_ENV=development
+
+WHISPER_URL=http://localhost:8001
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=gemma4:e4b
+AI_PROVIDER=ollama
 ENVEOF
     ok "Created apps/backend/.env"
   fi
-  mkdir -p apps/backend/data
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -80,11 +84,13 @@ start_ollama() {
     ollama serve >/dev/null 2>&1 &
     sleep 3
   fi
-  if ! ollama list 2>/dev/null | grep -q "llama3.2:3b"; then
-    info "Pulling llama3.2:3b model (~2GB, first run only)…"
-    ollama pull llama3.2:3b
+  local OLLAMA_MODEL_LOCAL
+  OLLAMA_MODEL_LOCAL=$(grep OLLAMA_MODEL apps/backend/.env 2>/dev/null | cut -d= -f2 | tr -d '"' || echo 'gemma4:e4b')
+  if ! ollama list 2>/dev/null | grep -q "${OLLAMA_MODEL_LOCAL}"; then
+    info "Pulling ${OLLAMA_MODEL_LOCAL} model (first run only)…"
+    ollama pull "${OLLAMA_MODEL_LOCAL}"
   fi
-  ok "Ollama ready (llama3.2:3b)"
+  ok "Ollama ready (${OLLAMA_MODEL_LOCAL})"
 }
 
 start_whisper() {

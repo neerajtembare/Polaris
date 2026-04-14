@@ -24,6 +24,7 @@ export interface ParsedFields {
   goalTitle: string | null;
   confidence: number;
   source: 'ai' | 'local' | 'voice';
+  tags?: string[];
 }
 
 interface ParsedActivityCardProps {
@@ -76,12 +77,12 @@ export function ParsedActivityCard({
 
   if (isEditing) {
     return (
-      <div className="bg-gray-800/80 backdrop-blur-sm border border-indigo-700/40 rounded-xl p-4 space-y-3 animate-fade-in">
+      <div className="bg-surface-container-low dark:bg-gray-800/80 backdrop-blur-sm border border-outline-variant/30 dark:border-indigo-700/40 rounded-xl p-4 space-y-3 animate-fade-in">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">Edit Activity</span>
+          <span className="text-xs text-on-surface-variant dark:text-gray-400 font-medium uppercase tracking-wide">Edit Activity</span>
           <button
             onClick={() => setIsEditing(false)}
-            className="text-gray-500 hover:text-white transition-colors p-1"
+            className="text-on-surface-variant dark:text-gray-500 hover:text-on-surface dark:hover:text-white transition-colors p-1"
             aria-label="Cancel edit"
           >
             <X className="h-4 w-4" />
@@ -93,7 +94,7 @@ export function ParsedActivityCard({
           value={fields.title}
           onChange={(e) => setFields((p) => ({ ...p, title: e.target.value }))}
           placeholder="Activity title"
-          className="w-full bg-gray-900/50 border border-gray-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 outline-none transition-colors"
+          className="w-full bg-surface dark:bg-gray-900/50 border border-outline-variant/30 dark:border-gray-700 focus:border-primary dark:focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-on-surface dark:text-white placeholder-on-surface-variant dark:placeholder-gray-500 outline-none transition-colors"
         />
 
         <div className="grid grid-cols-3 gap-2">
@@ -110,7 +111,7 @@ export function ParsedActivityCard({
               }))
             }
             placeholder="Amount"
-            className="bg-gray-900/50 border border-gray-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 outline-none transition-colors"
+            className="bg-surface dark:bg-gray-900/50 border border-outline-variant/30 dark:border-gray-700 focus:border-primary dark:focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-on-surface dark:text-white placeholder-on-surface-variant dark:placeholder-gray-500 outline-none transition-colors"
           />
 
           <input
@@ -118,7 +119,7 @@ export function ParsedActivityCard({
             value={fields.unit ?? ''}
             onChange={(e) => setFields((p) => ({ ...p, unit: e.target.value || null }))}
             placeholder="Unit"
-            className="bg-gray-900/50 border border-gray-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 outline-none transition-colors"
+            className="bg-surface dark:bg-gray-900/50 border border-outline-variant/30 dark:border-gray-700 focus:border-primary dark:focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-on-surface dark:text-white placeholder-on-surface-variant dark:placeholder-gray-500 outline-none transition-colors"
           />
 
           <select
@@ -131,7 +132,7 @@ export function ParsedActivityCard({
                 goalTitle: goal?.title ?? null,
               }));
             }}
-            className="bg-gray-900/50 border border-gray-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-white outline-none transition-colors"
+            className="bg-surface dark:bg-gray-900/50 border border-outline-variant/30 dark:border-gray-700 focus:border-primary dark:focus:border-indigo-500 rounded-lg px-3 py-2 text-sm text-on-surface dark:text-white outline-none transition-colors"
           >
             <option value="">No goal</option>
             {goals.map((g) => (
@@ -143,14 +144,14 @@ export function ParsedActivityCard({
         <div className="flex justify-end gap-2">
           <button
             onClick={() => setIsEditing(false)}
-            className="px-3 py-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+            className="px-3 py-1.5 text-sm text-on-surface-variant dark:text-gray-400 hover:text-on-surface dark:hover:text-white transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={!fields.title.trim() || isSaving}
-            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+            className="px-4 py-1.5 bg-primary dark:bg-indigo-600 hover:bg-primary/90 dark:hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
           >
             <Check className="h-4 w-4" />
             {isSaving ? 'Saving...' : 'Save'}
@@ -161,7 +162,7 @@ export function ParsedActivityCard({
   }
 
   return (
-    <div className="bg-gray-800/80 backdrop-blur-sm border border-indigo-700/40 rounded-xl p-4 animate-fade-in">
+    <div className="bg-surface-container-low dark:bg-gray-800/80 backdrop-blur-sm border border-outline-variant/30 dark:border-indigo-700/40 rounded-xl p-4 animate-fade-in">
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
@@ -169,14 +170,14 @@ export function ParsedActivityCard({
             <span className={`text-xs font-medium ${confidenceColor(parsed.confidence)}`}>
               {Math.round(parsed.confidence * 100)}% match
             </span>
-            <span className="text-xs text-gray-600">&middot;</span>
-            <span className="text-xs text-gray-500">{TYPE_LABELS[fields.activityType]}</span>
+            <span className="text-xs text-on-surface-variant/40 dark:text-gray-600">&middot;</span>
+            <span className="text-xs text-on-surface-variant dark:text-gray-500">{TYPE_LABELS[fields.activityType]}</span>
           </div>
 
-          <p className="text-white font-medium text-sm">
+          <p className="text-on-surface dark:text-white font-medium text-sm">
             {fields.title}
             {fields.value !== null && (
-              <span className="text-indigo-400 ml-2 font-normal">
+              <span className="text-primary dark:text-indigo-400 ml-2 font-normal">
                 {formatValue(fields.value, fields.unit)}
               </span>
             )}
@@ -184,8 +185,8 @@ export function ParsedActivityCard({
 
           {fields.goalTitle && (
             <div className="flex items-center gap-1.5 mt-1">
-              <Target className="h-3 w-3 text-gray-500" />
-              <span className="text-xs text-gray-400">{fields.goalTitle}</span>
+              <Target className="h-3 w-3 text-on-surface-variant/50 dark:text-gray-500" />
+              <span className="text-xs text-on-surface-variant dark:text-gray-400">{fields.goalTitle}</span>
             </div>
           )}
         </div>
@@ -193,14 +194,14 @@ export function ParsedActivityCard({
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setIsEditing(true)}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
+            className="p-2 text-on-surface-variant dark:text-gray-400 hover:text-on-surface dark:hover:text-white hover:bg-surface-container dark:hover:bg-gray-700/50 rounded-lg transition-colors"
             aria-label="Edit activity"
           >
             <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={onDismiss}
-            className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700/50 rounded-lg transition-colors"
+            className="p-2 text-on-surface-variant dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
             aria-label="Dismiss"
           >
             <X className="h-4 w-4" />
@@ -208,7 +209,7 @@ export function ParsedActivityCard({
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="p-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition-colors"
+            className="p-2 bg-primary dark:bg-indigo-600 hover:bg-primary/90 dark:hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition-colors"
             aria-label="Save activity"
           >
             {isSaving ? (

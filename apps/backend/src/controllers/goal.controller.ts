@@ -18,6 +18,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { CreateGoalInput, UpdateGoalInput } from '@polaris/shared';
 import * as GoalService from '../services/goal.service.js';
+import { getDormantGoals } from '../services/dormancy.service.js';
 import { handleError } from '../lib/handleError.js';
 
 // ---------------------------------------------------------------------------
@@ -156,5 +157,21 @@ export async function getGoalProgress(
     return reply.send({ success: true, data: progress });
   } catch (err) {
     return handleError('GoalController', err, reply);
+  }
+}
+
+/**
+ * GET /api/goals/dormant
+ * Returns active goals with no activity for >= DORMANCY_THRESHOLD_DAYS.
+ */
+export async function getDormantGoalsHandler(
+  _request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const dormant = await getDormantGoals();
+    return reply.send({ success: true, data: dormant });
+  } catch (err) {
+    return handleError('GoalController.dormant', err, reply);
   }
 }

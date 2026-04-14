@@ -94,7 +94,7 @@ export async function callProviderText(opts: CallProviderTextOptions): Promise<s
 
   if (provider === 'ollama') {
     const ollamaUrl = process.env['OLLAMA_URL'] ?? 'http://localhost:11434';
-    const model     = process.env['OLLAMA_MODEL'] ?? 'llama3.2:3b';
+    const model     = process.env['OLLAMA_MODEL'] ?? 'gemma4:e4b';
 
     console.error(`[${logPrefix}][Ollama] → Request | model=${model} | maxTokens=${maxTokens}`);
     try {

@@ -27,6 +27,7 @@ interface EnhancedHeatmapProps {
   activityByDay: Record<string, number>;
   startDate: string;   // YYYY-MM-DD
   endDate: string;     // YYYY-MM-DD
+  isDark?: boolean;
 }
 
 interface DayCell {
@@ -35,13 +36,21 @@ interface DayCell {
   count: number;
 }
 
-/** Map count → visual intensity class */
-function intensityClass(count: number): string {
-  if (count === 0) return 'bg-gray-800/60';
-  if (count === 1) return 'bg-indigo-900/80';
-  if (count === 2) return 'bg-indigo-700/80';
-  if (count <= 4) return 'bg-indigo-500/80';
-  return 'bg-indigo-400';
+/** Map count → visual intensity class (theme-aware) */
+function intensityClass(count: number, isDark: boolean): string {
+  if (isDark) {
+    if (count === 0) return 'bg-white/5';
+    if (count === 1) return 'bg-indigo-900/80';
+    if (count === 2) return 'bg-indigo-700/80';
+    if (count <= 4) return 'bg-dark-primary/60';
+    return 'bg-dark-primary';
+  } else {
+    if (count === 0) return 'bg-black/5';
+    if (count === 1) return 'bg-indigo-100';
+    if (count === 2) return 'bg-indigo-200';
+    if (count <= 4) return 'bg-indigo-400';
+    return 'bg-indigo-600';
+  }
 }
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -50,7 +59,7 @@ const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
  * Renders a calendar-style heatmap of activity counts.
  * Organized in week columns (Sunday-first), coloured by count intensity.
  */
-export function EnhancedHeatmap({ activityByDay, startDate, endDate }: EnhancedHeatmapProps) {
+export function EnhancedHeatmap({ activityByDay, startDate, endDate, isDark = true }: EnhancedHeatmapProps) {
   const [tooltip, setTooltip] = useState<{ dateStr: string; count: number; x: number; y: number } | null>(null);
 
   const { weeks, maxCount } = useMemo(() => {
@@ -88,8 +97,7 @@ export function EnhancedHeatmap({ activityByDay, startDate, endDate }: EnhancedH
   void maxCount; // used for future scaling if needed
 
   return (
-    <div className="glass px-5 py-4">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Activity Heatmap</p>
+    <div className="overflow-x-auto pb-1">
 
       <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
         {/* Day-of-week labels column */}
@@ -97,7 +105,7 @@ export function EnhancedHeatmap({ activityByDay, startDate, endDate }: EnhancedH
           {/* Blank header cell to align with week columns */}
           <div className="h-3" />
           {DAY_LABELS.map((label, i) => (
-            <div key={i} className="flex items-center justify-center w-3 h-3 text-[9px] text-gray-600 leading-none">
+            <div key={i} className={`flex items-center justify-center w-3 h-3 text-[9px] leading-none ${isDark ? 'text-white/30' : 'text-gray-500'}`}>
               {/* Only show Mon, Wed, Fri labels */}
               {[1, 3, 5].includes(i) ? label : ''}
             </div>
@@ -114,7 +122,7 @@ export function EnhancedHeatmap({ activityByDay, startDate, endDate }: EnhancedH
           return (
             <div key={wi} className="flex flex-col gap-1 shrink-0">
               {/* Month header */}
-              <div className="h-3 text-[9px] text-gray-600 leading-none whitespace-nowrap">
+              <div className={`h-3 text-[9px] leading-none whitespace-nowrap ${isDark ? 'text-white/30' : 'text-gray-500'}`}>
                 {monthLabel}
               </div>
 
@@ -129,7 +137,7 @@ export function EnhancedHeatmap({ activityByDay, startDate, endDate }: EnhancedH
                 return (
                   <div
                     key={di}
-                    className={`w-3 h-3 rounded-[2px] cursor-default transition-opacity hover:opacity-80 ${intensityClass(cell.count)} ${
+                    className={`w-3 h-3 rounded-[2px] cursor-default transition-opacity hover:opacity-80 ${intensityClass(cell.count, isDark)} ${
                       isTodayCell ? 'ring-1 ring-indigo-400/60' : ''
                     }`}
                     onMouseEnter={(e) => {
@@ -153,21 +161,25 @@ export function EnhancedHeatmap({ activityByDay, startDate, endDate }: EnhancedH
 
       {/* Legend */}
       <div className="flex items-center gap-1.5 mt-3">
-        <span className="text-[10px] text-gray-600 mr-1">Less</span>
+        <span className={`text-[10px] mr-1 ${isDark ? 'text-white/30' : 'text-gray-500'}`}>Less</span>
         {[0, 1, 2, 3, 5].map((count) => (
-          <div key={count} className={`w-3 h-3 rounded-[2px] ${intensityClass(count)}`} />
+          <div key={count} className={`w-3 h-3 rounded-[2px] ${intensityClass(count, isDark)}`} />
         ))}
-        <span className="text-[10px] text-gray-600 ml-1">More</span>
+        <span className={`text-[10px] ml-1 ${isDark ? 'text-white/30' : 'text-gray-500'}`}>More</span>
       </div>
 
       {/* Floating tooltip (portal-free, fixed position) */}
       {tooltip && (
         <div
-          className="fixed z-50 bg-gray-900 border border-gray-700/60 rounded-lg px-2.5 py-1.5 text-xs shadow-xl pointer-events-none -translate-x-1/2 -translate-y-full -mt-2"
+          className={`fixed z-50 border rounded-lg px-2.5 py-1.5 text-xs shadow-xl pointer-events-none -translate-x-1/2 -translate-y-full -mt-2 ${
+            isDark
+              ? 'bg-gray-900 border-gray-700/60'
+              : 'bg-white border-gray-200 shadow-lg'
+          }`}
           style={{ left: tooltip.x, top: tooltip.y }}
         >
-          <p className="text-gray-400">{tooltip.dateStr}</p>
-          <p className="text-indigo-300 font-semibold">{tooltip.count} {tooltip.count === 1 ? 'activity' : 'activities'}</p>
+          <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>{tooltip.dateStr}</p>
+          <p className={`font-semibold ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>{tooltip.count} {tooltip.count === 1 ? 'activity' : 'activities'}</p>
         </div>
       )}
     </div>

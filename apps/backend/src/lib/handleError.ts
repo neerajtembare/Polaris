@@ -27,7 +27,7 @@ export function handleError(
       error: { code: err.code, message: err.message, details: err.details },
     });
   }
-  console.error(`[${context}] Unexpected error:`, err);
+  reply.log.error({ err, context }, `[${context}] Unexpected error`);
   return reply.status(500).send({
     success: false,
     error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },

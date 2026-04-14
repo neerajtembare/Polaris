@@ -85,6 +85,7 @@ export function ActivityCard({
   }
 
   function handleConfirmValue() {
+    if (promptValue.trim() && isNaN(Number(promptValue.trim()))) return;
     const numVal = promptValue.trim() ? Number(promptValue) : undefined;
     onComplete(activity.id, numVal);
     setShowValuePrompt(false);
@@ -143,6 +144,25 @@ export function ActivityCard({
             {/* notes */}
             {activity.notes && (
               <p className={cn('mt-1 text-xs line-clamp-2', isDark ? 'text-dark-on-surface-variant/60' : 'text-on-surface-variant/60')}>{activity.notes}</p>
+            )}
+
+            {/* tags */}
+            {activity.tags && activity.tags.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {activity.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className={cn(
+                      'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                      isDark
+                        ? 'bg-dark-primary/10 text-dark-primary/70'
+                        : 'bg-primary/8 text-primary/70'
+                    )}
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -230,7 +250,7 @@ export function ActivityCard({
                   disabled={isPending}
                   className="px-2.5 py-1 bg-orange-500/15 hover:bg-orange-500/25 text-orange-300 border border-orange-500/30 text-xs font-medium rounded-lg transition-colors disabled:opacity-40"
                 >
-                  Skip
+                  Can&#39;t do
                 </button>
               </>
             )}

@@ -10,7 +10,7 @@
  *   - apps/backend/src/controllers/ai.controller.ts
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../services/api.ts';
 import type { ApiSuccess } from '@polaris/shared';
 
@@ -65,5 +65,22 @@ export function useOllamaModels(enabled = true) {
     enabled,
     staleTime: 60_000,
     retry: false,
+  });
+}
+
+/**
+ * Mutation: switch the active Ollama model at runtime.
+ * Calls POST /api/ai/config and refetches the config query on success.
+ * Takes effect on the backend immediately — no server restart needed.
+ */
+export function useSetAiModel() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (model: string) => {
+      await api.post('/ai/config', { model });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: aiConfigKeys.config() });
+    },
   });
 }

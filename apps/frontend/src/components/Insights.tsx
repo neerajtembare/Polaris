@@ -16,6 +16,7 @@
  */
 
 import React from 'react';
+import { format, subDays } from 'date-fns';
 import { motion } from 'framer-motion';
 import {
   ArrowUp,
@@ -36,8 +37,10 @@ import {
 import { cn } from '@/lib/utils';
 import ReactiveCard from './ui/ReactiveCard';
 import PulseWave from './3d/PulseWave';
+import { EnhancedHeatmap } from './widgets/EnhancedHeatmap';
 import { useMetrics } from '@/hooks/useMetrics';
 import { useWeeklyInsights } from '@/hooks/useWeeklyInsights';
+import { useFocusStatsByDay } from '@/hooks/useFocusSessions';
 import type { Theme, ScreenId } from '@/types/navigation';
 
 interface InsightsProps {
@@ -45,12 +48,17 @@ interface InsightsProps {
   onNavigate: (screen: ScreenId, transition?: 'none' | 'push') => void;
 }
 
-export default function Insights({ theme, onNavigate: _onNavigate }: InsightsProps) {
+export default function Insights({ theme, onNavigate }: InsightsProps) {
   const isDark = theme === 'dark';
 
   const { data: metrics, isLoading: metricsLoading } = useMetrics('week');
   const { data: monthMetrics } = useMetrics('month');
   const { data: insights, isFetching: insightsLoading, refetch: fetchInsights } = useWeeklyInsights();
+
+  // Focus session stats for the last 30 days
+  const focusEnd   = format(new Date(), 'yyyy-MM-dd');
+  const focusStart = format(subDays(new Date(), 29), 'yyyy-MM-dd');
+  const { data: focusByDay } = useFocusStatsByDay(focusStart, focusEnd);
 
   // Compute focus percentage from completed vs total
   const totalActivities = metrics?.totalActivities ?? 0;
@@ -63,6 +71,43 @@ export default function Insights({ theme, onNavigate: _onNavigate }: InsightsPro
   const longestStreak = metrics?.longestStreak ?? 0;
 
   const monthCompleted = monthMetrics?.completedActivities ?? 0;
+
+  // ── Cognitive Flow path builder ───────────────────────────────────────────
+  const flowPaths = (() => {
+    const today = new Date();
+    const vals = Array.from({ length: 7 }, (_, i) => {
+      const d = format(subDays(today, 6 - i), 'yyyy-MM-dd');
+      return (focusByDay as Record<string, number> | undefined)?.[d] ?? 0;
+    });
+    const maxVal = Math.max(...vals, 1);
+    const xs: number[] = [0, 167, 333, 500, 667, 833, 1000];
+    const toY = (v: number, inv: boolean): number => {
+      const pct = inv ? 1 - v / maxVal : v / maxVal;
+      return Math.round(20 + (1 - pct) * 260);
+    };
+    const tension = 0.3;
+    const smoothLine = (ys: number[]): string => {
+      let d = `M${xs[0]},${ys[0]}`;
+      for (let i = 1; i < xs.length; i++) {
+        const cp1x = (xs[i - 1] ?? 0) + ((xs[i] ?? 0) - (xs[i - 1] ?? 0)) * tension;
+        const cp2x = (xs[i] ?? 0) - ((xs[i] ?? 0) - (xs[i - 1] ?? 0)) * tension;
+        d += ` C${cp1x},${ys[i - 1] ?? 0} ${cp2x},${ys[i] ?? 0} ${xs[i]},${ys[i]}`;
+      }
+      return d;
+    };
+    const deepYs = vals.map((v) => toY(v, false));
+    const frictYs = vals.map((v) => toY(v, true));
+    const deepLine = smoothLine(deepYs);
+    const frictLine = smoothLine(frictYs);
+    const sessionCount = vals.filter((v) => v > 0).length;
+    return {
+      deepArea: `${deepLine} L1000,300 L0,300 Z`,
+      deepLine,
+      frictArea: `${frictLine} L1000,300 L0,300 Z`,
+      frictLine,
+      sessionCount,
+    };
+  })();
 
   // Telemetry cards (mapped from real metrics)
   const telemetry = [
@@ -148,6 +193,18 @@ export default function Insights({ theme, onNavigate: _onNavigate }: InsightsPro
               <Brain className="w-4 h-4" />
             )}
             {isDark ? 'Analyze Week' : 'AI Report'}
+          </button>
+          <button
+            onClick={() => onNavigate('WeeklyReview', 'push')}
+            className={cn(
+              'px-4 md:px-5 py-2 md:py-3 rounded-xl font-bold text-xs active:scale-95 transition-all flex items-center gap-2 border',
+              isDark
+                ? 'bg-white/5 border-white/10 text-dark-primary hover:bg-white/10'
+                : 'bg-black/5 border-transparent text-primary hover:bg-black/8'
+            )}
+          >
+            <LineChart className="w-4 h-4" />
+            Weekly Review
           </button>
         </div>
       </header>
@@ -403,7 +460,7 @@ export default function Insights({ theme, onNavigate: _onNavigate }: InsightsPro
                   Cognitive Flow Spectrum
                 </h3>
                 <p className={cn('text-xs md:text-sm opacity-60 font-medium', isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant')}>
-                  Deep Work vs. System Friction over 7 cycles.
+                  Deep Work vs. System Friction — {flowPaths.sessionCount} active day{flowPaths.sessionCount !== 1 ? 's' : ''} this week.
                 </p>
               </div>
               <div className="flex gap-4 items-center">
@@ -435,7 +492,7 @@ export default function Insights({ theme, onNavigate: _onNavigate }: InsightsPro
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 1.5, ease: 'easeOut' }}
-                  d="M0,300 L0,250 C200,280 300,150 500,200 C700,250 800,100 1000,180 L1000,300 Z"
+                  d={flowPaths.frictArea}
                   fill="url(#distractionGrad)"
                 />
                 {/* Deep Work area (foreground) */}
@@ -443,7 +500,7 @@ export default function Insights({ theme, onNavigate: _onNavigate }: InsightsPro
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 1.5, ease: 'easeOut', delay: 0.2 }}
-                  d="M0,300 L0,150 C200,100 300,250 500,80 C700,-20 800,150 1000,50 L1000,300 Z"
+                  d={flowPaths.deepArea}
                   fill="url(#deepWorkGrad)"
                 />
                 {/* Friction line */}
@@ -451,7 +508,7 @@ export default function Insights({ theme, onNavigate: _onNavigate }: InsightsPro
                   initial={{ pathLength: 0 }}
                   animate={{ pathLength: 1 }}
                   transition={{ duration: 2, ease: 'easeInOut', delay: 0.4 }}
-                  d="M0,250 C200,280 300,150 500,200 C700,250 800,100 1000,180"
+                  d={flowPaths.frictLine}
                   fill="none"
                   stroke={isDark ? '#c280ff' : '#70aaff'}
                   strokeWidth="2"
@@ -461,7 +518,7 @@ export default function Insights({ theme, onNavigate: _onNavigate }: InsightsPro
                   initial={{ pathLength: 0 }}
                   animate={{ pathLength: 1 }}
                   transition={{ duration: 2, ease: 'easeInOut', delay: 0.2 }}
-                  d="M0,150 C200,100 300,250 500,80 C700,-20 800,150 1000,50"
+                  d={flowPaths.deepLine}
                   fill="none"
                   stroke={isDark ? '#81ecff' : '#0058be'}
                   strokeWidth="4"
@@ -558,6 +615,74 @@ export default function Insights({ theme, onNavigate: _onNavigate }: InsightsPro
           </ReactiveCard>
         </div>
       </section>
+
+      {/* ── Activity Heatmap ─────────────────────────────────────────── */}
+      {metrics?.activityByDay && Object.keys(metrics.activityByDay).length > 0 && (
+        <ReactiveCard isDark={isDark}>
+          <h3
+            className={cn(
+              'text-[10px] font-black uppercase tracking-[0.3em] mb-6',
+              isDark ? 'text-dark-primary' : 'text-primary'
+            )}
+          >
+            {isDark ? 'Temporal Density Map' : 'Activity Heatmap'}
+          </h3>
+          <EnhancedHeatmap
+            activityByDay={metrics.activityByDay}
+            startDate={format(subDays(new Date(), 364), 'yyyy-MM-dd')}
+            endDate={format(new Date(), 'yyyy-MM-dd')}
+            isDark={isDark}
+          />
+        </ReactiveCard>
+      )}
+
+      {/* ── Focus Session History ─────────────────────────────────── */}
+      {focusByDay && Object.keys(focusByDay).length > 0 && (() => {
+        const days = Object.entries(focusByDay).slice(-14);
+        const maxMins = Math.max(...days.map(([, m]) => m), 1);
+        const totalFocusMins = days.reduce((s, [, m]) => s + m, 0);
+        return (
+          <ReactiveCard isDark={isDark}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={cn('text-[10px] font-black uppercase tracking-[0.3em]', isDark ? 'text-dark-primary' : 'text-primary')}>
+                {isDark ? 'Focus Depth // 14 Days' : 'Focus Time (14 days)'}
+              </h3>
+              <span className={cn('text-xs font-black', isDark ? 'text-dark-on-surface-variant/60' : 'text-on-surface-variant/60')}>
+                {totalFocusMins >= 60
+                  ? `${Math.floor(totalFocusMins / 60)}h ${totalFocusMins % 60}m total`
+                  : `${totalFocusMins}m total`}
+              </span>
+            </div>
+            <div className="flex items-end gap-1.5 h-24">
+              {days.map(([date, mins]) => (
+                <div
+                  key={date}
+                  title={`${date}: ${mins} min`}
+                  className="flex-1 flex flex-col justify-end group cursor-default"
+                >
+                  <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${(mins / maxMins) * 100}%` }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    className={cn(
+                      'w-full rounded-t-sm transition-opacity group-hover:opacity-80',
+                      isDark ? 'bg-dark-primary/60' : 'bg-primary/50'
+                    )}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between mt-2">
+              <span className={cn('text-[9px] opacity-40', isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant')}>
+                14 days ago
+              </span>
+              <span className={cn('text-[9px] opacity-40', isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant')}>
+                Today
+              </span>
+            </div>
+          </ReactiveCard>
+        );
+      })()}
 
       {/* ── Activity Timeline ────────────────────────────────────────── */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">

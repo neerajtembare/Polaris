@@ -184,7 +184,7 @@ export function useUpdateActivity() {
       api
         .patch<ActivityResponse>(`/activities/${id}`, data)
         .then((res) => res.data),
-    onSuccess: (activity, { id }) => {
+    onSuccess: (activity, { id, data }) => {
       void queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: activityKeys.today() });
       void queryClient.invalidateQueries({ queryKey: activityKeys.detail(id) });
@@ -193,6 +193,17 @@ export function useUpdateActivity() {
         void queryClient.invalidateQueries({ queryKey: goalKeys.detail(activity.goalId) });
         void queryClient.invalidateQueries({ queryKey: goalKeys.lists() });
       }
+      // Status-specific feedback
+      if (data.status === 'completed') {
+        toast.success('Marked complete ✓');
+      } else if (data.status === 'skipped') {
+        toast('Skipped', { icon: '—' });
+      } else if (data.status === 'planned') {
+        toast('Moved back to planned', { icon: '↩' });
+      }
+    },
+    onError: () => {
+      toast.error('Failed to update activity');
     },
   });
 }
@@ -210,6 +221,9 @@ export function useDeleteActivity() {
       void queryClient.invalidateQueries({ queryKey: activityKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: activityKeys.today() });
       queryClient.removeQueries({ queryKey: activityKeys.detail(id) });
+      // Also refresh goal progress — a deleted activity changes a goal's progress metrics
+      void queryClient.invalidateQueries({ queryKey: goalKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: goalKeys.details() });
       toast.success('Activity deleted');
     },
     onError: () => {

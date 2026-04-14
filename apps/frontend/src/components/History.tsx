@@ -19,8 +19,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Loader2, History as HistoryIcon } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useActivities, useUpdateActivity, useDeleteActivity } from '@/hooks/useActivities';
+import { api } from '@/services/api';
 import { ActivityCard } from './activities/ActivityCard';
 import { LogActivityForm } from './activities/LogActivityForm';
 import type { ActivityStatus } from '@polaris/shared';
@@ -45,6 +47,7 @@ export default function History({ theme, onNavigate: _onNavigate }: HistoryProps
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterDate, setFilterDate] = useState('');
+  const [filterTag, setFilterTag] = useState('');
   const [search, setSearch] = useState('');
   const [showLogForm, setShowLogForm] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -63,10 +66,17 @@ export default function History({ theme, onNavigate: _onNavigate }: HistoryProps
   const activities = activitiesPage?.data ?? [];
   const total = activitiesPage?.meta?.total ?? 0;
 
-  // Client-side search filter
-  const filtered = search
-    ? activities.filter((a) => a.title.toLowerCase().includes(search.toLowerCase()))
-    : activities;
+  // Fetch all unique tags from backend (covers all activities, not just current page)
+  const { data: allTags = [] } = useQuery<string[]>({
+    queryKey: ['activities', 'tags'],
+    queryFn:  () => api.get<string[]>('/activities/tags'),
+    staleTime: 60_000,
+  });
+
+  // Client-side search + tag filter
+  const filtered = activities
+    .filter((a) => !search || a.title.toLowerCase().includes(search.toLowerCase()))
+    .filter((a) => !filterTag || (a.tags ?? []).includes(filterTag));
 
   const btnBase = cn(
     'px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all',
@@ -165,6 +175,30 @@ export default function History({ theme, onNavigate: _onNavigate }: HistoryProps
             </button>
           )}
         </div>
+
+        {/* Tag filter chips */}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {allTags.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => setFilterTag(filterTag === tag ? '' : tag)}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg text-xs font-medium transition-all',
+                  filterTag === tag
+                    ? isDark
+                      ? 'bg-dark-primary/25 text-dark-primary border border-dark-primary/40'
+                      : 'bg-primary/15 text-primary border border-primary/30'
+                    : isDark
+                    ? 'bg-white/5 text-dark-on-surface-variant/60 border border-white/10 hover:bg-white/10'
+                    : 'bg-surface-container text-on-surface-variant/60 border border-outline-variant/20 hover:bg-surface-container-high'
+                )}
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* List */}

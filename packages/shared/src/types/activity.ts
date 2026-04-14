@@ -19,6 +19,7 @@ export interface Activity {
   goalId: string | null;
   activityDate: string; // ISO date string
   category: ActivityCategory;
+  tags: string[];        // e.g. ["gym", "morning"]
   status: ActivityStatus;
   aiGenerated: boolean;
   aiCategorized: boolean;
@@ -38,6 +39,7 @@ export interface CreateActivityInput {
   goalId?: string;
   activityDate: string;
   category?: ActivityCategory;
+  tags?: string[];
   status?: ActivityStatus;
 }
 
@@ -50,6 +52,7 @@ export interface UpdateActivityInput {
   goalId?: string | null;
   activityDate?: string;
   category?: ActivityCategory;
+  tags?: string[];
   status?: ActivityStatus;
   completedAt?: string | null;
 }

@@ -4,7 +4,7 @@
  * @module @polaris/frontend/types
  */
 
-export type ScreenId = 'Hub' | 'Goals' | 'Insights' | 'Settings' | 'History';
+export type ScreenId = 'Hub' | 'Goals' | 'Insights' | 'Settings' | 'History' | 'WeeklyReview';
 
 export type Theme = 'light' | 'dark';
 

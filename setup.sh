@@ -46,21 +46,27 @@ info "Building shared types package…"
 npm run build --workspace=packages/shared
 ok "Shared types built"
 
-# ── 5. Create backend .env ─────────────────────────────────────────────────
+# ── 5. Build AI package ────────────────────────────────────────────────────
+info "Building AI package…"
+npm run build --workspace=packages/ai
+ok "AI package built"
+
+# ── 6. Create backend .env ─────────────────────────────────────────────────
 if [ ! -f apps/backend/.env ]; then
   cat > apps/backend/.env <<'ENVEOF'
-DATABASE_URL="file:./data/polaris.db"
+DATABASE_URL="postgresql://polaris:polaris@localhost:5432/polaris_dev"
 PORT=3001
 NODE_ENV=development
+
+WHISPER_URL=http://localhost:8001
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=gemma4:e4b
+AI_PROVIDER=ollama
 ENVEOF
   ok "Created apps/backend/.env"
 else
   ok "apps/backend/.env already exists — skipped"
 fi
-
-# ── 6. Create data directory ───────────────────────────────────────────────
-mkdir -p apps/backend/data
-ok "Data directory ready"
 
 # ── 7. Apply database migrations ───────────────────────────────────────────
 echo ""

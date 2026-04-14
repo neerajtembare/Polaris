@@ -29,11 +29,14 @@ import {
   X,
   Loader2,
   History,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactiveCard from './ui/ReactiveCard';
 import GoalConstellation from './3d/GoalConstellation';
+import { ConfirmModal } from './ui/ConfirmModal';
 import { useGoals, useCreateGoal, useDeleteGoal } from '@/hooks/useGoals';
+import { useDormantGoals } from '@/hooks/useDormantGoals';
 import type { GoalWithProgress } from '@polaris/shared';
 import type { Theme, ScreenId } from '@/types/navigation';
 import toast from 'react-hot-toast';
@@ -117,7 +120,7 @@ function CreateGoalForm({ isDark, onClose }: CreateGoalFormProps) {
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.92, y: 20 }}
         className={cn(
-          'w-full max-w-lg rounded-[2rem] p-8 shadow-2xl border',
+          'w-full max-w-lg rounded-2xl sm:rounded-[2rem] p-5 sm:p-8 shadow-2xl border',
           isDark ? 'bg-dark-bg border-white/10' : 'bg-white border-outline-variant/20'
         )}
       >
@@ -177,9 +180,9 @@ function CreateGoalForm({ isDark, onClose }: CreateGoalFormProps) {
           </div>
 
           {/* Target */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap sm:flex-nowrap">
             <input
-              className={cn(inputClass, 'flex-1')}
+              className={cn(inputClass, 'flex-1 min-w-[120px]')}
               placeholder="Target (e.g. 100)"
               type="number"
               min="0"
@@ -223,12 +226,25 @@ interface GoalCardProps {
 
 function GoalCard({ goal, isDark, colorClass, IconComponent, featured }: GoalCardProps) {
   const deleteGoal = useDeleteGoal();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const percentage = goal.progress?.percentage ?? 0;
   const current = goal.progress?.currentValue ?? 0;
   const target = goal.targetValue;
   const streakDays = goal.progress?.daysActive ?? 0;
 
   return (
+    <>
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        message="Delete this goal?"
+        detail={goal.title}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          void deleteGoal.mutateAsync(goal.id).catch(() => toast.error('Delete failed'));
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     <ReactiveCard
       isDark={isDark}
       className={cn('group overflow-hidden', featured && 'md:col-span-2')}
@@ -272,9 +288,11 @@ function GoalCard({ goal, isDark, colorClass, IconComponent, featured }: GoalCar
             </div>
           </div>
           <button
-            onClick={() => deleteGoal.mutateAsync(goal.id).catch(() => toast.error('Delete failed'))}
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={deleteGoal.isPending}
+            aria-label={`Delete goal: ${goal.title}`}
             className={cn(
-              'opacity-30 hover:opacity-80 p-1 rounded-lg transition-all relative z-20',
+              'opacity-30 hover:opacity-80 p-1 rounded-lg transition-all relative z-20 disabled:cursor-wait',
               isDark ? 'text-dark-on-surface hover:text-red-400' : 'text-on-surface hover:text-red-500'
             )}
           >
@@ -360,6 +378,7 @@ function GoalCard({ goal, isDark, colorClass, IconComponent, featured }: GoalCar
         </div>
       </div>
     </ReactiveCard>
+    </>
   );
 }
 
@@ -369,6 +388,7 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
   const [showCreate, setShowCreate] = useState(false);
 
   const { data: goals = [], isLoading } = useGoals({ status: 'active', includeProgress: true });
+  const { data: dormant = [] } = useDormantGoals();
 
   return (
     <div className="px-4 md:px-12 lg:px-20 max-w-[1600px] mx-auto relative">
@@ -423,6 +443,16 @@ export default function GoalMatrix({ theme, onNavigate }: GoalMatrixProps) {
             <Plus className="w-4 h-4" />
             {isDark ? 'Deploy' : 'New Goal'}
           </button>
+          {dormant.length > 0 && (
+            <button
+              onClick={() => onNavigate('WeeklyReview', 'push')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-400/10 border border-amber-400/30 text-amber-400 hover:bg-amber-400/20 transition-all"
+              title={`${dormant.length} dormant goal${dormant.length > 1 ? 's' : ''} — click to review`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {dormant.length}
+            </button>
+          )}
         </div>
       </header>
 

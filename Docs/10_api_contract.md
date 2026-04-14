@@ -316,6 +316,7 @@ interface CreateActivityRequest {
   goalId?: string;            // Link to goal (optional)
   activityDate: string;       // ISO date (YYYY-MM-DD)
   category?: 'growth' | 'maintenance';  // Default: growth
+  tags?: string[];            // e.g. ["gym", "morning"]  max 20 items
   status?: 'planned' | 'completed' | 'skipped';  // Default: planned
   notes?: string;             // Optional notes
   rawInput?: string;          // Original NLP input (for AI plumbing)
@@ -426,6 +427,7 @@ interface UpdateActivityRequest {
   goalId?: string | null;
   activityDate?: string;
   category?: 'growth' | 'maintenance';
+  tags?: string[];            // Replaces the full tags array
   status?: 'planned' | 'completed' | 'skipped';
   notes?: string | null;
   completedAt?: string | null;
@@ -576,20 +578,56 @@ Response body uses **camelCase** (matches backend/Prisma).
 
 ---
 
-# AI API (Phase 3)
+# Goals API (continued)
+
+## Get Dormant Goals
+
+**GET** `/goals/dormant`
+
+Returns goals that have had no activity for ≥ 7 days, or have never been touched. Sorted most-dormant first. Used by the Weekly Review screen and GoalMatrix badge.
+
+### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid-goal-1",
+      "title": "Run a 5K",
+      "timeframe": "short",
+      "progress": 20,
+      "daysSinceLastActivity": 12,
+      "lastActivityDate": "2026-04-01"
+    },
+    {
+      "id": "uuid-goal-2",
+      "title": "Learn Spanish",
+      "timeframe": "long",
+      "progress": 0,
+      "daysSinceLastActivity": null,
+      "lastActivityDate": null
+    }
+  ]
+}
+```
+
+> `daysSinceLastActivity: null` means the goal has never been touched (no logged activities).
+
+---
+
+# AI API
 
 ## Parse Activity
 
 **POST** `/ai/parse-activity`
 
-Parses natural language into structured activity.
+Parses natural language into a structured activity using the configured AI provider.
 
 ### Request Body
 
 ```typescript
-interface ParseActivityRequest {
-  input: string;  // Natural language input
-}
+{ rawInput: string }  // Natural language, e.g. "ran 5km this morning"
 ```
 
 ### Response (200 OK)
@@ -598,52 +636,106 @@ interface ParseActivityRequest {
 {
   "success": true,
   "data": {
-    "parsed": {
-      "title": "Read 30 pages of Sapiens",
-      "activity_type": "quantity",
-      "value": 30,
-      "unit": "pages",
-      "suggested_goal_id": "uuid-123",
-      "suggested_goal_title": "Read 12 books this year"
+    "intent": "log_activity",
+    "title": "Morning run",
+    "activityType": "duration",
+    "value": 30,
+    "unit": "minutes",
+    "suggestedGoalId": "uuid-123",
+    "suggestedGoalTitle": "Run a 5K",
+    "confidence": 0.93,
+    "provider": "ollama"
+  }
+}
+```
+
+---
+
+## Analyze Week
+
+**POST** `/ai/analyze-week`
+
+Generates a behavioral insight summary for the last 7 days.
+
+### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "data": {
+    "summary": "You logged 18 activities this week...",
+    "insights": ["Reading streak: 5 days", "Exercise dropped mid-week"],
+    "suggestions": ["Schedule runs earlier", "Add a Wednesday session"],
+    "provider": "ollama"
+  }
+}
+```
+
+---
+
+## Analyze Week (Streaming SSE)
+
+**GET** `/ai/analyze-week/stream`
+
+Same as `POST /ai/analyze-week` but streams tokens as Server-Sent Events. Useful for showing a live typewriter effect in the UI.
+
+### Response
+
+`Content-Type: text/event-stream`
+
+The stream emits JSON-encoded `data:` lines:
+
+```
+data: {"type":"token","token":"You "}
+data: {"type":"token","token":"logged "}
+data: {"type":"result","data":{"summary":"...","insights":[...],"suggestions":[...]}}
+data: [DONE]
+```
+
+Event types:
+| Type | Payload | Notes |
+|------|---------|-------|
+| `token` | `{ token: string }` | Incremental text chunk (Ollama only) |
+| `result` | `{ data: AIWeeklyAnalysis }` | Final structured result |
+| `error` | `{ message: string }` | Stream error |
+
+> For non-Ollama providers (mock/openai), only a single `result` event is emitted (no token chunks).
+
+---
+
+## Get Daily Coach
+
+**GET** `/ai/daily-coach`
+
+Returns a daily coaching message and a suggested activity for today. Response is typically cached once per day.
+
+### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "You've built solid momentum this week. Keep it going!",
+    "suggestedActivity": {
+      "title": "Morning run",
+      "activityType": "duration",
+      "unit": "minutes",
+      "goalId": "uuid-123",
+      "goalTitle": "Run a 5K"
     },
-    "confidence": 0.92,
-    "alternatives": []
-  }
-}
-```
-
-### Error Response (422)
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "AI_PARSE_FAILED",
-    "message": "Could not parse input",
-    "details": {
-      "input": "asdfkjhsdf",
-      "reason": "unrecognized_format"
-    }
+    "quote": "The secret of getting ahead is getting started.",
+    "provider": "ollama"
   }
 }
 ```
 
 ---
 
-## Get Morning Suggestions
+## Get AI Config
 
-**POST** `/ai/morning-suggestions`
+**GET** `/ai/config`
 
-Gets AI-suggested activities for today.
-
-### Request Body
-
-```typescript
-interface MorningSuggestionsRequest {
-  date: string;           // Target date
-  max_suggestions?: number;  // Default: 5
-}
-```
+Returns the active AI provider and Ollama settings.
 
 ### Response (200 OK)
 
@@ -651,43 +743,25 @@ interface MorningSuggestionsRequest {
 {
   "success": true,
   "data": {
-    "suggestions": [
-      {
-        "title": "Morning run",
-        "activity_type": "duration",
-        "value": 20,
-        "unit": "minutes",
-        "goal_id": "uuid-456",
-        "reason": "You usually run on Mondays"
-      },
-      {
-        "title": "Read 30 pages",
-        "activity_type": "quantity",
-        "value": 30,
-        "unit": "pages",
-        "goal_id": "uuid-123",
-        "reason": "3 days since last reading activity"
-      }
-    ],
-    "generated_at": "2025-01-15T06:00:00Z"
+    "provider": "ollama",
+    "ollamaModel": "gemma4:e4b",
+    "ollamaUrl": "http://localhost:11434"
   }
 }
 ```
 
 ---
 
-## Generate Weekly Insight
+## Set AI Model
 
-**POST** `/ai/weekly-insight`
+**POST** `/ai/config`
 
-Generates AI analysis of past week.
+Updates the active Ollama model at runtime (no restart needed). Only affects Ollama provider.
 
 ### Request Body
 
 ```typescript
-interface WeeklyInsightRequest {
-  week_start: string;  // Monday of the week
-}
+{ model: string }  // e.g. "llama3.2", "gemma4:e4b"
 ```
 
 ### Response (200 OK)
@@ -695,21 +769,193 @@ interface WeeklyInsightRequest {
 ```json
 {
   "success": true,
-  "data": {
-    "insight": {
-      "id": "uuid-insight-1",
-      "week_start": "2025-01-13",
-      "summary": "You logged 18 activities this week, up from 14 last week. Reading is consistent (5/7 days), but exercise dropped.",
-      "highlights": [
-        "Reading streak: 5 days",
-        "Best day: Friday (6 activities)"
-      ],
-      "suggestions": [
-        "Schedule runs earlier in the day",
-        "Consider adding a Wednesday exercise session"
-      ],
-      "generated_at": "2025-01-19T23:00:00Z"
+  "data": { "model": "llama3.2" }
+}
+```
+
+---
+
+## List Ollama Models
+
+**GET** `/ai/ollama-models`
+
+Proxies to Ollama `/api/tags` and returns list of locally installed model names.
+
+### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "data": { "models": ["gemma4:e4b", "llama3.2", "phi3"] }
+}
+```
+
+---
+
+# Voice API
+
+## Voice Status
+
+**GET** `/voice/status`
+
+Checks whether the Whisper transcription service is running and available.
+
+### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "data": { "available": true, "model": "base" }
+}
+```
+
+---
+
+## Transcribe Audio
+
+**POST** `/voice/transcribe`
+
+Sends audio to Whisper for transcription. Returns the transcript text.
+
+### Request
+
+`Content-Type: multipart/form-data`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `audio` | File | WAV or WebM audio blob |
+
+### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "data": { "transcript": "ran 5km this morning in the park" }
+}
+```
+
+---
+
+# Focus Sessions API
+
+## List Focus Sessions
+
+**GET** `/focus-sessions`
+
+Returns paginated focus sessions.
+
+### Query Parameters
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `activityId` | string | Filter by linked activity |
+| `limit` | number | Default 20 |
+| `offset` | number | Default 0 |
+
+### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid-session-1",
+      "activityId": "uuid-activity-1",
+      "durationSeconds": 1500,
+      "startedAt": "2026-04-13T09:00:00Z",
+      "endedAt": "2026-04-13T09:25:00Z",
+      "notes": null,
+      "createdAt": "2026-04-13T09:00:00Z"
     }
+  ],
+  "meta": { "total": 5, "limit": 20, "offset": 0 }
+}
+```
+
+---
+
+## Create Focus Session
+
+**POST** `/focus-sessions`
+
+Starts or records a focus session.
+
+### Request Body
+
+```typescript
+{
+  activityId?: string;       // Optional link to activity
+  durationSeconds: number;   // Session length in seconds
+  startedAt: string;         // ISO datetime
+  endedAt?: string;          // ISO datetime (can be set on end)
+  notes?: string;
+}
+```
+
+### Response (201 Created)
+
+Returns the created focus session object.
+
+---
+
+## Update Focus Session
+
+**PATCH** `/focus-sessions/:id`
+
+Updates a focus session (e.g. set `endedAt` when session ends).
+
+### Request Body
+
+```typescript
+{
+  endedAt?: string;
+  durationSeconds?: number;
+  notes?: string;
+}
+```
+
+### Response (200 OK)
+
+Returns updated focus session.
+
+---
+
+## Delete Focus Session
+
+**DELETE** `/focus-sessions/:id`
+
+Soft-deletes a focus session.
+
+### Response (200 OK)
+
+```json
+{ "success": true, "data": { "id": "uuid-session-1", "deleted": true } }
+```
+
+---
+
+## Get Focus Session Stats
+
+**GET** `/focus-sessions/stats`
+
+Returns aggregate focus time stats.
+
+### Query Parameters
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `period` | `'week'` \| `'month'` \| `'all'` | Time range (default: `week`) |
+
+### Response (200 OK)
+
+```json
+{
+  "success": true,
+  "data": {
+    "totalSessions": 12,
+    "totalSeconds": 18000,
+    "averageSeconds": 1500,
+    "longestSeconds": 3600
   }
 }
 ```

@@ -1,4 +1,7 @@
 /**
+ * DEAD CODE — BrowserRouter is not mounted in App.tsx. This page is never rendered.
+ * Do NOT delete yet — reserved for Phase 2+ when React Router is wired up.
+ *
  * @file pages/Settings.tsx
  * @description Application settings page.
  *   Currently covers AI provider configuration and Ollama model selection.

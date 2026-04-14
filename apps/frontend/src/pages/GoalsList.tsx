@@ -1,4 +1,7 @@
 /**
+ * DEAD CODE — BrowserRouter is not mounted in App.tsx. This page is never rendered.
+ * Do NOT delete yet — reserved for Phase 2+ when React Router is wired up.
+ *
  * @file pages/GoalsList.tsx
  * @description Goals list page — displays all goals grouped by timeframe.
  *   Supports filter by status (active/archived/all).

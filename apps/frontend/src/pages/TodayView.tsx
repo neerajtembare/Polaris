@@ -1,4 +1,7 @@
 /**
+ * DEAD CODE — BrowserRouter is not mounted in App.tsx. This page is never rendered.
+ * Do NOT delete yet — reserved for Phase 2+ when React Router is wired up.
+ *
  * @file pages/TodayView.tsx
  * @description Today's activity view — three columns (Planned / Completed / Skipped)
  *   with inline complete / skip actions and a quick-log button.
@@ -23,7 +26,7 @@ import { Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ActivityCard } from '../components/activities/ActivityCard.tsx';
 import { LogActivityForm } from '../components/activities/LogActivityForm.tsx';
-import { QuickLogBar } from '../components/activities/QuickLogBar.tsx';
+// QuickLogBar removed (Phase 0B) — component deleted, page is dead code
 import { Spinner } from '../components/ui/Spinner.tsx';
 import { EmptyState } from '../components/ui/EmptyState.tsx';
 import {
@@ -206,10 +209,6 @@ export function TodayView() {
           </button>
         </div>
 
-        {/* ── Inline quick-log bar ── */}
-        <QuickLogBar
-          onOpenFullForm={() => setShowFullForm(true)}
-        />
 
         {/* Loading state */}
         {isLoading && (
@@ -303,7 +302,7 @@ export function TodayView() {
 
 
 
-      {/* Full-form modal (opened from QuickLogBar "More options", edit icon, or empty state) */}
+      {/* Full-form modal (opened from edit icon or empty state) */}
       {showFullForm && (
         <LogActivityForm
           {...(editActivity && { editActivity })}

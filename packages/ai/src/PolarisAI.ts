@@ -19,11 +19,14 @@
  *   OLLAMA_MODEL = 'llama3.2:3b'                 (default)
  */
 
-import type { AIActivityParse, DashboardMetrics } from '@polaris/shared';
+import type { AIActivityParse, DashboardMetrics, PolarisContext, DailyCoachResponse } from '@polaris/shared';
 import type { GoalContext } from './types.js';
 import { getProvider, getMockProvider } from './providers/index.js';
 import { breakdownGoal, type GoalInput, type AIGoalBreakdown } from './breakdown.js';
 import { analyzeWeek, type AIWeeklyAnalysis } from './analyze-week.js';
+import { dailyCoach } from './daily-coach.js';
+
+export type { DailyCoachResponse };
 
 export type { GoalContext, GoalInput, AIGoalBreakdown, AIWeeklyAnalysis };
 
@@ -69,6 +72,14 @@ export class PolarisAI {
    */
   async analyzeWeek(metrics: DashboardMetrics): Promise<AIWeeklyAnalysis> {
     return analyzeWeek(metrics);
+  }
+
+  /**
+   * Generate a personalised daily coaching message with a suggested activity.
+   * Falls back to a quote-based response if the AI provider fails.
+   */
+  async dailyCoach(ctx: PolarisContext): Promise<DailyCoachResponse> {
+    return dailyCoach(ctx, this.provider);
   }
 
   /** The name of the currently active provider */

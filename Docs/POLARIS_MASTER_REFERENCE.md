@@ -1,8 +1,8 @@
 # Polaris — Master Reference Document
 
-> **Last Updated:** April 13, 2026  
-> **Current Phase:** Phase 0/1 — Foundation + MVP  
-> **Status:** Functional MVP with AI integration
+> **Last Updated:** April 14, 2026  
+> **Current Phase:** Phase 3 — Complete  
+> **Status:** Full test suite passing — 94 backend + 97 frontend tests
 
 ---
 
@@ -37,7 +37,7 @@
 - AI parses natural language into structured activity logs
 - Voice input via Whisper speech-to-text
 - Dashboard with streaks, heatmaps, trends, goal progress
-- Local-first (SQLite), runs entirely on your machine
+- Local-first (PostgreSQL), runs entirely on your machine
 
 **It is NOT:** a todo app, a habit tracker, or a calendar.
 
@@ -50,7 +50,7 @@
 | **Runtime** | Node.js | 20+ | Alpine-based in Docker |
 | **Backend** | Fastify | — | NOT Express |
 | **ORM** | Prisma | — | NOT Knex, NOT raw SQL |
-| **Database** | SQLite | — | Local file: `apps/backend/data/polaris.db` |
+| **Database** | PostgreSQL | — | Local: `postgresql://polaris:polaris@localhost:5432/polaris_dev` |
 | **Frontend** | React | 19 | Functional components only |
 | **Bundler** | Vite | — | Dev on `:5173`, proxies `/api` to backend |
 | **Styling** | Tailwind CSS | v4 | With `@tailwindcss/vite` plugin |
@@ -62,7 +62,7 @@
 | **Icons** | Lucide React | — | SVG icon library |
 | **Dates** | date-fns | — | All date operations |
 | **Toasts** | react-hot-toast | — | Notification system |
-| **AI (LLM)** | OpenAI / Ollama / Mock | — | GPT-4o-mini or llama3.2:3b |
+| **AI (LLM)** | OpenAI / Ollama / Mock | — | GPT-4o-mini or gemma4:e4b (MoE, 4B active) |
 | **Voice (STT)** | Whisper (faster-whisper) | 1.1.1 | Python FastAPI service, GPU-accelerated |
 | **TypeScript** | TypeScript | 5.7+ | Strict mode everywhere |
 | **Monorepo** | npm workspaces | — | 4 workspaces |
@@ -86,9 +86,9 @@ polaris/
 ├── apps/
 │   ├── backend/                  # Fastify API (port 3001)
 │   │   ├── prisma/
-│   │   │   ├── schema.prisma     # Database schema (3 models)
-│   │   │   ├── seed.ts           # 90-day sample data generator
-│   │   │   └── migrations/       # 1 migration (init)
+│   │   │   ├── schema.prisma     # Database schema (4 models: Goal, Activity, Event, FocusSession)
+│   │   │   ├── seed.ts           # 90-day sample data generator (batch inserts)
+│   │   │   └── migrations/       # 1 migration (20260413131020_init_postgres)
 │   │   └── src/
 │   │       ├── index.ts          # Entry point — start server
 │   │       ├── app.ts            # Fastify app builder (plugins, error handler)
@@ -194,9 +194,10 @@ npm run dev                   # Concurrently: backend (3001) + frontend (5173)
 
 ## 5. Data Model
 
-### Database: SQLite via Prisma
+### Database: PostgreSQL via Prisma
 
-Three models, all using UUIDs as primary keys.
+**Local connection:** `postgresql://polaris:polaris@localhost:5432/polaris_dev`  
+Four models, all using UUIDs as primary keys. All models include `userId String?` (nullable, reserved for future auth).
 
 ### Goal
 
@@ -211,11 +212,12 @@ Three models, all using UUIDs as primary keys.
 | `targetDate` | DateTime? | null | Deadline |
 | `parentId` | String? | null | FK → Goal (self-referencing hierarchy) |
 | `status` | String | `"active"` | `active` \| `completed` \| `paused` \| `archived` |
+| `userId` | String? | null | Reserved for future auth |
 | `isDeleted` | Boolean | false | Soft-delete flag |
 | `createdAt` | DateTime | now() | Creation timestamp |
 | `updatedAt` | DateTime | auto | Last update timestamp |
 
-**Relations:** `parent` ↔ `children` (Goal hierarchy), `activities` (one-to-many)  
+**Relations:** `parent` ↔ `children` (Goal hierarchy), `activities` (one-to-many), `focusSessions` (one-to-many)  
 **Indexes:** `parentId`, `timeframe`, `status`, `isDeleted`, `[isDeleted, status]`
 
 ### Activity
@@ -238,9 +240,10 @@ Three models, all using UUIDs as primary keys.
 | `isDeleted` | Boolean | false | Soft-delete flag |
 | `createdAt` | DateTime | now() | Creation timestamp |
 | `updatedAt` | DateTime | auto | Last update timestamp |
+| `userId` | String? | null | Reserved for future auth |
 | `completedAt` | DateTime? | null | When marked completed |
 
-**Relations:** `goal` (many-to-one, optional)  
+**Relations:** `goal` (many-to-one, optional), `focusSession` (zero-to-one via `activityId`)  
 **Indexes:** `activityDate`, `goalId`, `category`, `status`, `isDeleted`, `[goalId, isDeleted]`, `[activityDate, isDeleted]`, `[status, isDeleted]`
 
 ### Event (Audit Log)
@@ -254,9 +257,30 @@ Three models, all using UUIDs as primary keys.
 | `previousState` | String? | null | JSON-serialized old state |
 | `newState` | String | required | JSON-serialized new state |
 | `metadata` | String? | null | Extra JSON metadata |
+| `userId` | String? | null | Reserved for future auth |
 | `timestamp` | DateTime | now() | Event timestamp |
 
 **Indexes:** `entityId`, `entityType`, `eventType`, `timestamp`
+
+### FocusSession
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | String (UUID) | auto | Primary key |
+| `goalId` | String? | null | FK → Goal (on delete: SetNull) |
+| `activityId` | String? | null | FK → Activity (unique, created on complete) |
+| `plannedMins` | Int | required | Timer target in minutes |
+| `actualMins` | Int? | null | Actual duration (set on end) |
+| `breaks` | Int | 0 | Number of pauses taken |
+| `status` | String | `"active"` | `active` \| `completed` \| `abandoned` |
+| `userId` | String? | null | Reserved for future auth |
+| `isDeleted` | Boolean | false | Soft-delete flag |
+| `startedAt` | DateTime | required | Session start timestamp |
+| `endedAt` | DateTime? | null | Session end timestamp |
+| `createdAt` | DateTime | now() | Creation timestamp |
+| `updatedAt` | DateTime | auto | Last update timestamp |
+
+**Relations:** `goal` (many-to-one, optional), `activity` (one-to-one, optional)
 
 ---
 
@@ -276,8 +300,7 @@ Three models, all using UUIDs as primary keys.
 { success: false, error: { code: string, message: string, details?: object } }
 ```
 
-**Global Rate Limit:** 100 requests/minute  
-**AI Rate Limit:** 10 requests/minute
+**AI Rate Limit:** 10 requests/minute (global rate limiter removed in Phase 0A)
 
 ### Health
 
@@ -347,7 +370,7 @@ Screens managed via `NavigationState` in `App.tsx`.
 | `Goals` | GoalMatrix | Goal constellation, create goal, bento layout |
 | `Insights` | Insights | Analytics: metrics cards, PulseWave 3D, trend charts |
 | `History` | History | Activity log with filters, log form |
-| `Settings` | Settings | AI provider config display (read-only) |
+| `Settings` | Settings | AI provider config + model selector + Test AI button |
 
 **Other pages** (via React Router within screens):
 - `GoalsList` — Goals with status filter + search
@@ -449,11 +472,11 @@ Confidence thresholds: ≥ 85% → skip AI call, < 85% → upgrade via AI API.
 ### Request Flow
 
 ```
-Client → Fastify (plugins: helmet, cors, rate-limit, multipart)
+Client → Fastify (plugins: helmet, cors, multipart)
        → Route (JSON schema validation)
        → Controller (HTTP handler, error wrapping)
        → Service (business logic, Prisma queries)
-       → Prisma → SQLite
+       → Prisma → PostgreSQL
 ```
 
 ### Plugins
@@ -462,7 +485,7 @@ Client → Fastify (plugins: helmet, cors, rate-limit, multipart)
 |--------|---------|
 | `helmet` | Security headers (CSP disabled) |
 | `cors` | Dev: `localhost:5173`. Prod: `CORS_ORIGIN` env (comma-separated) |
-| `rate-limit` | Global: 100/min. AI endpoints: 10/min |
+| `rate-limit` | AI endpoints only: 10/min (global limit removed in Phase 0A) |
 | `multipart` | File uploads (25 MB limit for voice audio) |
 
 ### Controllers
@@ -518,7 +541,7 @@ Central AI facade used by the backend. Three capabilities:
 |----------|-------|--------|-------|
 | **Mock** | — | Default, zero-config | Rule-based keyword matching, always available |
 | **OpenAI** | `gpt-4o-mini` | `OPENAI_API_KEY` required | Temp 0.2, max 300 tokens |
-| **Ollama** | `llama3.2:3b` (default) | `OLLAMA_URL`, `OLLAMA_MODEL` | Temp 0.05, json format, 600 tokens. Few-shot for ≤8B models |
+| **Ollama** | `gemma4:e4b` (default) | `OLLAMA_URL`, `OLLAMA_MODEL` | Temp 0.05, json format, 600 tokens. MoE 4B active params, 9.6GB. Few-shot for ≤8B models |
 
 **Fallback chain:** Configured provider → MockProvider (on any error)
 
@@ -643,7 +666,7 @@ type UserIntent = 'log_activity' | 'create_goal' | 'query'
 | `backend` | Custom (Dockerfile) | 3001 | Fastify API, Prisma migrate on startup |
 | `frontend` | Custom (Dockerfile) | 5173 | Vite dev server, proxies to backend |
 
-**Volume:** `polaris_data` — Persists SQLite database
+**Database:** `DATABASE_URL` passed from host environment (no embedded volume — Postgres runs externally or via Docker network)
 
 ### Docker Compose — AI Overlay (`docker-compose.ai.yml`)
 
@@ -652,7 +675,7 @@ Use with: `docker compose -f docker-compose.yml -f docker-compose.ai.yml up --bu
 | Service | Image | Port | GPU | Description |
 |---------|-------|------|-----|-------------|
 | `whisper` | Custom (services/whisper) | 8001 | Yes | faster-whisper, large-v3, CUDA |
-| `ollama` | `ollama/ollama:latest` | 11434 | Yes | Auto-pulls llama3.2:3b |
+| `ollama` | `ollama/ollama:latest` | 11434 | Yes | Auto-pulls `${OLLAMA_MODEL:-gemma4:e4b}` |
 
 **Requires:** NVIDIA GPU + NVIDIA Container Toolkit
 
@@ -661,9 +684,9 @@ Use with: `docker compose -f docker-compose.yml -f docker-compose.ai.yml up --bu
 ### Dockerfile
 
 - Base: `node:20-alpine`
-- Builds: shared types → Prisma client → backend
+- Builds: `packages/shared` → `packages/ai` → Prisma client → backend
 - Exposes: 3001, 5173
-- Default CMD: Migrate + start backend (compose overrides for frontend)
+- Default CMD: `prisma migrate deploy` → `prisma generate` → `node dist/index.js` (compose overrides for frontend)
 
 ### Startup Scripts
 
@@ -683,12 +706,12 @@ Use with: `docker compose -f docker-compose.yml -f docker-compose.ai.yml up --bu
 |----------|---------|-------------|
 | `PORT` | `3001` | Server port |
 | `NODE_ENV` | `development` | `development` \| `production` |
-| `DATABASE_URL` | `file:./data/polaris.db` | Prisma SQLite connection |
+| `DATABASE_URL` | `postgresql://polaris:polaris@localhost:5432/polaris_dev` | Prisma PostgreSQL connection |
 | `CORS_ORIGIN` | `""` | Comma-separated allowed origins (prod) |
-| `AI_PROVIDER` | `mock` | `mock` \| `openai` \| `ollama` |
+| `AI_PROVIDER` | `ollama` | `mock` \| `openai` \| `ollama` |
 | `OPENAI_API_KEY` | — | Required for openai provider |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama API endpoint |
-| `OLLAMA_MODEL` | `llama3.2:3b` | Ollama model name |
+| `OLLAMA_MODEL` | `gemma4:e4b` | Ollama model name (read per-request — can change at runtime) |
 | `WHISPER_URL` | `http://localhost:8001` | Whisper service endpoint |
 | `AI_LOG_DIR` | `./ai-logs` | AI exchange log directory |
 
@@ -740,14 +763,18 @@ Use with: `docker compose -f docker-compose.yml -f docker-compose.ai.yml up --bu
 
 ## 15. Testing
 
+**Total: 191 tests passing (94 backend + 97 frontend) across 21 test files.**
+
+See [testing.md](./testing.md) for full strategy, patterns, and coverage targets.
+
 ### Stack
 
 | Tool | Purpose |
 |------|---------|
 | Vitest | Test runner (backend + frontend) |
-| Testing Library | React component testing |
-| MSW | API mocking (Mock Service Worker) |
-| `@testing-library/jest-dom` | DOM assertions |
+| Testing Library | React component testing (`@testing-library/react`) |
+| `@testing-library/jest-dom` | DOM matchers |
+| `@testing-library/user-event` | User interaction simulation |
 
 ### Commands
 
@@ -756,11 +783,36 @@ npm test                    # Run all tests (backend + frontend)
 npm run test:coverage       # With coverage reports
 ```
 
-### Test Files
+### Backend Tests (94 passing)
 
-- `apps/frontend/src/__tests__/setup.ts` — Test setup (jest-dom matchers)
-- `apps/frontend/src/__tests__/services/api.test.ts` — API client unit tests
-- `apps/frontend/src/__tests__/components/ui/` — UI component tests
+| File | Tests | Scope |
+|------|-------|-------|
+| `services/__tests__/activity.service.test.ts` | 7 | Activity CRUD, tag parsing |
+| `services/__tests__/goal.service.test.ts` | 8 | Goal CRUD, progress |
+| `services/__tests__/focus-session.service.test.ts` | 14 | State machine, complete/abandon |
+| `services/__tests__/metrics.service.test.ts` | 6 | Streaks, dashboard periods |
+| `services/__tests__/dormancy.service.test.ts` | 6 | 7-day threshold |
+| `services/__tests__/ai.service.test.ts` | 6 | AI facade, all three ops |
+| `routes/__tests__/activities.integration.test.ts` | 10 | Activity endpoints |
+| `routes/__tests__/focus-sessions.integration.test.ts` | 7 | Focus session endpoints |
+| `routes/__tests__/ai.integration.test.ts` | 4 | AI endpoints |
+| `routes/__tests__/goals.integration.test.ts` | 14 | Goal endpoints |
+| `routes/__tests__/metrics.integration.test.ts` | 12 | Metrics endpoint |
+
+### Frontend Tests (97 passing)
+
+| File | Tests | Scope |
+|------|-------|-------|
+| `hooks/__tests__/useActivityInput.test.ts` | 10 | NLP parse + AI upgrade flow |
+| `hooks/__tests__/useGoals.test.ts` | 6 | Goal query hooks |
+| `hooks/__tests__/useFocusTimer.test.ts` | 14 | Timer state machine |
+| `components/__tests__/ParsedActivityCard.test.tsx` | 9 | Activity suggestion card |
+| `components/__tests__/TodayKanban.test.tsx` | 9 | Kanban board, status updates |
+| `components/__tests__/AudioPlayer.test.tsx` | 8 | Audio store, stream selection |
+| `components/__tests__/Settings.test.tsx` | 10 | AI provider UI |
+| `services/api.test.ts` | 8 | API client |
+| `lib/parse-input.test.ts` | 14 | Client-side NLP parser |
+| `components/ui/Badge.test.tsx` | 9 | Badge component |
 
 ---
 
@@ -787,19 +839,22 @@ npm run test:coverage       # With coverage reports
 | Trend Charts | ✅ Done | Area charts for activity volume |
 | Multiple Input Methods | ✅ Done | SmartInputBar, QuickLogBar, LogActivityForm, FAB |
 | Event Audit Trail | ✅ Done | All mutations logged to Event table |
-| Docker Deployment | ✅ Done | Core + GPU AI overlay |
-| Seed Data | ✅ Done | 90 days of realistic sample data |
+| Docker Deployment | ✅ Done | Core + GPU AI overlay (Postgres via external DB) |
+| Seed Data | ✅ Done | 90 days of realistic sample data (4 goals, 160 activities) |
 | Error Boundary | ✅ Done | Global crash recovery UI |
-| Rate Limiting | ✅ Done | Global 100/min, AI 10/min |
+| Rate Limiting | 🟡 AI-only | Global limit removed (Phase 0A); AI endpoints: 10/min |
+| PostgreSQL Migration | ✅ Done | Phase 0A — schema migrated, tables created, seeded |
+| FocusSession | ✅ Done | Schema, service, controller, and routes implemented |
+| Gemma 4 (gemma4:e4b) | ✅ Configured | Default model in .env, start.sh, docker-compose.ai.yml |
 
 ### Partially Implemented
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Authentication | 🟡 Stub | localStorage mock — no real auth yet |
-| Zustand Stores | 🟡 Unused | Package present, store dir empty |
-| React Router | 🟡 Partial | State-based navigation primary, router secondary |
-| Settings Page | 🟡 Read-only | Displays AI config, no editing |
+| Zustand Stores | 🟡 Partial | `audioPlayer.store.ts` implemented; other stores still empty |
+| React Router | 🟡 Dead | `pages/` dir exists but `BrowserRouter` not mounted — state-based nav used instead |
+| Audio Streams | 🔴 Broken | Zeno.fm streams are paid/broken — deferred for replacement |
 
 ---
 
@@ -809,9 +864,11 @@ Per the project charter, these are planned for future phases:
 
 | Phase | Features | Status |
 |-------|----------|--------|
+| Phase 1 | MVP core loop (done), Activity templates, GoalConstellation, ProgressBar animations | 🟡 Partial |
 | Phase 2 | Advanced analytics, filtering, search | Not started |
-| Phase 3 | AI coaching, recurrence system, pattern detection | Not started |
+| Phase 3+ | AI coaching (conversations), recurrence, automated pattern detection | Not started |
 | Phase 4 | Behavioral insights, smart suggestions | Not started |
+| Phase 4 | Authentication (Supabase Auth or JWT), userId enforcement | Not started |
 | Phase 5 | Cloud sync, multi-device | Not started |
 
 **Explicitly NOT to implement yet:**
@@ -835,5 +892,28 @@ When documents conflict, higher rank wins:
 3. `Docs/04_data_model.md` — Definitive schema
 4. `Docs/12_implementation_checklist.md` — Build plan
 5. `Docs/03_sdd.md` — Architecture reference
-6. **This document** — Living reference of actual state
-7. All other docs — Context / strategy
+6. **This document** (`POLARIS_MASTER_REFERENCE.md`) — Living reference of actual state
+7. `SESSION_STATE.md` — Current progress snapshot
+8. All other docs — Context / strategy
+
+## Docs Inventory
+
+| File | Purpose |
+|------|---------|
+| `POLARIS_MASTER_REFERENCE.md` | All-in-one living reference (this file) |
+| `SESSION_STATE.md` | Current phase/milestone/blocker snapshot |
+| `testing.md` | Test strategy, patterns, coverage targets |
+| `01_product_charter.md` | Vision, problem statement, non-goals |
+| `02_prd.md` | Functional requirements |
+| `03_sdd.md` | System architecture |
+| `04_data_model.md` | Prisma schema (canonical) |
+| `05_ai_strategy.md` | AI philosophy + implementation reference |
+| `06_ux_behavior_design.md` | UX philosophy + layout principles |
+| `07_roadmap_and_milestones.md` | Phase roadmap + milestone definitions |
+| `08_architecture_decision_log.md` | ADRs (Fastify, Prisma, SQLite, soft-delete) |
+| `09_user_flows.md` | Step-by-step user journeys |
+| `10_api_contract.md` | REST API spec (definitive) |
+| `11_scope_boundaries.md` | Feature matrix (MUST/SHOULD/LATER) |
+| `12_implementation_checklist.md` | Phase-by-phase build checklist |
+| `AI_DEV_GUIDE.md` | AI-assisted dev session protocol |
+| `Full_UI_Upgrade_Plan.md` | Celestial UI redesign plan (active) |
