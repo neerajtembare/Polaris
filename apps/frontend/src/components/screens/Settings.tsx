@@ -34,10 +34,13 @@ import {
   FlaskConical,
   CheckCircle,
   XCircle,
+  Key,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactiveCard from '../ui/ReactiveCard';
-import { useAiConfig, useOllamaModels, useSetAiModel } from '@/hooks/useAiConfig';
+import { useAiConfig, useOllamaModels, useSetAiModel, useSetAiProvider, useSetApiKey } from '@/hooks/useAiConfig';
 import { useAiParse } from '@/hooks/useAiParse';
 import { useAudioPlayer, PRESET_STREAMS } from '@/stores/audioPlayer.store';
 import type { Theme, ScreenId } from '@/types/navigation';
@@ -99,7 +102,9 @@ export default function Settings({ theme, onNavigate: _onNavigate, onToggleTheme
   const { data: ollamaModels, isLoading: modelsLoading } = useOllamaModels(
     aiConfig?.provider === 'ollama'
   );
-  const setAiModel = useSetAiModel();
+  const setAiModel    = useSetAiModel();
+  const setAiProvider = useSetAiProvider();
+  const setApiKey     = useSetApiKey();
 
   const activeProvider = (aiConfig?.provider ?? 'mock') as ProviderKey;
 
@@ -108,6 +113,27 @@ export default function Settings({ theme, onNavigate: _onNavigate, onToggleTheme
   const displayModel = aiConfig?.model ?? '';
   const pendingModel = customModel.trim();
   const hasUnsaved  = pendingModel.length > 0 && pendingModel !== displayModel;
+
+  // API key input state
+  const [apiKeyDraft, setApiKeyDraft]     = useState('');
+  const [showApiKey, setShowApiKey]       = useState(false);
+  const [apiKeySaved, setApiKeySaved]     = useState(false);
+
+  async function handleSaveApiKey() {
+    const keyProvider = activeProvider === 'gemini' ? 'gemini' :
+                        activeProvider === 'openai' ? 'openai' : null;
+    if (!keyProvider || !apiKeyDraft.trim()) return;
+    await setApiKey.mutateAsync({ provider: keyProvider, apiKey: apiKeyDraft.trim() });
+    setApiKeyDraft('');
+    setShowApiKey(false);
+    setApiKeySaved(true);
+    setTimeout(() => setApiKeySaved(false), 3000);
+  }
+
+  async function handleSelectProvider(key: ProviderKey) {
+    if (key === activeProvider) return;
+    await setAiProvider.mutateAsync(key);
+  }
 
   // Test AI state
   type TestResult = { ok: true; model: string; confidence: number } | { ok: false; error: string };
@@ -233,15 +259,17 @@ export default function Settings({ theme, onNavigate: _onNavigate, onToggleTheme
                 >
                   <ReactiveCard
                     isDark={isDark}
+                    {...(!isActive ? { onClick: () => { void handleSelectProvider(provider.key); } } : {})}
                     className={cn(
                       'border transition-all',
+                      !isActive && 'cursor-pointer',
                       isActive
                         ? isDark
                           ? 'border-dark-primary/40 ring-1 ring-dark-primary/20'
                           : 'border-primary/30 ring-1 ring-primary/10'
                         : isDark
-                        ? 'border-white/5'
-                        : 'border-outline-variant/10'
+                        ? 'border-white/5 hover:border-white/15'
+                        : 'border-outline-variant/10 hover:border-outline-variant/30'
                     )}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -352,6 +380,69 @@ export default function Settings({ theme, onNavigate: _onNavigate, onToggleTheme
                                   <span className="opacity-50 ml-1 text-[9px]">{m.rpdLabel}</span>
                                 </button>
                               ))}
+                            </div>
+                          )}
+
+                          {/* API key input — Gemini and OpenAI when active */}
+                          {isActive && (provider.key === 'gemini' || provider.key === 'openai') && (
+                            <div className="mt-4 space-y-2">
+                              <div className={cn('flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest', isDark ? 'text-dark-on-surface-variant/60' : 'text-on-surface-variant/60')}>
+                                <Key className="w-3 h-3" />
+                                API Key
+                                {apiKeySaved && (
+                                  <span className="text-emerald-400 normal-case tracking-normal font-normal">
+                                    — saved for this session
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                  <input
+                                    type={showApiKey ? 'text' : 'password'}
+                                    value={apiKeyDraft}
+                                    onChange={(e) => setApiKeyDraft(e.target.value)}
+                                    placeholder={`Paste ${provider.key === 'gemini' ? 'GEMINI' : 'OPENAI'}_API_KEY…`}
+                                    autoComplete="off"
+                                    className={cn(
+                                      'w-full text-xs font-mono rounded-lg px-3 py-1.5 pr-8 border bg-transparent outline-none',
+                                      isDark
+                                        ? 'border-white/10 text-dark-on-surface placeholder-white/20 focus:border-dark-primary/50'
+                                        : 'border-outline-variant/20 text-on-surface placeholder-on-surface-variant/40 focus:border-primary/40'
+                                    )}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') { void handleSaveApiKey(); }
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowApiKey((v) => !v)}
+                                    className={cn('absolute right-2 top-1/2 -translate-y-1/2', isDark ? 'text-white/30 hover:text-white/60' : 'text-on-surface-variant/40 hover:text-on-surface-variant')}
+                                    aria-label={showApiKey ? 'Hide key' : 'Show key'}
+                                  >
+                                    {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                                {apiKeyDraft.trim().length > 0 && (
+                                  <button
+                                    onClick={() => { void handleSaveApiKey(); }}
+                                    disabled={setApiKey.isPending}
+                                    className={cn(
+                                      'flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0',
+                                      isDark
+                                        ? 'bg-dark-primary/20 text-dark-primary hover:bg-dark-primary/30 disabled:opacity-40'
+                                        : 'bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40'
+                                    )}
+                                  >
+                                    {setApiKey.isPending
+                                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      : <Save className="w-3.5 h-3.5" />}
+                                    Apply
+                                  </button>
+                                )}
+                              </div>
+                              <p className={cn('text-[10px] leading-relaxed opacity-50', isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant')}>
+                                Stored in server memory only — not saved to disk. Re-enter after restart, or set in your backend <code className="font-mono">.env</code> file for persistence.
+                              </p>
                             </div>
                           )}
 
@@ -670,10 +761,10 @@ export default function Settings({ theme, onNavigate: _onNavigate, onToggleTheme
                 isDark ? 'text-dark-on-surface-variant' : 'text-on-surface-variant'
               )}
             >
-              Set <code className="font-mono">AI_PROVIDER=openai|ollama|mock</code> in your backend{' '}
-              <code className="font-mono">.env</code> file and restart to switch providers.{' '}
-              When using Ollama, you can switch models here at runtime without restarting — the
-              change takes effect on the next AI request.
+              Click any provider card above to switch providers. You can also paste an API key
+              directly here — it is stored in server memory only and cleared on restart.
+              For permanent configuration, set <code className="font-mono">AI_PROVIDER</code> and
+              your API key in <code className="font-mono">apps/backend/.env</code>.
             </p>
           </div>
         </div>

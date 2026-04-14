@@ -42,7 +42,13 @@ interface BreakdownBody {
 }
 
 interface SetAiConfigBody {
-  model: string;
+  model?: string;
+  provider?: string;
+}
+
+interface SetApiKeyBody {
+  provider: string;
+  apiKey: string;
 }
 
 interface ChatBody {
@@ -334,27 +340,80 @@ export async function getAiConfigHandler(
 
 /**
  * POST /api/ai/config
- * Switch the active model at runtime. Takes effect on the next inference call.
- * Body: { model: string }
+ * Switch the active provider and/or model at runtime. Takes effect immediately.
+ * Body: { provider?: string, model?: string }
  */
 export async function setAiConfigHandler(
   request: FastifyRequest<{ Body: SetAiConfigBody }>,
   reply:   FastifyReply
 ): Promise<void> {
-  const { model }    = request.body;
+  const { model, provider: newProvider } = request.body;
+
+  // Switch provider if requested
+  if (newProvider) {
+    const valid = ['mock', 'openai', 'ollama', 'gemini'];
+    if (!valid.includes(newProvider)) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'INVALID_PROVIDER', message: `Provider must be one of: ${valid.join(', ')}` },
+      });
+    }
+    process.env['AI_PROVIDER'] = newProvider;
+  }
+
   const providerName = process.env['AI_PROVIDER'] ?? 'mock';
 
-  // Set the correct env var based on active provider
-  if (providerName === 'gemini') {
-    process.env['GEMINI_MODEL'] = model;
-  } else if (providerName === 'ollama') {
-    process.env['OLLAMA_MODEL'] = model;
-  } else if (providerName === 'openai') {
-    process.env['OPENAI_MODEL'] = model;
+  // Switch model if requested
+  if (model) {
+    if (providerName === 'gemini') {
+      process.env['GEMINI_MODEL'] = model;
+    } else if (providerName === 'ollama') {
+      process.env['OLLAMA_MODEL'] = model;
+    } else if (providerName === 'openai') {
+      process.env['OPENAI_MODEL'] = model;
+    }
   }
-  // mock: no-op
 
-  return reply.send({ success: true, data: { provider: providerName, model } });
+  const activeModel =
+    providerName === 'gemini' ? (process.env['GEMINI_MODEL'] ?? 'gemma-4-26b-a4b-it') :
+    providerName === 'ollama' ? (process.env['OLLAMA_MODEL'] ?? 'gemma4:e4b') :
+    providerName === 'openai' ? (process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini') :
+    'mock';
+
+  return reply.send({ success: true, data: { provider: providerName, model: activeModel } });
+}
+
+/**
+ * POST /api/ai/config/key
+ * Set an API key for the given provider at runtime (stored in process.env only — not persisted).
+ * This is a local-dev convenience; keys are lost on server restart.
+ * Body: { provider: string, apiKey: string }
+ */
+export async function setApiKeyHandler(
+  request: FastifyRequest<{ Body: SetApiKeyBody }>,
+  reply:   FastifyReply
+): Promise<void> {
+  const { provider, apiKey } = request.body;
+
+  if (!apiKey || apiKey.trim().length === 0) {
+    return reply.status(400).send({
+      success: false,
+      error: { code: 'INVALID_KEY', message: 'apiKey must not be empty' },
+    });
+  }
+
+  if (provider === 'gemini') {
+    process.env['GEMINI_API_KEY'] = apiKey.trim();
+  } else if (provider === 'openai') {
+    process.env['OPENAI_API_KEY'] = apiKey.trim();
+  } else {
+    return reply.status(400).send({
+      success: false,
+      error: { code: 'UNSUPPORTED_PROVIDER', message: 'Key configuration is only supported for: gemini, openai' },
+    });
+  }
+
+  return reply.send({ success: true, data: { provider, keySet: true } });
 }
 
 /**

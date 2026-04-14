@@ -78,3 +78,145 @@ Return JSON:
     "{\n  \"summary\": \"You maintained a strong streak this week, completing 75% of your planned activities. Keep leveraging your momentum, especially in your financial goal, while focusing on balancing your efforts across all areas.\",\n  \"insights\": [\n    \"Your consistency is excellent, evidenced by the 6-day streak and the impressive 17-day longest streak.\",\n    \"The 'Save ₹1,000,000' goal is complete! This is a massive win and shows strong focus and discipline.\",\n    \"Activity volume was highest mid-week (April 10th and 13th), suggesting that planning for the middle of the week helps boost productivity.\",\n    \"The completion rate of 75% is solid, but the low number of planned activities (1) might be limiting overall growth.\"\n  ],\n  \"suggestions\": [\n    \"To capitalize on your momentum, try scheduling 2-3 smaller, non-critical activities on the weekends to maintain the habit loop.\",\n    \"Since the financial goal is complete, consider replacing it with a new, challenging goal to maintain high engagement and focus.\",\n    \"Review the progress on Python and running; scheduling specific, smaller blocks of time for these goals might improve the completion rate.\",\n    \"Aim to plan 3-4 activities next week to increase your overall activity count and push your completion rate above 80%.\"\n  ]\n}"
 
 ── STATUS: ✅  SUCCESS
+
+════════════════════════════════════════════════════════════════════════════════
+  2026-04-14 11:49:22  |  OLLAMA  |  parse-activity  |  2731ms
+════════════════════════════════════════════════════════════════════════════════
+
+── USER INPUT ──────────────────────────────────────────────────────────────────
+  "read 30 pages"
+
+── SYSTEM PROMPT SENT ──────────────────────────────────────────────────────────
+  You are an activity parser for a personal goal-tracking app called Polaris.
+  Your job: parse the user's natural-language input into a structured JSON object.
+  Respond ONLY with raw JSON — no markdown fences, no explanation, no prose.
+  Your response must start with { and end with }. Nothing else.
+  
+  ━━━ CRITICAL RULES ━━━
+  1. Output ONLY the JSON object. No text before or after it. No "Here is the JSON:".
+  2. All field names must be exactly as specified. No extra fields.
+  3. "value" must be a number (integer or decimal) OR null — never a string.
+  4. "activityType" must be exactly one of: "quantity", "duration", "completion".
+  5. "intent" must be exactly one of: "log_activity", "create_goal", "query".
+  6. If activityType is "completion", value and unit MUST both be null.
+  7. If activityType is "quantity" or "duration" and you found a number, value must NOT be null.
+  
+  ━━━ INTENT DETECTION ━━━
+  First classify the user's intent:
+  "log_activity" — user is reporting something they did: "ran 5km", "slept 7 hours", "read 30 pages"
+  "create_goal"  — user wants to set a new goal: "I want to run 10k every week", "I want to set a goal", "I plan to save ₹10000 this month"
+  "query"        — user is asking a question: "how am I doing?", "what's my streak?"
+  Set intent in the response JSON.
+  
+  ━━━ ACTIVITY TYPE RULES ━━━
+  Use "duration" when the input mentions time spent: hours, minutes, hrs, mins, "for X time".
+  Use "quantity" when the input has a countable measure: pages, km, miles, steps, reps, sets, books, chapters, words, rupees, dollars, sessions, lessons.
+  Use "completion" when there is no quantity or time — just that something was done: meditated, did yoga, journaled, completed a workout.
+  Default to "quantity" only if truly ambiguous and there IS a number.
+  
+  ━━━ PRE-LOADED DOMAIN KNOWLEDGE ━━━
+  Reading   → pages, books, chapters        → quantity
+  Running   → km, miles, steps              → quantity
+  Walking   → km, miles, steps              → quantity
+  Cycling   → km, minutes                   → quant
+
+── USER PROMPT SENT ────────────────────────────────────────────────────────────
+  Parse this activity: "read 30 pages"
+  
+  Active goals:
+    {"id":"7368a51d-a833-4d66-a42e-9923dedbfe6c","title":"Study daily for 100 days","unit":"Days"}
+    {"id":"e04f4b98-0ef6-4dd3-b71e-d0a7359ddc72","title":"[Seed] Read 7200 pages this year","unit":"pages"}
+    {"id":"8aaf2226-5e5f-4ed9-95a1-4a813d925918","title":"[Seed] Run 500 km this year","unit":"km"}
+    {"id":"f7f94693-7664-4cf0-95ab-aa72c3ede893","title":"[Seed] Save ₹1,00,000 this year","unit":"₹"}
+    {"id":"13e3d431-d665-4a40-8622-ac934fb2585e","title":"[Seed] Study Python — 100 hours","unit":"hours"}
+  
+  Return a JSON object with exactly these fields (no other text):
+  {
+    "intent": "log_activity" or "create_goal" or "query",
+    "title": "clean capitalized title under 60 chars",
+    "activityType": "quantity" or "duration" or "completion",
+    "value": number or null,
+    "unit": "string" or null,
+    "suggestedGoalId": "goal id" or null,
+    "suggestedGoalTitle": "goal title" or null,
+    "confidence": 0.0 to 1.0
+  }
+
+── RAW RESPONSE FROM OLLAMA ────────────────────────────────────────────────────
+  {"error":"model requires more system memory (9.8 GiB) than is available (5.7 GiB)"}
+
+── PARSED RESULT ───────────────────────────────────────────────────────────────
+    (null — parse failed or mock provider)
+
+── STATUS: ❌  FAILED — HTTP 500 Internal Server Error
+
+════════════════════════════════════════════════════════════════════════════════
+  2026-04-14 11:49:41  |  OLLAMA  |  parse-activity  |  2621ms
+════════════════════════════════════════════════════════════════════════════════
+
+── USER INPUT ──────────────────────────────────────────────────────────────────
+  "read 30 pages"
+
+── SYSTEM PROMPT SENT ──────────────────────────────────────────────────────────
+  You are an activity parser for a personal goal-tracking app called Polaris.
+  Your job: parse the user's natural-language input into a structured JSON object.
+  Respond ONLY with raw JSON — no markdown fences, no explanation, no prose.
+  Your response must start with { and end with }. Nothing else.
+  
+  ━━━ CRITICAL RULES ━━━
+  1. Output ONLY the JSON object. No text before or after it. No "Here is the JSON:".
+  2. All field names must be exactly as specified. No extra fields.
+  3. "value" must be a number (integer or decimal) OR null — never a string.
+  4. "activityType" must be exactly one of: "quantity", "duration", "completion".
+  5. "intent" must be exactly one of: "log_activity", "create_goal", "query".
+  6. If activityType is "completion", value and unit MUST both be null.
+  7. If activityType is "quantity" or "duration" and you found a number, value must NOT be null.
+  
+  ━━━ INTENT DETECTION ━━━
+  First classify the user's intent:
+  "log_activity" — user is reporting something they did: "ran 5km", "slept 7 hours", "read 30 pages"
+  "create_goal"  — user wants to set a new goal: "I want to run 10k every week", "I want to set a goal", "I plan to save ₹10000 this month"
+  "query"        — user is asking a question: "how am I doing?", "what's my streak?"
+  Set intent in the response JSON.
+  
+  ━━━ ACTIVITY TYPE RULES ━━━
+  Use "duration" when the input mentions time spent: hours, minutes, hrs, mins, "for X time".
+  Use "quantity" when the input has a countable measure: pages, km, miles, steps, reps, sets, books, chapters, words, rupees, dollars, sessions, lessons.
+  Use "completion" when there is no quantity or time — just that something was done: meditated, did yoga, journaled, completed a workout.
+  Default to "quantity" only if truly ambiguous and there IS a number.
+  
+  ━━━ PRE-LOADED DOMAIN KNOWLEDGE ━━━
+  Reading   → pages, books, chapters        → quantity
+  Running   → km, miles, steps              → quantity
+  Walking   → km, miles, steps              → quantity
+  Cycling   → km, minutes                   → quant
+
+── USER PROMPT SENT ────────────────────────────────────────────────────────────
+  Parse this activity: "read 30 pages"
+  
+  Active goals:
+    {"id":"7368a51d-a833-4d66-a42e-9923dedbfe6c","title":"Study daily for 100 days","unit":"Days"}
+    {"id":"e04f4b98-0ef6-4dd3-b71e-d0a7359ddc72","title":"[Seed] Read 7200 pages this year","unit":"pages"}
+    {"id":"8aaf2226-5e5f-4ed9-95a1-4a813d925918","title":"[Seed] Run 500 km this year","unit":"km"}
+    {"id":"f7f94693-7664-4cf0-95ab-aa72c3ede893","title":"[Seed] Save ₹1,00,000 this year","unit":"₹"}
+    {"id":"13e3d431-d665-4a40-8622-ac934fb2585e","title":"[Seed] Study Python — 100 hours","unit":"hours"}
+  
+  Return a JSON object with exactly these fields (no other text):
+  {
+    "intent": "log_activity" or "create_goal" or "query",
+    "title": "clean capitalized title under 60 chars",
+    "activityType": "quantity" or "duration" or "completion",
+    "value": number or null,
+    "unit": "string" or null,
+    "suggestedGoalId": "goal id" or null,
+    "suggestedGoalTitle": "goal title" or null,
+    "confidence": 0.0 to 1.0
+  }
+
+── RAW RESPONSE FROM OLLAMA ────────────────────────────────────────────────────
+  {"error":"model requires more system memory (7.2 GiB) than is available (6.1 GiB)"}
+
+── PARSED RESULT ───────────────────────────────────────────────────────────────
+    (null — parse failed or mock provider)
+
+── STATUS: ❌  FAILED — HTTP 500 Internal Server Error

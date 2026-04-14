@@ -31,7 +31,9 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 // AI config hooks
-const mockSetAiModel = vi.fn().mockResolvedValue(undefined);
+const mockSetAiModel    = vi.fn().mockResolvedValue(undefined);
+const mockSetAiProvider = vi.fn().mockResolvedValue(undefined);
+const mockSetApiKey     = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/hooks/useAiConfig', () => ({
   useAiConfig: () => ({
@@ -44,6 +46,14 @@ vi.mock('@/hooks/useAiConfig', () => ({
   }),
   useSetAiModel: () => ({
     mutateAsync: mockSetAiModel,
+    isPending:   false,
+  }),
+  useSetAiProvider: () => ({
+    mutateAsync: mockSetAiProvider,
+    isPending:   false,
+  }),
+  useSetApiKey: () => ({
+    mutateAsync: mockSetApiKey,
     isPending:   false,
   }),
 }));

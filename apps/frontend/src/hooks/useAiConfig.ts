@@ -86,3 +86,31 @@ export function useSetAiModel() {
     },
   });
 }
+
+/**
+ * Mutation: switch the active AI provider at runtime.
+ * Calls POST /api/ai/config with { provider } and refetches config.
+ */
+export function useSetAiProvider() {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (provider: string) => {
+      await api.post('/ai/config', { provider });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: aiConfigKeys.config() });
+    },
+  });
+}
+
+/**
+ * Mutation: set a provider API key at runtime (stored in process.env only — lost on server restart).
+ * Calls POST /api/ai/config/key with { provider, apiKey }.
+ */
+export function useSetApiKey() {
+  return useMutation<void, Error, { provider: string; apiKey: string }>({
+    mutationFn: async ({ provider, apiKey }) => {
+      await api.post('/ai/config/key', { provider, apiKey });
+    },
+  });
+}

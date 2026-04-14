@@ -25,7 +25,8 @@ import { MorningBanner } from './components/MorningBanner';
 import { WeeklyReview } from './components/screens/WeeklyReview';
 import { OnboardingModal } from './components/OnboardingModal';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
-import { AssistantPanel, AssistantToggle } from './components/assistant/AssistantPanel';
+import { AssistantPanel } from './components/assistant/AssistantPanel';
+import { AssistantAvatar } from './components/assistant/AssistantAvatar';
 import { StartupBriefing } from './components/assistant/StartupBriefing';
 import { useAssistantStore } from './stores/assistant.store';
 import { useGoals } from './hooks/useGoals';
@@ -211,7 +212,7 @@ export default function App() {
         isDark={navState.theme === 'dark'}
         onNavigate={navigate}
       />
-      <AssistantToggle isDark={navState.theme === 'dark'} />
+      <AssistantAvatar isDark={navState.theme === 'dark'} />
       {/* Startup briefing — shown once per day, before anything else */}
       <AnimatePresence>
         {showBriefing && (

@@ -150,8 +150,8 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
 
   /**
    * POST /api/ai/config
-   * Update the active Ollama model at runtime (no restart required).
-   * Body: { model: string }
+   * Update the active provider and/or model at runtime (no restart required).
+   * Body: { provider?: string, model?: string } — at least one must be provided.
    */
   app.post(
     '/config',
@@ -159,15 +159,39 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
       schema: {
         body: {
           type: 'object',
-          required: ['model'],
           additionalProperties: false,
           properties: {
-            model: { type: 'string', minLength: 1, maxLength: 200 },
+            provider: { type: 'string', minLength: 1, maxLength: 50 },
+            model:    { type: 'string', minLength: 1, maxLength: 200 },
           },
         },
       },
     },
     AIController.setAiConfigHandler
+  );
+
+  /**
+   * POST /api/ai/config/key
+   * Set a provider API key at runtime (stored in process.env only — not persisted to disk).
+   * Intended for local-dev convenience — key is lost on server restart.
+   * Body: { provider: 'gemini' | 'openai', apiKey: string }
+   */
+  app.post(
+    '/config/key',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['provider', 'apiKey'],
+          additionalProperties: false,
+          properties: {
+            provider: { type: 'string', enum: ['gemini', 'openai'] },
+            apiKey:   { type: 'string', minLength: 1, maxLength: 500 },
+          },
+        },
+      },
+    },
+    AIController.setApiKeyHandler
   );
 
   /**
