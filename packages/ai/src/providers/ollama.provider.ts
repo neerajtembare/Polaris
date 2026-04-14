@@ -9,9 +9,9 @@
 
 import type { AIActivityParse } from '@polaris/shared';
 import type { AIProvider, GoalContext } from '../types.js';
-import { buildActivityParseUserPrompt, ACTIVITY_PARSE_SYSTEM_PROMPT, buildFewShotActivityParseUserPrompt } from '../prompts/activity-parse.js';
-import { parseAndValidateActivityResponse } from '../utils/validateResponse.js';
-import { logAiExchange } from '../utils/aiLogger.js';
+import { buildActivityParseUserPrompt, ACTIVITY_PARSE_SYSTEM_PROMPT, buildFewShotActivityParseUserPrompt } from '../prompts/activity-parse.prompt.js';
+import { parseAndValidateActivityResponse } from '../utils/validate-response.js';
+import { logAiExchange } from '../utils/ai-logger.js';
 import { getMockProvider } from './index.js';
 
 // ---------------------------------------------------------------------------

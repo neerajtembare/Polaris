@@ -17,8 +17,8 @@
  */
 
 import type { PolarisContext, DailyCoachResponse, CoachSuggestion } from '@polaris/shared';
-import type { AIProvider } from './types.js';
-import { DAILY_COACH_SYSTEM_PROMPT, buildDailyCoachPrompt } from './prompts/daily-coach.js';
+import type { AIProvider } from '../types.js';
+import { DAILY_COACH_SYSTEM_PROMPT, buildDailyCoachPrompt } from '../prompts/daily-coach.prompt.js';
 import { getQuoteForToday } from './fallback-quotes.js';
 
 // ---------------------------------------------------------------------------

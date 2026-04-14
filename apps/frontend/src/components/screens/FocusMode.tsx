@@ -32,16 +32,16 @@ import {
   Loader2,
   Music,
 } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { useFocusTimer, formatTime } from '../hooks/useFocusTimer';
+import { cn } from '@/lib/utils';
+import { useFocusTimer, formatTime } from '@/hooks/useFocusTimer';
 import {
   useStartFocusSession,
   useCompleteSession,
   useAbandonSession,
-} from '../hooks/useFocusSessions';
-import { useGoals } from '../hooks/useGoals';
-import { useAudioPlayer, PRESET_STREAMS } from '../stores/audioPlayer.store';
-import type { Theme } from '../types/navigation';
+} from '@/hooks/useFocusSessions';
+import { useGoals } from '@/hooks/useGoals';
+import { useAudioPlayer, PRESET_STREAMS } from '@/stores/audioPlayer.store';
+import type { Theme } from '@/types/navigation';
 import type { FocusSession } from '@polaris/shared';
 
 // ---------------------------------------------------------------------------

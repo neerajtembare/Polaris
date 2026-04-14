@@ -5,9 +5,9 @@
  */
 
 import type { AIProvider, GoalContext } from '../types.js';
-import { MockProvider } from './mock.js';
-import { OpenAIProvider } from './openai.js';
-import { OllamaProvider } from './ollama.js';
+import { MockProvider } from './mock.provider.js';
+import { OpenAIProvider } from './openai.provider.js';
+import { OllamaProvider } from './ollama.provider.js';
 
 export type { AIProvider, GoalContext };
 

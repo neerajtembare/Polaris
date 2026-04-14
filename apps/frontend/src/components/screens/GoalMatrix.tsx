@@ -32,9 +32,9 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import ReactiveCard from './ui/ReactiveCard';
-import GoalConstellation from './3d/GoalConstellation';
-import { ConfirmModal } from './ui/ConfirmModal';
+import ReactiveCard from '../ui/ReactiveCard';
+import GoalConstellation from '../3d/GoalConstellation';
+import { ConfirmModal } from '../ui/ConfirmModal';
 import { useGoals, useCreateGoal, useDeleteGoal } from '@/hooks/useGoals';
 import { useDormantGoals } from '@/hooks/useDormantGoals';
 import type { GoalWithProgress } from '@polaris/shared';

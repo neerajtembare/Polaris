@@ -79,7 +79,7 @@ vi.mock('../../components/ui/ReactiveCard.js', () => ({
     React.createElement('div', { className }, children),
 }));
 
-import Settings from '../../components/Settings.js';
+import Settings from '../../components/screens/Settings.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

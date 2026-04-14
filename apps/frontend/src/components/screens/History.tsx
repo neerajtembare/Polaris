@@ -23,8 +23,8 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useActivities, useUpdateActivity, useDeleteActivity } from '@/hooks/useActivities';
 import { api } from '@/services/api';
-import { ActivityCard } from './activities/ActivityCard';
-import { LogActivityForm } from './activities/LogActivityForm';
+import { ActivityCard } from '../activities/ActivityCard';
+import { LogActivityForm } from '../activities/LogActivityForm';
 import type { ActivityStatus } from '@polaris/shared';
 import type { Theme, ScreenId } from '@/types/navigation';
 

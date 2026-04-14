@@ -36,7 +36,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import ReactiveCard from './ui/ReactiveCard';
+import ReactiveCard from '../ui/ReactiveCard';
 import { useAiConfig, useOllamaModels, useSetAiModel } from '@/hooks/useAiConfig';
 import { useAiParse } from '@/hooks/useAiParse';
 import { useAudioPlayer, PRESET_STREAMS } from '@/stores/audioPlayer.store';

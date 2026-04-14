@@ -162,5 +162,6 @@ export async function assemblePolarisContext(): Promise<PolarisContext> {
     longestStreak: longest,
     timeOfDay: getTimeOfDay(),
     dayOfWeek: dayOfWeekStr(),
+    currentDate: new Date().toISOString().split('T')[0] as string,
   };
 }

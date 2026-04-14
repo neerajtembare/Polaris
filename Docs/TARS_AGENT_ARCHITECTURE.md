@@ -1,7 +1,7 @@
 # Polaris — TARS Agent Architecture
-> **Version:** 1.0 | **April 2026**  
-> **Scope:** AI Assistant system — agents, tools, context, memory, UI, voice  
-> **Prerequisite:** Phase 3 complete, Gemma 4 e4b running, Postgres on Railway
+> **Version:** 2.0 | **April 14, 2026**  
+> **Scope:** AI Assistant system — providers, actions, context, UI, voice  
+> **Status:** Foundation restructure complete. Sprint 0 next.
 
 ---
 
@@ -9,17 +9,18 @@
 
 1. [Vision & Philosophy](#1-vision--philosophy)
 2. [Architecture Overview](#2-architecture-overview)
-3. [Agent Inventory](#3-agent-inventory)
-4. [Tool Definitions](#4-tool-definitions)
-5. [Context & Memory Strategy](#5-context--memory-strategy)
-6. [File Structure](#6-file-structure)
-7. [Backend — New Endpoints](#7-backend--new-endpoints)
-8. [Frontend — Component Architecture](#8-frontend--component-architecture)
-9. [Voice Strategy (Input + Output)](#9-voice-strategy-input--output)
-10. [Three.js Avatar](#10-threejs-avatar)
-11. [Build Order](#11-build-order)
-12. [Critical Gotchas](#12-critical-gotchas)
-13. [Research Spikes Needed](#13-research-spikes-needed)
+3. [Provider Architecture (Multi-LLM)](#3-provider-architecture-multi-llm)
+4. [Action Registry Pattern](#4-action-registry-pattern)
+5. [Intent Routing & Dispatch](#5-intent-routing--dispatch)
+6. [Context & Memory Strategy](#6-context--memory-strategy)
+7. [File Structure](#7-file-structure)
+8. [Backend — Endpoints](#8-backend--endpoints)
+9. [Frontend — Component Architecture](#9-frontend--component-architecture)
+10. [Voice Strategy](#10-voice-strategy)
+11. [Three.js Avatar](#11-threejs-avatar)
+12. [Build Order (Revised)](#12-build-order-revised)
+13. [Critical Gotchas](#13-critical-gotchas)
+14. [Architecture Decisions Log](#14-architecture-decisions-log)
 
 ---
 
@@ -48,26 +49,34 @@ User speaks/types
        │
        ▼
 ┌─────────────────────────────────┐
-│  Command Dispatcher             │  ← Is this a fixed command?
+│  Command Matcher (client-side)  │  ← Is this a fixed command?
 │  (pattern match, no LLM)        │    play music, stop, navigate
 └────────────┬────────────────────┘
              │ No match
              ▼
 ┌─────────────────────────────────┐
-│  Intent Router                  │  ← What kind of request?
-│  (lightweight classification)   │    log | goal | query | chat
+│  POST /api/ai/chat              │
+│  Backend receives raw message   │
 └────────────┬────────────────────┘
              │
              ▼
 ┌─────────────────────────────────┐
-│  Specialist Agent               │  ← Gemma 4 with relevant tools
-│  (activity / goal / query)      │    + PolarisContext injected
+│  Intent Router (heuristic-first)│  ← Keyword match 80% of cases
+│  Falls back to LLM classify     │    log | goal | query | chat
 └────────────┬────────────────────┘
              │
              ▼
 ┌─────────────────────────────────┐
-│  Tool Call Handler              │
-│  Read ops → execute immediately │
+│  LLM Call (with tools)          │  ← Gemini / Ollama / Groq
+│  + PolarisContext injected      │    Function calling for writes
+│  + TARS persona system prompt   │    Text response for reads
+└────────────┬────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────┐
+│  Action Executor                │
+│  Tool call → TARSAction type    │
+│  Read ops → respond immediately │
 │  Write ops → confirm card first │
 └────────────┬────────────────────┘
              │
@@ -88,11 +97,24 @@ User speaks/types
 | Delete anything | Always confirm, no auto-accept |
 | Create goal | Always confirm, user can edit before saving |
 
-This is the right balance. Fast where trust is earned, careful where it matters.
-
 ---
 
 ## 2. Architecture Overview
+
+### v1.0 → v2.0 Changes
+
+The original doc proposed 6 specialized "Agent" classes (CommandAgent, BriefingAgent,
+ActivityAgent, GoalsAgent, QueryAgent, DispatcherAgent). After codebase analysis,
+this was simplified:
+
+| v1.0 | v2.0 | Reason |
+|------|------|--------|
+| 6 Agent classes | 3 functions + 1 LLM call | Agents were just prompt templates with `if/else` routing. Classes added indirection without value. |
+| `AIProvider` with only `parse()` | `AIProvider` with `chat()` + `chatStream()` + `parse()` | TARS needs conversational + streaming + function-calling. One interface, all providers implement it. |
+| `callProviderText()` as 2nd LLM path | Eliminated — all calls route through provider | Two code paths = two places to add Gemini, two places to fix bugs. |
+| Groq as testing provider | **Gemini as primary cloud** (Groq as future option) | Gemini API key already works. Function calling, streaming, multi-turn all verified. |
+| Streaming hardcoded in controller (Ollama-only) | Streaming abstracted in provider interface | Each provider implements `chatStream()` → returns `AsyncIterable<string>` |
+| Agent "tools" = Gemma function calling | **Action Registry** = typed union `TARSAction` | TARS understands input → maps to typed action → calls existing API hooks. No new CRUD layer. |
 
 ### System Diagram
 
@@ -109,8 +131,9 @@ This is the right balance. Fast where trust is earned, careful where it matters.
 │                                     │                        │
 │  ┌──────────────────────────────────▼──────────────────┐    │
 │  │ useAssistant hook                                    │    │
-│  │  - sends messages to backend                        │    │
-│  │  - handles tool execution on frontend               │    │
+│  │  - command matcher (client-side, no API call)       │    │
+│  │  - sends non-command messages to backend            │    │
+│  │  - handles TARSAction execution on frontend         │    │
 │  │  - manages conversation history (Zustand)           │    │
 │  └──────────────────────────────────────────────────────┘    │
 └─────────────────────────────────┬────────────────────────────┘
@@ -120,615 +143,807 @@ This is the right balance. Fast where trust is earned, careful where it matters.
 │                                                               │
 │  POST /api/ai/chat          ← main conversational endpoint   │
 │  GET  /api/ai/briefing      ← startup briefing (SSE)         │
-│  POST /api/ai/command       ← fixed command fast path        │
 │                                                               │
 │  ┌────────────────────────────────────────────────────┐     │
-│  │ packages/ai/src/agents/                            │     │
-│  │   dispatcher.agent.ts   ← routes to specialist    │     │
-│  │   briefing.agent.ts     ← startup briefing        │     │
-│  │   activity.agent.ts     ← log/create activities   │     │
-│  │   goals.agent.ts        ← goal operations         │     │
-│  │   query.agent.ts        ← read/insights           │     │
-│  │   command.agent.ts      ← no-LLM fixed commands   │     │
+│  │ Flow: chat request                                  │     │
+│  │  1. Assemble PolarisContext from DB                │     │
+│  │  2. classifyIntent() — heuristic first, LLM fallback│     │
+│  │  3. Build system prompt (TARS persona + context)   │     │
+│  │  4. provider.chat() with tool schemas if write intent│     │
+│  │  5. If tool_call → wrap as TARSAction → return     │     │
+│  │  6. If text → return response string               │     │
 │  └────────────────────────────────────────────────────┘     │
 │                                                               │
 │  ┌────────────────────────────────────────────────────┐     │
-│  │ packages/ai/src/context/                           │     │
-│  │   buildContext.ts       ← assembles PolarisContext │     │
+│  │ Provider Layer (packages/ai/src/providers/)         │     │
+│  │  gemini.provider.ts  ← PRIMARY (cloud, fast)       │     │
+│  │  ollama.provider.ts  ← LOCAL (Gemma 4 e4b)         │     │
+│  │  openai.provider.ts  ← EXISTING (GPT-4o-mini)      │     │
+│  │  mock.provider.ts    ← TESTING                      │     │
+│  │  (groq.provider.ts)  ← FUTURE                      │     │
 │  └────────────────────────────────────────────────────┘     │
-│                                                               │
-│  Gemma 4 e4b via Ollama (local)                              │
-│  Groq fallback for testing (cloud, fast)                     │
-│  Mock for tests                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### What Runs When
 
-| Event | Trigger | Agent | LLM? |
-|-------|---------|-------|------|
-| App opens (first daily) | Auto, 1x/day | BriefingAgent | Yes, streamed |
-| User types/speaks | Manual | Dispatcher → Specialist | Depends |
-| Fixed command detected | Pattern match | CommandAgent | No |
-| "log 30 pages" | SmartInputBar | ActivityAgent | Maybe (NLP first) |
-| "create goal" | User intent | GoalsAgent | Yes |
-| "how am I doing?" | User intent | QueryAgent | Yes |
-| Activity confirmed | User taps Accept | Standard CRUD endpoint | No |
+| Event | Trigger | Path | LLM? |
+|-------|---------|------|------|
+| App opens (first daily) | Auto, 1x/day | GET /briefing → provider.chatStream() | Yes, streamed |
+| Fixed command detected | Pattern match on client | CommandMatcher → action executor | No |
+| "log 30 pages" (high confidence) | SmartInputBar NLP | Existing parse endpoint → ActivityAgent | Maybe |
+| "log 30 pages" (via TARS) | Chat panel | POST /chat → provider.chat() with tools  | Yes |
+| "how am I doing?" | Chat panel | POST /chat → provider.chat() (no tools) | Yes |
+| Activity confirmed | User taps Accept | Existing POST /activities endpoint | No |
 
 ---
 
-## 3. Agent Inventory
+## 3. Provider Architecture (Multi-LLM)
 
-### 3.1 CommandAgent — Zero LLM, Pattern Matching Only
+### The Problem with v1.0
 
-Handles all fixed, unambiguous commands. No Gemma call. Response time: <50ms.
+The existing `AIProvider` interface has only one method:
 
-**Input:** raw text string  
-**Output:** `CommandResult { action: string, params: object, executed: boolean }`
+```typescript
+interface AIProvider {
+  readonly name: string;
+  parse(rawInput: string, goals: GoalContext[]): Promise<AIActivityParse>;
+}
+```
 
-**Command registry (examples — expand as needed):**
+This is too narrow. TARS needs:
+- **Chat** — multi-turn conversation with system prompt + tool schemas
+- **Streaming** — SSE for briefings and long responses
+- **Function calling** — LLM returns structured tool calls, not just text
+
+Additionally, `callProviderText()` in `utils/` is a second, independent LLM calling
+path that duplicates provider selection logic. Every new provider must be added in
+two places. This gets eliminated.
+
+### Expanded AIProvider Interface
+
+```typescript
+/** Message in a conversation */
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+/** Tool/function schema for LLM function calling */
+interface ToolSchema {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+/** Structured tool call returned by the LLM */
+interface ToolCall {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+/** Result of a chat() call */
+interface ChatResult {
+  text: string | null;
+  toolCall: ToolCall | null;
+  provider: string;
+  latencyMs: number;
+}
+
+/** All AI providers implement this */
+interface AIProvider {
+  readonly name: string;
+
+  /** Existing — parse a natural-language activity description */
+  parse(rawInput: string, goals: GoalContext[]): Promise<AIActivityParse>;
+
+  /** Chat — send messages, optionally with tool schemas, get response */
+  chat(
+    messages: ChatMessage[],
+    options?: { tools?: ToolSchema[]; temperature?: number; maxTokens?: number }
+  ): Promise<ChatResult>;
+
+  /** Stream — same as chat() but yields text chunks for typewriter effect */
+  chatStream(
+    messages: ChatMessage[],
+    options?: { temperature?: number; maxTokens?: number }
+  ): AsyncIterable<string>;
+}
+```
+
+### Provider Inventory
+
+| Provider | Status | Use Case | Speed | Limits (free tier) |
+|----------|--------|----------|-------|--------------------|
+| **Gemini** (`gemini.provider.ts`) | **BUILD NOW** | Primary cloud provider. Function calling + streaming verified. | ~1-3s | See model ladder below |
+| **Ollama** (`ollama.provider.ts`) | **UPGRADE** | Local inference with Gemma 4 e4b. Add `chat()` + `chatStream()`. | 72-278s | Unlimited (local) |
+| **OpenAI** (`openai.provider.ts`) | **UPGRADE** | Existing. Add `chat()` + `chatStream()`. | ~2-5s | Paid |
+| **Mock** (`mock.provider.ts`) | **UPGRADE** | Unit tests. Return canned responses. | instant | N/A |
+| **Groq** (`groq.provider.ts`) | **FUTURE** | Free tier, llama-3.3-70b. OpenAI-compatible API. | ~0.5-1s | TBD |
+
+### Ollama Latency Reality Check (from ai-logs)
+
+Measured latency from actual Polaris usage (April 2026, Gemma 4 e4b local):
+
+| Operation | Range | Notes |
+|-----------|-------|-------|
+| parse-activity | 125–278s | Successful calls |
+| AnalyzeWeek | 72–192s | Successful calls |
+| Timeouts | 300s (×5) | TCP-level timeout, fetch failed |
+
+**Verdict:** Ollama is unusable for TARS chat. A 2-5 minute wait per response
+kills any conversational flow. Ollama stays as an offline fallback (batch
+operations like weekly analysis where latency is tolerable), but Gemini is
+the primary provider for all interactive/chat features.
+
+### Gemini Model Ladder (Free Tier Rate Limits)
+
+| Model | RPM | RPD | TPM | Function Calling | Use For |
+|-------|-----|-----|-----|-----------------|----------|
+| `gemma-4-26b-a4b-it` | 15 | **1,500** | Unlimited | ✅ Verified | **Default — daily dev** |
+| `gemini-3.1-flash-lite-preview` | 15 | **500** | 250K | ✅ Expected | High-volume when stable |
+| `gemini-2.5-flash` | 5 | **20** | 250K | ✅ Verified | Quality testing only |
+| `gemini-3-flash-preview` | 5 | **20** | 250K | ✅ Verified | Quality testing only |
+| `gemini-2.5-pro` | 0 | **0** | 0 | N/A | Not available free tier |
+
+**Default model: `gemma-4-26b-a4b-it`** — 1,500 RPD is enough for full
+development sessions. Same Gemma 4 architecture as local Ollama but cloud-hosted
+and fast (~2-5s). Swap to `gemini-2.5-flash` via env var when you need
+higher-quality reasoning (but watch the 20 RPD limit).
+
+### Gemini Provider — Implementation Details
+
+**Verified capabilities (April 14, 2026):**
+- ✅ Basic generation (`generateContent`)
+- ✅ Function calling (`tools[].functionDeclarations` → returns `functionCall` object)
+- ✅ SSE streaming (`streamGenerateContent?alt=sse`)
+- ✅ Multi-turn chat (`contents[]` with `role: user/model`)
+- ✅ System instructions (`systemInstruction.parts[].text`)
+- ✅ Available models: `gemini-2.5-flash` (fast), `gemini-2.5-pro` (powerful), `gemini-3-flash-preview`
+
+**Recommended models (see Model Ladder below for rate limits):**
+- **Default (dev):** `gemma-4-26b-a4b-it` — 1,500 RPD, function calling verified
+- **Quality testing:** `gemini-2.5-flash` — best reasoning, but only 20 RPD
+- **High volume (when stable):** `gemini-3.1-flash-lite-preview` — 500 RPD
+
+**API shape:**
+```typescript
+// Non-streaming
+POST /v1beta/models/{model}:generateContent?key={key}
+{
+  contents: [{ role: 'user', parts: [{ text: '...' }] }],
+  systemInstruction: { parts: [{ text: '...' }] },
+  tools: [{ functionDeclarations: [...] }]  // optional
+}
+
+// Streaming (SSE)
+POST /v1beta/models/{model}:streamGenerateContent?alt=sse&key={key}
+// Same body, returns `data: {...}\n\n` frames
+```
+
+**Key mapping:**
+```
+OpenAI/Ollama         Gemini
+─────────────         ──────
+messages[]            contents[]
+role: 'assistant'     role: 'model'
+system message        systemInstruction (separate field)
+functions/tools       tools[].functionDeclarations
+tool_calls            candidates[].content.parts[].functionCall
+```
+
+**Environment variables:**
+```bash
+AI_PROVIDER=gemini                # activate Gemini provider
+GEMINI_API_KEY=AIzaSy...          # API key (required)
+GEMINI_MODEL=gemma-4-26b-a4b-it  # model (default — 1,500 RPD)
+```
+
+**Just-works setup:** Set `AI_PROVIDER=gemini` and `GEMINI_API_KEY=<key>` in
+your `.env`. That's it. The default model (`gemma-4-26b-a4b-it`) has 1,500 RPD
+and function calling — no other configuration needed.
+
+### Provider Factory Update
+
+```typescript
+// packages/ai/src/providers/index.ts
+export function getProvider(): AIProvider {
+  const name = process.env['AI_PROVIDER'] ?? 'mock';
+  switch (name) {
+    case 'gemini':  return new GeminiProvider();
+    case 'ollama':  return new OllamaProvider();
+    case 'openai':  return new OpenAIProvider();
+    default:        return new MockProvider();
+  }
+}
+```
+
+### callProviderText Elimination Plan
+
+`callProviderText()` currently has its own provider routing (`if openai... if ollama...`).
+After the interface upgrade:
+
+```typescript
+// BEFORE (two LLM paths)
+const text = await callProviderText({ systemPrompt, userPrompt, ... });
+
+// AFTER (one path through provider)
+const result = await provider.chat([
+  { role: 'system', content: systemPrompt },
+  { role: 'user', content: userPrompt },
+], { temperature, maxTokens });
+const text = result.text;
+```
+
+Files that use `callProviderText()`:
+- `features/breakdown-goal.ts` → use `provider.chat()`
+- `features/analyze-week.ts` → use `provider.chat()`
+- `features/daily-coach.ts` → use `provider.chat()`
+
+This refactor happens in Sprint 0 alongside the Gemini provider build.
+
+---
+
+## 4. Action Registry Pattern
+
+### Why Not "Agent Tools"
+
+The v1.0 doc defined 6 Gemma function-calling tools (log_activity, plan_activity,
+create_goal_draft, etc.) that would create NEW CRUD operations. This is wrong.
+The app already has working API endpoints for all of these. TARS should not
+build a parallel data access layer.
+
+Instead: **TARS understands input → maps to a typed `TARSAction` → the frontend
+executes the action using existing hooks/API calls.**
+
+### The TARSAction Union Type
+
+This is the bridge between "LLM understood what you want" and "the app does it."
+
+```typescript
+/** All possible actions TARS can trigger */
+type TARSAction =
+  // Navigation
+  | { type: 'navigate'; screen: ScreenId }
+
+  // Audio
+  | { type: 'audio.play'; streamId?: string }
+  | { type: 'audio.stop' }
+  | { type: 'audio.next' }
+
+  // Focus session
+  | { type: 'focus.start'; goalId?: string }
+  | { type: 'focus.stop' }
+
+  // Activity (requires confirmation)
+  | { type: 'log_activity'; draft: ActivityDraft }
+  | { type: 'plan_activity'; draft: ActivityDraft }
+
+  // Goal (always requires confirmation)
+  | { type: 'create_goal'; draft: GoalDraft }
+
+  // Pure display (no mutation)
+  | { type: 'show_goals' }
+  | { type: 'show_streak' }
+
+interface ActivityDraft {
+  title: string;
+  activityType: 'quantity' | 'duration' | 'completion';
+  value?: number;
+  unit?: string;
+  goalId?: string;
+  goalTitle?: string;
+  date?: string;
+}
+
+interface GoalDraft {
+  title: string;
+  timeframe: 'long' | 'medium' | 'short';
+  targetValue?: number;
+  targetUnit?: string;
+  description?: string;
+}
+```
+
+### How Actions Flow
+
+```
+LLM returns functionCall     →  Backend validates with Zod
+                              →  Backend wraps as TARSAction
+                              →  Frontend receives action in chat response
+                              →  Frontend action executor runs it:
+
+action.type === 'navigate'       → call setScreen(action.screen)
+action.type === 'audio.play'     → call audioStore.play(action.streamId)
+action.type === 'log_activity'   → show ToolConfirmCard → on accept, call useCreateActivity()
+action.type === 'create_goal'    → show ToolConfirmCard → on accept, call useCreateGoal()
+```
+
+### LLM Tool Schemas (for function calling)
+
+When the intent is a write operation, the LLM gets these tool schemas so it can
+return structured `functionCall` output:
+
+```typescript
+const TARS_TOOLS: ToolSchema[] = [
+  {
+    name: 'log_activity',
+    description: 'Log a completed activity. Use when user says they did something.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title:        { type: 'string', description: 'Short activity title' },
+        activityType: { type: 'string', enum: ['quantity', 'duration', 'completion'] },
+        value:        { type: 'number', description: 'Numeric value if applicable' },
+        unit:         { type: 'string', description: 'Unit: pages, km, hours, minutes, etc' },
+        goalId:       { type: 'string', description: 'ID of related goal, or null' },
+        date:         { type: 'string', description: 'ISO date, default today' },
+      },
+      required: ['title', 'activityType'],
+    },
+  },
+  {
+    name: 'create_goal_draft',
+    description: 'Draft a new goal for user confirmation. Never saves automatically.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title:       { type: 'string' },
+        timeframe:   { type: 'string', enum: ['long', 'medium', 'short'] },
+        targetValue: { type: 'number' },
+        targetUnit:  { type: 'string' },
+        description: { type: 'string' },
+      },
+      required: ['title', 'timeframe'],
+    },
+  },
+];
+```
+
+**Key rule:** Tool schemas are only included when the intent classifier says the
+user wants to write something. For queries ("how am I doing?"), no tools are
+sent — the LLM just gets context and responds in natural language.
+
+### Command Matcher (Client-Side, Zero LLM)
+
+Fixed commands are matched on the frontend before any API call. This is just
+pattern matching — no ML, no network.
 
 ```typescript
 const COMMANDS = [
   // Audio
   { patterns: ['play music', 'play lofi', 'play something', 'start music'],
-    action: 'audio.play', params: { streamId: 'lofi' } },
+    action: { type: 'audio.play', streamId: 'lofi' } as TARSAction },
   { patterns: ['stop music', 'pause', 'mute', 'quiet'],
-    action: 'audio.stop', params: {} },
+    action: { type: 'audio.stop' } as TARSAction },
   { patterns: ['next track', 'change music', 'different music'],
-    action: 'audio.next', params: {} },
-  { patterns: ['play rain', 'rain sounds'],
-    action: 'audio.play', params: { streamId: 'rain' } },
-  { patterns: ['play focus', 'focus music', 'ambient'],
-    action: 'audio.play', params: { streamId: 'ambient' } },
+    action: { type: 'audio.next' } as TARSAction },
 
   // Navigation
   { patterns: ['go to goals', 'show goals', 'open goals'],
-    action: 'navigate', params: { screen: 'Goals' } },
+    action: { type: 'navigate', screen: 'Goals' } as TARSAction },
   { patterns: ['go home', 'home', 'dashboard', 'hub'],
-    action: 'navigate', params: { screen: 'Hub' } },
+    action: { type: 'navigate', screen: 'Hub' } as TARSAction },
   { patterns: ['insights', 'analytics', 'stats'],
-    action: 'navigate', params: { screen: 'Insights' } },
+    action: { type: 'navigate', screen: 'Insights' } as TARSAction },
   { patterns: ['focus mode', 'start focus', 'pomodoro'],
-    action: 'navigate', params: { screen: 'Focus' } },
-  { patterns: ['history', 'past activities'],
-    action: 'navigate', params: { screen: 'History' } },
+    action: { type: 'navigate', screen: 'Focus' } as TARSAction },
 
   // Session
   { patterns: ['start timer', 'start session', 'begin focus'],
-    action: 'focus.start', params: {} },
+    action: { type: 'focus.start' } as TARSAction },
   { patterns: ['stop timer', 'end session', 'done focusing'],
-    action: 'focus.stop', params: {} },
-]
+    action: { type: 'focus.stop' } as TARSAction },
+];
 ```
 
-**Matching logic:** normalize input (lowercase, strip punctuation), check if any pattern is a substring or close fuzzy match. If match confidence > 0.8, execute. Otherwise pass to Intent Router.
-
-This is intentionally dumb and fast. No ML, just string matching.
+Matching: normalize input (lowercase, strip punctuation), check substring.
+If no match → send to `/api/ai/chat`.
 
 ---
 
-### 3.2 BriefingAgent — Startup Coach
+## 5. Intent Routing & Dispatch
 
-Runs once per day on first app load. Streams a personalized morning briefing.
+### Why Not a Dispatcher "Agent"
 
-**Trigger:** App loads + `polaris:briefing-dismissed:YYYY-MM-DD` not set  
-**Input:** Full PolarisContext (assembled from DB)  
-**Output:** SSE stream of briefing text  
-**LLM:** Yes, Gemma 4 — streamed response
+The v1.0 doc proposed a DispatcherAgent class. In reality, intent classification
+is a single function — not a class with state. It runs a heuristic check first
+(no LLM needed for 80% of inputs), and only falls back to a lightweight LLM
+classification call for ambiguous inputs.
 
-**System Prompt:**
-```
-You are TARS, a productivity assistant in the Polaris app. 
-You are terse, precise, data-driven. You never use filler words. 
-Dark humor is acceptable. You know the user's goals and habits.
-Your briefings are 3-5 sentences max. Never longer.
-Format: plain text, no markdown, no bullet points.
-Always end with one specific actionable suggestion.
-```
+### Intent Types
 
-**User Prompt (template):**
-```
-Time: {{timeOfDay}} ({{dayOfWeek}})
-Streak: {{streak}} days (longest: {{longestStreak}})
-Today: {{completedToday}}/{{plannedToday}} activities done
-Goals: {{goalsSummary}}
-This week: {{weekSummary}}
-
-Write a personalized morning briefing.
-```
-
-**Output example:**
-> "7-day streak. Don't break it today. Reading goal is 68% complete — 
-> you're 3 sessions behind pace for the month. 2 activities planned. 
-> Suggest: 30 minutes of reading before dinner."
-
----
-
-### 3.3 ActivityAgent — Log & Create Activities
-
-Handles all activity logging from conversational input. Falls back to existing NLP parser first.
-
-**Trigger:** Intent Router detects `log_activity` or `create_activity`  
-**Input:** User message + PolarisContext (active goals for matching)  
-**Output:** `ActivityDraft` struct  
-**LLM:** Only if NLP confidence < 0.85
-
-**Tools available to this agent:**
-- `log_activity` — creates a completed activity
-- `plan_activity` — creates a planned activity for today/future
-- `get_goals` — fetch active goals for the dropdown
-
-**Human-in-loop:** Always shows `ToolConfirmCard` before saving. User can edit title, value, unit, goal before accepting.
-
-**Key behavior:** If user says "log 30 pages of Atomic Habits", NLP parser gets this with high confidence. Gemma is not called. Fast path. If user says "I was studying for like 2 hours kinda", NLP confidence is low → Gemma call with full context.
-
----
-
-### 3.4 GoalsAgent — Goal Operations
-
-Handles creating goals, showing goals, breaking down goals.
-
-**Trigger:** Intent Router detects `create_goal`, `show_goals`, `goal_breakdown`  
-**Input:** User message + PolarisContext  
-**Output:** `GoalDraft` or `GoalList` or `GoalBreakdown`  
-**LLM:** Yes for create/breakdown. No for show (direct DB query)
-
-**Tools available:**
-- `create_goal_draft` — returns a draft for confirmation
-- `list_goals` — read-only, returns current goals
-- `breakdown_goal` — uses existing breakdown endpoint
-
-**Human-in-loop:** Goal creation always shows confirm card. Read operations display inline in conversation thread.
-
----
-
-### 3.5 QueryAgent — Read-Only Insights
-
-Handles any question about user data. Never writes to DB.
-
-**Trigger:** Intent Router detects `query`  
-**Input:** User message + PolarisContext  
-**Output:** Natural language response (text only, no tool calls)  
-**LLM:** Yes, but with read-only context only
-
-**What it handles:**
-- "How am I doing this week?"
-- "What's my longest streak?"
-- "Which goal am I most behind on?"
-- "What did I do yesterday?"
-- "How many pages have I read this month?"
-
-**No tools** — QueryAgent just gets a rich PolarisContext and generates a natural language answer. It cannot mutate anything. If Gemma is offline, falls back to template-based answers from the context data directly.
-
----
-
-### 3.6 DispatcherAgent — Intent Router
-
-The brain that routes input to the right specialist. This is a lightweight call, not a heavy analysis.
-
-**Input:** User message  
-**Output:** `{ intent: IntentType, confidence: number, passToAgent: AgentName }`
-
-**Intent types:**
 ```typescript
-type IntentType = 
-  | 'command'        // → CommandAgent (pattern match first, no LLM)
-  | 'log_activity'   // → ActivityAgent
-  | 'create_goal'    // → GoalsAgent  
-  | 'show_goals'     // → GoalsAgent (read)
-  | 'query'          // → QueryAgent
-  | 'chat'           // → QueryAgent with conversational mode
-  | 'unknown'        // → QueryAgent with "I didn't understand" fallback
+type IntentType =
+  | 'log_activity'   // "I read 30 pages", "ran 5km today"
+  | 'create_goal'    // "I want to read more", "new goal: run 100km"
+  | 'query'          // "how am I doing?", "what's my streak?"
+  | 'chat'           // General conversation, unclear intent
+  | 'unknown'        // Truly ambiguous — ask for clarification
 ```
 
-**Implementation:** This can be done with a small classification prompt to Gemma, OR (better for speed) with a keyword-based heuristic first:
+Fixed commands (`play music`, `go to goals`) are handled client-side by the
+Command Matcher before the message ever hits the backend.
+
+### Heuristic-First Classification
 
 ```typescript
 function classifyIntent(input: string): IntentType {
-  const lower = input.toLowerCase()
-  
-  // Check fixed commands first (fastest)
-  if (CommandAgent.matches(lower)) return 'command'
-  
-  // Keyword heuristics (no LLM needed for most cases)
-  if (/\b(log|did|completed|finished|read|ran|studied|spent|saved|did)\b/.test(lower))
-    return 'log_activity'
-  if (/\b(create goal|new goal|add goal|set goal|want to)\b/.test(lower))
-    return 'create_goal'
-  if (/\b(show|list|see|view|my goals|all goals)\b/.test(lower))
-    return 'show_goals'
-  if (/\b(how|what|when|why|which|stats|streak|progress|behind|ahead)\b/.test(lower))
-    return 'query'
-  
-  // Fallback: one quick LLM classification call
-  return classifyWithLLM(input)
+  const lower = input.toLowerCase();
+
+  // Activity logging keywords
+  if (/\b(log(ged)?|did|completed|finished|read|ran|studied|spent|wrote|exercised|walked)\b/.test(lower))
+    return 'log_activity';
+
+  // Goal creation keywords
+  if (/\b(create goal|new goal|add goal|set goal|i want to|my goal is)\b/.test(lower))
+    return 'create_goal';
+
+  // Query keywords
+  if (/\b(how|what|when|why|which|stats|streak|progress|behind|ahead|show me|tell me)\b/.test(lower))
+    return 'query';
+
+  // Fallback: one lightweight LLM classification call
+  return 'chat';  // or call classifyWithLLM(input) for better accuracy
 }
 ```
 
-This means for 80% of inputs, there's no Gemma call at all for routing. Only ambiguous inputs hit the LLM classifier.
+### When to Include Tool Schemas
+
+| Intent | Tools sent to LLM? | Rationale |
+|--------|-------------------|-----------|
+| `log_activity` | Yes: `log_activity` | LLM extracts structured activity data |
+| `create_goal` | Yes: `create_goal_draft` | LLM extracts goal structure |
+| `query` | No | LLM just gets PolarisContext + responds in text |
+| `chat` | No | Conversational — no mutations |
+| `unknown` | No | Ask for clarification |
+
+### Clarification for Ambiguous Input
+
+If confidence < 0.5 (or the heuristic returns `unknown`), TARS asks:
+
+> "I'm not sure what you mean. Did you want to:
+> - Log an activity you did
+> - Create a new goal
+> - Ask about your progress"
+
+This is a canned response — no LLM call needed.
 
 ---
 
-## 4. Tool Definitions
+## 6. Context & Memory Strategy
 
-These are the Gemma 4 function-calling tool schemas. Keep to 6 max per agent call.
+### PolarisContext — Current State
 
-### Activity Tools
-
-```typescript
-const activityTools = [
-  {
-    name: "log_activity",
-    description: "Log a completed activity. Use when user says they did something.",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string", description: "Short activity title" },
-        activityType: { type: "string", enum: ["quantity", "duration", "completion"] },
-        value: { type: "number", description: "Numeric value if applicable" },
-        unit: { type: "string", description: "Unit: pages, km, hours, minutes, ₹, etc" },
-        goalId: { type: "string", description: "ID of related goal, or null" },
-        date: { type: "string", description: "ISO date, default today" }
-      },
-      required: ["title", "activityType"]
-    }
-  },
-  {
-    name: "plan_activity",
-    description: "Add a planned activity for today or future date.",
-    parameters: {
-      // same as log_activity but status will be 'planned'
-    }
-  },
-  {
-    name: "get_active_goals",
-    description: "Fetch the list of active goals with IDs for goal matching.",
-    parameters: { type: "object", properties: {} }
-  }
-]
-```
-
-### Goal Tools
-
-```typescript
-const goalTools = [
-  {
-    name: "create_goal_draft",
-    description: "Draft a new goal for user confirmation. Never saves automatically.",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        timeframe: { type: "string", enum: ["long", "medium", "short"] },
-        targetValue: { type: "number" },
-        targetUnit: { type: "string" },
-        description: { type: "string" }
-      },
-      required: ["title", "timeframe"]
-    }
-  },
-  {
-    name: "list_goals",
-    description: "Return the user's active goals.",
-    parameters: {
-      type: "object",
-      properties: {
-        status: { type: "string", enum: ["active", "all", "completed"] }
-      }
-    }
-  }
-]
-```
-
-### Query Tools — None Needed
-
-QueryAgent gets a rich context and responds in natural language. No tool calls needed. The PolarisContext IS the tool output.
-
----
-
-## 5. Context & Memory Strategy
-
-### Phase 1 — Single-Shot Context (Build This Now)
-
-Every AI call gets a fresh `PolarisContext` assembled from DB. No session memory. This covers 90% of use cases.
+Already defined in `@polaris/shared` (`types/ai.ts`):
 
 ```typescript
 interface PolarisContext {
-  // Who they are (behaviorally)
-  currentStreak: number
-  longestStreak: number
-  totalActivitiesAllTime: number
-  
-  // What they care about
   activeGoals: Array<{
-    id: string
-    title: string
-    timeframe: string
-    progressPercent: number
-    targetValue?: number
-    targetUnit?: string
-    lastActivityDaysAgo: number  // for dormancy
-  }>
-  
-  // What's happening today
-  todayPlanned: Array<{ title: string, goalTitle?: string }>
-  todayCompleted: Array<{ title: string, value?: number, unit?: string }>
-  todaySkipped: Array<{ title: string }>
-  
-  // Recent history
-  last7DaysSummary: Array<{
-    date: string
-    activitiesCompleted: number
-    goalsWorkedOn: string[]
-  }>
-  
-  // Meta
-  timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night'
-  dayOfWeek: string
-  currentDate: string
+    id: string;
+    title: string;
+    progress: number;       // 0–100
+    timeframe: string;
+  }>;
+  recentActivities: Array<{
+    title: string;
+    date: string;
+    type: string;
+  }>;
+  currentStreak: number;
+  longestStreak: number;
+  timeOfDay: TimeOfDay;
+  dayOfWeek: string;
+  currentDate: string;      // ← added in foundation cleanup
 }
 ```
 
-**Critical:** Cap this. Max 10 goals, max 7 days history, summarized not raw. A 90-day user with 20 goals will generate a context that blows Gemma's working memory if you're not careful.
+### PolarisContext — Fields Needed for TARS
 
-**Assembly location:** `packages/ai/src/context/buildContext.ts`  
-**Called by:** Every agent that needs it. Assembled once per request in the controller, passed down.
+The current context is sufficient for daily coaching but too thin for TARS.
+Enrich incrementally:
 
----
+```typescript
+// Phase 1 additions (Sprint 1)
+interface PolarisContext {
+  // ... existing fields ...
 
-### Phase 2 — Session Memory (Add After Phase 1 Works)
+  // What's happening today (needed for briefing)
+  todayPlanned: Array<{ title: string; goalTitle?: string }>;
+  todayCompleted: Array<{ title: string; value?: number; unit?: string }>;
 
-Conversation history stored in **Zustand** (frontend) for the current session. When user sends a message, the last N turns are included in the API call.
+  // Richer goal data (needed for goal-matching in activities)
+  activeGoals: Array<{
+    id: string;
+    title: string;
+    progress: number;
+    timeframe: string;
+    targetValue?: number;     // ← new
+    targetUnit?: string;      // ← new
+    lastActivityDaysAgo: number;  // ← new (dormancy detection)
+  }>;
+}
+
+// Phase 2 additions (Sprint 3+)
+interface PolarisContext {
+  // ... Phase 1 fields ...
+
+  totalActivitiesAllTime: number;
+  last7DaysSummary: Array<{
+    date: string;
+    activitiesCompleted: number;
+    goalsWorkedOn: string[];
+  }>;
+}
+```
+
+**Critical:** Cap everything. Max 10 goals, max 20 activities, max 7 days of
+history. A power user's uncapped context will overflow the LLM's useful working
+window even if it fits technically.
+
+### Context Assembly
+
+Currently: `assemblePolarisContext()` in `polaris-context.service.ts` (backend).
+This stays. New fields get added to the same function, one at a time.
+
+### Session Memory (Phase 2 — After Chat Works)
+
+Conversation history stored in Zustand (frontend). Last 6 turns sent with
+each `/api/ai/chat` request.
 
 ```typescript
 interface ConversationTurn {
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: number
-  toolCall?: { name: string, params: object, result: string }
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  action?: TARSAction;  // if TARS proposed an action
 }
 
-// Zustand store
-interface AssistantStore {
-  turns: ConversationTurn[]
-  addTurn: (turn: ConversationTurn) => void
-  clearHistory: () => void  // on panel close
-  sessionActive: boolean
-}
-```
-
-Send last 6 turns with each request (3 back-and-forth exchanges). Beyond that, context gets stale and confusing.
-
-**Backend payload:**
-```typescript
-// POST /api/ai/chat
+// POST /api/ai/chat payload
 {
   message: string,
   history: ConversationTurn[],  // last 6 turns
-  context: PolarisContext        // fresh each time
+  // context assembled server-side — never from frontend
 }
 ```
 
----
+### Persistent Memory (Future — Not Now)
 
-### Phase 3 — Persistent Memory (Future, After Testing)
+A `tars_memory` table storing extracted preferences/patterns. Only build this
+after chat works reliably for 2+ weeks. Don't over-engineer early.
 
-A `AssistantMemory` table in Postgres. Stores structured "facts" extracted from conversations.
+### TARS Persona System Prompt
 
-```sql
-AssistantMemory {
-  id          UUID
-  userId      String?
-  memoryType  String   -- 'preference' | 'pattern' | 'fact'
-  key         String   -- 'preferred_study_time'
-  value       String   -- 'evenings after 8pm'
-  source      String   -- conversation snippet that created this
-  confidence  Float
-  createdAt   DateTime
-  updatedAt   DateTime
-}
+Shared across all LLM calls:
+
+```
+You are TARS, a productivity assistant in the Polaris app.
+You are terse, precise, data-driven. You never use filler words.
+Dark humor is acceptable. You know the user's goals and habits.
+Keep responses under 4 sentences unless asked for detail.
+Format: plain text, no markdown, no bullet points.
+Never fabricate data — only reference what's in the context provided.
 ```
 
-This is how ChatGPT's memory works under the hood — not RAG over embeddings (overkill for structured personal data), but structured fact extraction. After each conversation, a lightweight prompt asks: "Did the user reveal any preference, habit, or fact about themselves? If yes, extract it as JSON."
-
-**On RAG specifically:** You don't need vector RAG here. Your data is already structured in Postgres. The right query + join beats semantic search for "show my goals" or "what did I do last week". RAG would only make sense if you had unstructured notes or journal entries. If you add a freeform notes field later, that's when pgvector becomes interesting.
-
 ---
 
-### Groq for Testing
+## 7. File Structure
 
-Add `GroqProvider` to the provider list. Groq's free tier runs `llama-3.3-70b` at ~300 tokens/second — this is perfect for testing if your prompts work properly before running locally on Gemma.
-
-```typescript
-// .env
-AI_PROVIDER=groq
-GROQ_API_KEY=your_key  # free at console.groq.com
-GROQ_MODEL=llama-3.3-70b-versatile
-```
-
-The existing provider interface makes this a 50-line addition. When Groq works well → port the prompts back to Gemma. This saves hours of debugging slow local inference.
-
----
-
-## 6. File Structure
-
-### New Files in `packages/ai/`
+### Current packages/ai/ (after foundation restructure)
 
 ```
 packages/ai/src/
-├── agents/
-│   ├── dispatcher.agent.ts      # Intent routing + heuristic classification
-│   ├── command.agent.ts         # Pattern-match only, zero LLM
-│   ├── briefing.agent.ts        # Daily startup briefing
-│   ├── activity.agent.ts        # Log/plan activities
-│   ├── goals.agent.ts           # Goal CRUD operations
-│   └── query.agent.ts           # Read-only data queries
+├── polaris-ai.ts              ← Main facade (upgrade: add chat/stream methods)
+├── index.ts                   ← Public exports
+├── types.ts                   ← AIProvider interface (upgrade: chat + chatStream)
 │
-├── tools/
-│   ├── activity.tools.ts        # Tool schemas for activity operations
-│   ├── goal.tools.ts            # Tool schemas for goal operations
-│   ├── registry.ts              # Central tool schema registry
-│   └── executor.ts              # Routes tool calls to actual API operations
-│
-├── context/
-│   ├── buildContext.ts          # Assemble PolarisContext from DB
-│   └── context.types.ts        # PolarisContext interface + sub-types
-│
-├── memory/
-│   ├── session.memory.ts        # In-session conversation history helpers
-│   └── persistent.memory.ts    # DB-backed memory (Phase 3, stub for now)
+├── features/
+│   ├── analyze-week.ts        ← Existing (refactor: use provider.chat)
+│   ├── breakdown-goal.ts      ← Existing (refactor: use provider.chat)
+│   ├── daily-coach.ts         ← Existing (refactor: use provider.chat)
+│   └── fallback-quotes.ts     ← Existing
 │
 ├── prompts/
-│   ├── briefing.prompt.ts       # Startup briefing system + user templates
-│   ├── activity.prompt.ts       # Activity parsing with context
-│   ├── goals.prompt.ts          # Goal creation / decomposition
-│   ├── query.prompt.ts          # Data query natural language response
-│   ├── classify.prompt.ts       # Intent classification (fallback only)
-│   └── shared.system.prompt.ts  # TARS persona system prompt (shared base)
-│
-├── utils/
-│   ├── commandMatcher.ts        # Fixed command pattern matching + fuzzy
-│   ├── toolRouter.ts            # Map Gemma tool_call output → handler fn
-│   ├── contextCapper.ts         # Enforce size limits on PolarisContext
-│   ├── streamParser.ts          # Parse SSE from Ollama/Groq
-│   └── responseValidator.ts    # Zod validation for all structured outputs
+│   ├── activity-parse.prompt.ts   ← Existing
+│   ├── daily-coach.prompt.ts      ← Existing
+│   ├── goal-breakdown.prompt.ts   ← Existing
+│   ├── weekly-analysis.prompt.ts  ← Existing
+│   ├── tars-system.prompt.ts      ← NEW: TARS persona base prompt
+│   ├── briefing.prompt.ts         ← NEW: startup briefing template
+│   ├── classify.prompt.ts         ← NEW: intent classification (LLM fallback)
+│   └── index.ts
 │
 ├── providers/
-│   ├── ollama.provider.ts       # Gemma 4 local (existing, upgrade)
-│   ├── groq.provider.ts         # NEW — for fast testing
-│   ├── openai.provider.ts       # Existing
-│   └── mock.provider.ts         # Existing
+│   ├── gemini.provider.ts     ← NEW: Primary cloud provider
+│   ├── ollama.provider.ts     ← Existing (upgrade: add chat + chatStream)
+│   ├── openai.provider.ts     ← Existing (upgrade: add chat + chatStream)
+│   ├── mock.provider.ts       ← Existing (upgrade: add chat + chatStream)
+│   └── index.ts               ← Factory (add gemini case)
 │
-└── types/
-    ├── agent.types.ts            # AgentRequest, AgentResponse, IntentType
-    ├── tool.types.ts             # ToolCall, ToolResult, ToolSchema
-    └── conversation.types.ts    # ConversationTurn, Message, SessionState
+├── tars/
+│   ├── intent-classifier.ts   ← NEW: Heuristic + LLM fallback routing
+│   ├── action-types.ts        ← NEW: TARSAction union type + drafts
+│   ├── tool-schemas.ts        ← NEW: Function calling tool definitions
+│   ├── action-validator.ts    ← NEW: Zod validation for tool call output
+│   └── briefing.ts            ← NEW: Assemble briefing prompt + stream
+│
+└── utils/
+    ├── ai-logger.ts           ← Existing
+    ├── call-provider-text.ts  ← DEPRECATED (remove after provider refactor)
+    ├── context-capper.ts      ← Existing
+    └── validate-response.ts   ← Existing
 ```
 
-### New Files in `apps/backend/`
+### New files in apps/backend/
 
 ```
 apps/backend/src/
 ├── routes/
-│   └── ai.ts                    # Add: POST /chat, GET /briefing, POST /command
+│   └── ai.routes.ts           ← ADD: POST /chat, GET /briefing handlers
 │
 ├── controllers/
-│   └── ai.controller.ts         # Add: chatHandler, briefingHandler, commandHandler
+│   └── ai.controller.ts       ← ADD: chatHandler, briefingHandler
 │
 └── services/
-    └── ai.service.ts            # Add: chat(), getBriefing(), executeCommand()
-                                 # (thin facades into packages/ai agents)
+    ├── ai.service.ts           ← ADD: chat(), getBriefing() thin facades
+    └── polaris-context.service.ts  ← UPGRADE: add todayPlanned, todayCompleted
 ```
 
-### New Files in `apps/frontend/`
+### New files in apps/frontend/
 
 ```
 apps/frontend/src/
 ├── components/
 │   └── assistant/
-│       ├── AssistantPanel.tsx        # Main sliding panel (right drawer)
-│       ├── AssistantAvatar.tsx       # Three.js TARS entity (corner orb)
-│       ├── ConversationThread.tsx    # Scrollable message history
-│       ├── AssistantMessage.tsx      # Single message + typewriter animation
-│       ├── UserMessage.tsx           # User bubble (simpler)
-│       ├── AssistantInput.tsx        # Text input + mic button at bottom
-│       ├── ToolConfirmCard.tsx       # "TARS wants to log: X — Accept / Edit / Dismiss"
-│       ├── StartupBriefing.tsx       # Boot sequence overlay (1x/day)
-│       └── QuickActionChips.tsx      # Suggested follow-up actions
+│       ├── AssistantPanel.tsx        ← Main sliding panel (right drawer)
+│       ├── AssistantAvatar.tsx       ← Three.js TARS entity (corner orb)
+│       ├── ConversationThread.tsx    ← Scrollable message history
+│       ├── AssistantMessage.tsx      ← Single message + typewriter animation
+│       ├── UserMessage.tsx           ← User bubble
+│       ├── AssistantInput.tsx        ← Text input + mic button
+│       ├── ToolConfirmCard.tsx       ← "Log 30 pages? Accept / Edit / Dismiss"
+│       ├── StartupBriefing.tsx       ← Boot sequence overlay (1x/day)
+│       └── QuickActionChips.tsx      ← Suggested follow-up actions
 │
 ├── hooks/
-│   ├── useAssistant.ts              # Main hook — send, receive, history
-│   ├── useAssistantActions.ts       # Frontend action executor (navigate, audio, etc)
-│   ├── useStartupBriefing.ts        # Daily briefing logic + SSE consumption
-│   └── useCommandMatcher.ts         # Frontend-side command detection (optional)
+│   ├── useAssistant.ts              ← Main hook — send, receive, history
+│   ├── useAssistantActions.ts       ← TARSAction executor (navigate, audio, etc)
+│   ├── useStartupBriefing.ts        ← Daily briefing SSE consumer
+│   └── useCommandMatcher.ts         ← Client-side command pattern matching
 │
 └── stores/
-    └── assistant.store.ts           # Conversation history, panel state, TARS state
+    └── assistant.store.ts           ← Conversation history, panel state, TARS state
 ```
 
 ---
 
-## 7. Backend — New Endpoints
+## 8. Backend — Endpoints
 
 ### POST /api/ai/chat
 
-The main conversational endpoint.
+Main conversational endpoint. Handles all non-command interactions.
 
 ```typescript
 // Request
 {
-  message: string,
-  history?: ConversationTurn[],   // last 6 turns, optional
+  message: string;
+  history?: ConversationTurn[];   // last 6 turns, optional
   // context assembled server-side from DB — do NOT send from frontend
 }
-
-// Response (non-streaming)
-{
-  success: true,
-  data: {
-    response: string,              // TARS's text response
-    toolCall?: {                   // If agent wants to take an action
-      id: string,
-      tool: string,                // "log_activity" | "create_goal_draft" | etc
-      params: object,              // Proposed parameters
-      requiresConfirmation: boolean
-    },
-    intent: IntentType,
-    agentUsed: string,
-    latencyMs: number
-  }
-}
-```
-
-**Important:** Context is assembled server-side. Never trust the frontend to send context — it could be stale or manipulated. The backend fetches fresh PolarisContext from DB on every `/chat` call.
-
----
-
-### GET /api/ai/briefing (SSE)
-
-Startup briefing stream. Same pattern as existing `/api/ai/analyze-week/stream`.
-
-```typescript
-// Query params: none (context assembled server-side)
-// Response: SSE stream
-// event: data
-// data: { chunk: string }  ← text chunks, typewriter on frontend
-// event: done
-// data: { quickActions: string[] }  ← suggested follow-up chips
-```
-
-Only fires if called. Frontend decides when (first open of the day). Rate limit: 1 call per day per session (enforced via `polaris:briefing-dismissed:YYYY-MM-DD`).
-
----
-
-### POST /api/ai/command
-
-Fast path for confirmed fixed commands. Skips LLM entirely.
-
-```typescript
-// Request
-{ input: string }
 
 // Response
 {
   success: true,
   data: {
-    matched: boolean,
-    action: string,    // "audio.play" | "navigate" | etc
-    params: object,
-    executed: boolean  // always false — frontend executes
+    response: string;              // TARS's text response
+    action?: TARSAction;           // If TARS wants to do something
+    requiresConfirmation: boolean; // true for writes
+    intent: IntentType;
+    provider: string;
+    latencyMs: number;
   }
 }
 ```
 
-Frontend executes the action based on `action` + `params`. Backend just does the pattern matching (or this can be fully client-side — the command registry is just a JSON file).
+**Flow inside the handler:**
+1. Assemble `PolarisContext` from DB (fresh every request)
+2. `classifyIntent(message)` — heuristic first
+3. Build messages array: `[system prompt + context, ...history, user message]`
+4. If write intent → include tool schemas in `provider.chat()` call
+5. If LLM returns `functionCall` → validate with Zod → wrap as `TARSAction`
+6. If LLM returns text → return as `response`
 
-**Alternative:** Make CommandAgent fully client-side. It's just pattern matching — no reason to hit the backend for "play music". The command registry lives in `commandMatcher.ts` on the frontend. When a command matches, frontend executes directly, no API call. Only unmatched inputs go to `/api/ai/chat`. This is faster and simpler.
+**Security:** Context is assembled server-side. Never trust the frontend to
+send context — it could be stale or manipulated.
+
+### GET /api/ai/briefing (SSE)
+
+Startup briefing stream. Same SSE pattern as existing `/api/ai/analyze-week/stream`.
+
+```typescript
+// Response: SSE stream
+// data: {"type":"token","token":"..."}     ← text chunks
+// data: {"type":"done","quickActions":[]}  ← suggested follow-ups
+// data: [DONE]
+```
+
+**Trigger:** Frontend calls on first daily open.  
+**Rate limit:** Client-side via `localStorage` key `polaris:briefing:YYYY-MM-DD`.  
+**Provider:** Uses `provider.chatStream()` with briefing prompt template.
+
+### Removed: POST /api/ai/command
+
+The v1.0 doc had a `/command` endpoint for pattern-matched commands (play music,
+navigate, etc.). This is unnecessary — command matching runs entirely client-side.
+No API call needed to match "play music" to `{ type: 'audio.play' }`.
+
+### Upgraded: GET /api/ai/config
+
+The current config endpoint only knows about Ollama. Upgrade to be provider-agnostic:
+
+```typescript
+// Current (broken for Gemini)
+{ provider: 'ollama', ollamaModel: 'gemma4:e4b', ollamaUrl: '...' }
+
+// Upgraded (works for any provider)
+{
+  success: true,
+  data: {
+    provider: string;       // 'gemini' | 'ollama' | 'openai' | 'mock'
+    model: string;          // 'gemma-4-26b-a4b-it' | 'gemma4:e4b' | 'gpt-4o-mini'
+    status: 'connected' | 'error' | 'unknown';
+    statusMessage?: string; // 'Gemini API responding' or 'Ollama unreachable'
+    latencyMs?: number;     // Ping response time
+    availableModels?: string[];  // For Ollama: installed models. For Gemini: hardcoded list.
+  }
+}
+```
+
+**Health check logic** (runs on GET /config, cached 30s):
+- `gemini`: `POST generateContent` with "ping" → check 200 response
+- `ollama`: `GET /api/tags` with 5s timeout → check response
+- `openai`: just return `'unknown'` (don't waste API credits on pings)
+- `mock`: always `'connected'`
+
+### Upgraded: POST /api/ai/config
+
+Generalize from Ollama-only to any-provider model switching:
+
+```typescript
+// Request
+{ model: string }  // e.g. 'gemma-4-26b-a4b-it' or 'gemma4:e4b'
+
+// Sets the appropriate env var based on current provider:
+// gemini → GEMINI_MODEL
+// ollama → OLLAMA_MODEL
+// openai → (no-op, model is hardcoded)
+```
+
+### Provider Status in Settings UI
+
+The Settings screen currently shows provider cards with no live status. Add:
+
+```
+┌─────────────────────────────────────────────┐
+│  AI Provider: Gemini      ● Connected (2s)  │  ← green dot = healthy
+│  Model: gemma-4-26b-a4b-it                  │
+│  Rate: 1,500 RPD · 15 RPM                   │
+│                                              │
+│  [gemma-4-26b]  [gemini-2.5-flash]  [gemini-3-flash]  │  ← model chips
+│                                              │
+│  [Test AI ✓]  "30 pages → Atomic Habits"     │
+└─────────────────────────────────────────────┘
+```
+
+**Status indicators:**
+- 🟢 `Connected (Xms)` — provider responded to health check
+- 🔴 `Error: <message>` — provider unreachable or key invalid
+- ⚪ `Unknown` — no health check available (OpenAI)
+- 🟡 `Slow (Xs)` — connected but latency > 10s (Ollama)
 
 ---
 
-## 8. Frontend — Component Architecture
+## 9. Frontend — Component Architecture
 
 ### AssistantPanel
 
@@ -762,37 +977,48 @@ Right-side drawer, ~400px wide on desktop, full-screen on mobile.
 └──────────────────────────────┘
 ```
 
-### AssistantAvatar (Three.js)
-
-A floating entity positioned fixed in bottom-right corner (or wherever user prefers).
-
-**Dark mode TARS:** A monolith-inspired rectangular black slab, 40x60px, subtle rotation, glows white on edges when active. Click to open panel. Pulsing glow when briefing is available.
-
-**Light mode:** A softer circular orb, subtle gradient, professional.
-
-**States:**
-- **Idle:** Slow breathing pulse (scale 1.0 → 1.05 → 1.0)
-- **Listening:** Faster pulse, color shifts to active accent
-- **Processing:** Rotation + shimmer effect
-- **Speaking:** Waveform-like deformation on the surface
-- **Has briefing:** Notification dot, different idle color
+### Zustand Store
 
 ```typescript
-// Three.js implementation sketch
-// Use @react-three/fiber canvas positioned absolutely
-// The "monolith" is a BoxGeometry(1, 1.5, 0.2)
-// Material: MeshStandardMaterial with emissive glow
-// useFrame hook drives the animation state machine
-// State managed via Zustand assistant.store.ts
+interface AssistantStore {
+  // Panel state
+  panelOpen: boolean;
+  togglePanel: () => void;
+
+  // TARS visual state (drives avatar animation)
+  tarsState: 'idle' | 'listening' | 'processing' | 'speaking';
+  setTarsState: (state: TarsState) => void;
+
+  // Conversation
+  turns: ConversationTurn[];
+  addTurn: (turn: ConversationTurn) => void;
+  clearHistory: () => void;
+
+  // Pending action (from tool call)
+  pendingAction: TARSAction | null;
+  setPendingAction: (action: TARSAction | null) => void;
+}
 ```
 
-**Research spike needed:** Three.js canvas positioned as a floating UI element inside a React app has known z-index and event bubbling quirks. Test this separately before integrating.
+### ToolConfirmCard
 
----
+Shows inside the conversation thread when TARS wants to mutate data.
+
+```typescript
+interface ToolConfirmCardProps {
+  action: TARSAction;               // The proposed action
+  onAccept: (editedAction: TARSAction) => void;
+  onDismiss: () => void;
+  autoAcceptMs?: number;             // If set, auto-accepts with countdown
+}
+```
+
+For high-confidence activity logs: `autoAcceptMs={5000}` with a visible
+countdown ring. For goal creation: no auto-accept.
 
 ### StartupBriefing
 
-A fullscreen overlay that plays once on first daily open. Lasts ~3 seconds, then transitions to Hub.
+A fullscreen overlay on first daily open:
 
 ```
 [Dark background, constellation]
@@ -801,302 +1027,332 @@ A fullscreen overlay that plays once on first daily open. Lasts ~3 seconds, then
   ──────────────
   Initializing...        ← 0.5s pause
   Loading your context   ← 0.8s
-  Analyzing patterns     ← 1.0s  (fake, for feel)
+  Analyzing patterns     ← 1.0s (cosmetic)
   Ready.                 ← 1.2s
 
-  [TARS panel slides in from right with briefing text]
+  [TARS panel slides in with briefing text streaming]
 ```
 
-The fake "loading steps" are pure CSS animation. Real data loads in parallel. The briefing SSE starts fetching immediately on app load — by the time the animation finishes, the response is usually already streaming.
+The fake loading steps are CSS animation. The real briefing SSE starts fetching
+on app load — by the time the animation finishes, text is already streaming.
+Never `await` the briefing in the app initialization path.
 
 ---
 
-### ToolConfirmCard
-
-Shows inside the conversation thread when TARS wants to mutate data.
-
-```typescript
-interface ToolConfirmCardProps {
-  toolName: string                // "log_activity"
-  params: object                  // Proposed values
-  onAccept: (editedParams: object) => void
-  onDismiss: () => void
-  autoAcceptMs?: number           // If set, auto-accepts after N ms (with countdown)
-}
-```
-
-For high-confidence activity logs: `autoAcceptMs={5000}` with a visible countdown ring. User can tap Edit or tap anywhere to cancel auto-accept. For goal creation, no auto-accept.
-
----
-
-## 9. Voice Strategy (Input + Output)
+## 10. Voice Strategy
 
 ### Input — Whisper (Already Works)
 
-Existing `VoiceButton` + `useVoiceRecorder` + Whisper service. Keep as-is. Wire the transcript into `AssistantInput` so pressing the mic in the panel uses the same pipeline.
+Existing `VoiceButton` + `useVoiceRecorder` + Whisper service. Wire the
+transcript into `AssistantInput` so the mic in the panel uses the same pipeline.
 
-One change needed: the existing voice pipeline goes `audio → Whisper → parse_activity`. The new pipeline goes `audio → Whisper → AssistantDispatcher`. The AssistantInput mic should send to the dispatcher, not directly to the activity parser.
+**Key change:** The existing voice pipeline goes `audio → Whisper → parse_activity`.
+The new pipeline goes `audio → Whisper → AssistantDispatcher (command match first,
+then /api/ai/chat)`.
 
-### Output — Speech Synthesis (POC)
+### Output — Speech Synthesis (Minimal)
 
-For now: Web Speech API. Free, instant, no server. Robotic but functional.
+Web Speech API for now. Free, instant, no server.
 
 ```typescript
-// hooks/useVoiceOutput.ts
-export function useVoiceOutput() {
-  const speak = (text: string) => {
-    if (!window.speechSynthesis) return
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = 1.1    // slightly faster = less robotic
-    utterance.pitch = 0.9   // slightly lower = more authoritative
-    
-    // Try to use a better voice if available
-    const voices = window.speechSynthesis.getVoices()
-    const preferred = voices.find(v => 
-      v.name.includes('Google') || v.name.includes('Microsoft')
-    )
-    if (preferred) utterance.voice = preferred
-    
-    window.speechSynthesis.speak(utterance)
-  }
-  
-  const stop = () => window.speechSynthesis.cancel()
-  
-  return { speak, stop }
+function speak(text: string) {
+  if (!window.speechSynthesis) return;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 1.1;
+  utterance.pitch = 0.9;
+  window.speechSynthesis.speak(utterance);
 }
 ```
 
-**When to speak:** Only the startup briefing (most impactful moment) and short confirmations like "Logged. 30 pages added to Reading." Long query responses stay text-only. Nobody wants their productivity tool reading them a paragraph.
+**When to speak:** Only startup briefing and short confirmations ("Logged. 30
+pages added to Reading."). Long responses stay text-only.
 
-**Future upgrade path:**
-- ElevenLabs free tier: 10k chars/month, great quality, add when POC is stable
-- Kokoro local TTS: Python sidecar (same pattern as Whisper), fully free, ~4GB model
+**Future:** Gemini 2.5 Flash/Pro TTS models are available in the API (verified
+in model list). Could replace Web Speech API for higher quality.
+
+**Note:** `speechSynthesis.cancel()` must be called before any new speech starts,
+to prevent overlapping audio when user interrupts TARS.
 
 ---
 
-## 10. Three.js Avatar
+## 11. Three.js Avatar
 
-### Design Intent
+### Design
 
-Dark mode: **TARS-inspired monolith** — rectangular slab, matte black, edge-lit, minimal. Sits in bottom-right corner. Click to open/close the assistant panel.
+**Dark mode** — TARS-inspired monolith: rectangular slab, matte black, edge-lit.
+Fixed position bottom-right corner. Click to open/close panel.
 
-Light mode: **Soft orb** — translucent white sphere with inner glow, professional.
+**Light mode** — Soft translucent orb with inner glow.
 
-### Implementation Approach
+### States (driven by `assistant.store.ts`)
 
-```typescript
-// components/assistant/AssistantAvatar.tsx
-// Small Canvas (80x80px) positioned fixed bottom-right
-// Contains a single Three.js scene
+| State | Animation |
+|-------|-----------|
+| Idle | Slow breathing pulse (scale 1.0 → 1.05 → 1.0) |
+| Listening | Faster pulse, accent color shift |
+| Processing | Rotation + shimmer |
+| Speaking | Surface waveform deformation |
+| Has briefing | Notification dot, different idle color |
 
-import { Canvas, useFrame } from '@react-three/fiber'
-import { useRef } from 'react'
-import { useAssistantStore } from '@/stores/assistant.store'
+### Implementation Notes
 
-function TARSMonolith() {
-  const meshRef = useRef()
-  const { tarsState } = useAssistantStore()  // idle | listening | processing | speaking
-  
-  useFrame((state) => {
-    // Idle: subtle breathing
-    if (tarsState === 'idle') {
-      meshRef.current.scale.y = 1 + Math.sin(state.clock.elapsedTime * 0.8) * 0.02
-    }
-    // Listening: faster pulse
-    if (tarsState === 'listening') {
-      meshRef.current.scale.y = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.05
-      // Shift emissive color
-    }
-    // Processing: rotate
-    if (tarsState === 'processing') {
-      meshRef.current.rotation.y += 0.02
-    }
-  })
-  
-  return (
-    <mesh ref={meshRef}>
-      <boxGeometry args={[0.6, 1.2, 0.15]} />
-      <meshStandardMaterial 
-        color="#0a0a0a"
-        emissive="#00d4aa"
-        emissiveIntensity={tarsState === 'idle' ? 0.1 : 0.5}
-        roughness={0.2}
-        metalness={0.8}
-      />
-    </mesh>
-  )
-}
+- Small Canvas (80x80px) positioned `fixed` bottom-right
+- `@react-three/fiber` canvas with single mesh
+- BoxGeometry for monolith, MeshStandardMaterial with emissive glow
+- `useFrame` drives animation state machine
+- Handle clicks on the wrapping `<div>`, not the Canvas (pointer-events issues)
+- Separate Canvas from the 3D backgrounds already in the app (own WebGL context)
 
-export function AssistantAvatar() {
-  const { togglePanel } = useAssistantStore()
-  
-  return (
-    <div 
-      className="fixed bottom-6 right-6 w-12 h-20 cursor-pointer z-50"
-      onClick={togglePanel}
-    >
-      <Canvas>
-        <ambientLight intensity={0.2} />
-        <pointLight position={[2, 2, 2]} intensity={1} color="#00d4aa" />
-        <TARSMonolith />
-      </Canvas>
-    </div>
-  )
-}
+### Known Risks
+
+- Three.js canvas in `position: fixed` has z-index / event bubbling quirks
+- Mobile: fixed-position canvas may interact with scroll
+- WebGL context limit: app already has 3D backgrounds — test on low-end devices
+- **Recommendation:** Do a 2-hour isolated spike before integrating into the app
+
+---
+
+## 12. Build Order (Revised)
+
+Each sprint is independently testable. Order matters — later sprints depend on earlier ones.
+
+### Sprint 0 — Provider Foundation (DO FIRST)
+
+Fix the plumbing before building features. This is the prerequisite for everything.
+
+**Tasks:**
+1. Expand `AIProvider` interface: add `chat()` + `chatStream()` to `types.ts`
+2. Build `gemini.provider.ts` — implements all 3 methods (`parse`, `chat`, `chatStream`)
+3. Upgrade `mock.provider.ts` — add `chat()` + `chatStream()` (canned responses)
+4. Upgrade `ollama.provider.ts` — add `chat()` + `chatStream()`
+5. Upgrade `openai.provider.ts` — add `chat()` + `chatStream()`
+6. Update provider factory in `providers/index.ts` — add `gemini` case
+7. Refactor `callProviderText()` callers → use `provider.chat()` directly
+8. Delete `call-provider-text.ts` (eliminate duplicate LLM path)
+9. Create `.env.example` for backend with all AI env vars documented
+10. Upgrade `GET /api/ai/config` — return provider-agnostic status + health check
+11. Upgrade `POST /api/ai/config` — support model switching for any provider
+12. Upgrade Settings UI — show provider status indicator (connected/error/latency)
+13. Upgrade Settings UI — show model chips for Gemini (not just Ollama)
+14. Add Gemini model list endpoint or hardcoded model options for Settings UI
+
+**Environment setup (just-works):**
+```bash
+# apps/backend/.env
+AI_PROVIDER=gemini
+GEMINI_API_KEY=<your-key>
+# That's it. Default model is gemma-4-26b-a4b-it (1,500 RPD).
+# Optional: GEMINI_MODEL=gemini-2.5-flash  (for quality testing, 20 RPD)
 ```
 
-### Known Three.js + React Issues to Watch
-
-- Canvas inside a fixed div can have pointer-events issues. Set `style={{ pointerEvents: 'none' }}` on the Canvas, handle clicks on the wrapping div.
-- `useFrame` runs on every render — guard with `if (!meshRef.current) return`
-- The Canvas creates a WebGL context. Too many canvases on one page = context limit hit. You already have 3D backgrounds. Consider whether TARS should share a canvas or have its own. Own canvas is simpler to manage.
-- On mobile, the fixed-position canvas may interact weirdly with scroll. Test on physical device.
-
----
-
-## 11. Build Order
-
-Do these in order. Each step is independently testable.
-
-### Sprint 1 — TARS Backend Core (1-2 days, Dev A)
-
-1. Add `PolarisContext` types to `@polaris/shared`
-2. Build `buildContext.ts` in `packages/ai/src/context/`
-3. Add `GroqProvider` to packages/ai/src/providers/
-4. Build `BriefingAgent` (uses existing streaming infrastructure)
-5. Add `/api/ai/briefing` SSE endpoint
-6. Test with Groq first (fast feedback), then Gemma
-
-**Done when:** `curl /api/ai/briefing` streams a personalized briefing with your actual streak and goals.
+**Done when:**
+- `AI_PROVIDER=gemini npm run typecheck` passes
+- `provider.chat([{ role: 'user', content: 'hello' }])` returns a response
+- Settings page shows "Gemini · Connected (2s) · gemma-4-26b-a4b-it"
+- Model chips let you switch between Gemma 4 and Gemini 2.5 Flash
+- Test AI button works with Gemini provider
 
 ---
 
-### Sprint 2 — TARS UI Foundation (1-2 days, Dev B)
+### Sprint 1 — TARS Backend Core
 
-1. Build `assistant.store.ts` (Zustand — panel state, conversation history, TARS state)
-2. Build `AssistantPanel.tsx` shell (no AI yet, just the panel with fake messages)
-3. Build `AssistantMessage.tsx` with typewriter animation
-4. Build `AssistantInput.tsx` (text input + mic button)
-5. Build `StartupBriefing.tsx` animation sequence
-6. Wire `useStartupBriefing` to the `/api/ai/briefing` SSE
-7. Wire panel open/close to a keyboard shortcut (`Cmd+/` or `Cmd+Space`)
+Build the chat and briefing endpoints using the new provider interface.
 
-**Done when:** App loads, briefing animation plays, text streams in from the real API.
+**Tasks:**
+1. Create `tars/action-types.ts` — TARSAction union type, ActivityDraft, GoalDraft
+2. Create `tars/tool-schemas.ts` — function calling schemas for log_activity, create_goal_draft
+3. Create `tars/action-validator.ts` — Zod schemas to validate LLM tool call output
+4. Create `tars/intent-classifier.ts` — heuristic-first + LLM fallback
+5. Create `prompts/tars-system.prompt.ts` — TARS persona prompt
+6. Create `prompts/briefing.prompt.ts` — briefing template with context injection
+7. Create `tars/briefing.ts` — assemble briefing prompt + call provider.chatStream()
+8. Enrich `PolarisContext` — add `todayPlanned`, `todayCompleted` fields
+9. Add `POST /api/ai/chat` handler (route + controller + service)
+10. Add `GET /api/ai/briefing` SSE handler (reuse existing SSE pattern)
 
----
-
-### Sprint 3 — Command Agent + Basic Chat (2-3 days)
-
-1. Build `commandMatcher.ts` on frontend (pure client-side, no API)
-2. Wire `AssistantInput` → CommandMatcher → immediate action execution
-3. Build `DispatcherAgent` (heuristic routing + Gemma fallback)
-4. Build `/api/ai/chat` endpoint
-5. Build `QueryAgent` (read-only, natural language answers)
-6. Wire full chat flow: input → dispatch → query → response in panel
-
-**Done when:** "How am I doing this week?" returns a natural language answer from your real data.
+**Done when:** `curl -X POST /api/ai/chat -d '{"message":"how am I doing?"}'`
+returns a natural language response with your real data. And
+`curl /api/ai/briefing` streams a personalized briefing.
 
 ---
 
-### Sprint 4 — Activity + Goal Agents (2-3 days)
+### Sprint 2 — TARS UI Foundation
 
-1. Build `activity.tools.ts` and `goal.tools.ts` schemas
-2. Build `ActivityAgent` with Gemma function calling
-3. Build `ToolConfirmCard.tsx`
-4. Wire confirm card to actual activity creation endpoint
-5. Build `GoalsAgent` (same pattern)
-6. Test full flow: "log 30 pages" → confirm card → accept → saved
+Build the frontend shell. No AI wiring yet — just the panel with fake messages
+to get the layout right.
 
-**Done when:** End-to-end — voice or text → TARS logs an activity with your confirmation.
+**Tasks:**
+1. Create `assistant.store.ts` (Zustand — panel state, conversation history, tarsState)
+2. Create `AssistantPanel.tsx` (right drawer shell)
+3. Create `ConversationThread.tsx` + `AssistantMessage.tsx` + `UserMessage.tsx`
+4. Create `AssistantInput.tsx` (text input + mic button)
+5. Create `useCommandMatcher.ts` (client-side command pattern matching)
+6. Create `useAssistant.ts` — main hook (send message → get response)
+7. Wire `useAssistant` to `POST /api/ai/chat`
+8. Wire keyboard shortcut (`Cmd+/` or `Cmd+Space`) to toggle panel
+
+**Done when:** Panel opens, user types a message, response comes back from
+the real API and displays with typewriter animation.
 
 ---
 
-### Sprint 5 — TARS Avatar + Polish (2-3 days, Dev B)
+### Sprint 3 — Tool Calls + Confirmation Flow
 
-1. Research spike: Three.js canvas as fixed floating element — test in isolation
+Wire up write operations with the confirm card.
+
+**Tasks:**
+1. Create `ToolConfirmCard.tsx` with accept/edit/dismiss
+2. Create `useAssistantActions.ts` — executes TARSAction using existing hooks
+3. Wire "log 30 pages" flow: chat → tool call → confirm card → useCreateActivity()
+4. Wire "create goal" flow: chat → tool call → confirm card → useCreateGoal()
+5. Add auto-accept countdown for high-confidence activity logs
+6. Add `QuickActionChips.tsx` for suggested follow-ups
+
+**Done when:** End-to-end — type "log 30 pages of Atomic Habits" → confirm
+card shows → tap Accept → activity saved via existing API.
+
+---
+
+### Sprint 4 — Startup Briefing UI
+
+Wire the briefing overlay and SSE consumer.
+
+**Tasks:**
+1. Create `StartupBriefing.tsx` — boot sequence animation
+2. Create `useStartupBriefing.ts` — SSE consumer + localStorage date check
+3. Wire briefing text stream into AssistantPanel
+4. Add quick-action chips after briefing finishes
+
+**Done when:** App loads → boot animation plays → TARS briefing streams in
+with real data → tapping a chip navigates or opens a relevant screen.
+
+---
+
+### Sprint 5 — TARS Avatar + Voice + Polish
+
+The visual and audio experience layer. Last because everything else must work first.
+
+**Tasks:**
+1. Spike: Three.js canvas as fixed floating element (2-hour isolated test)
 2. Build `AssistantAvatar.tsx` with idle/listening/processing states
-3. Wire avatar state to assistant.store.ts TARS state
-4. Add `useVoiceOutput` hook (speechSynthesis)
-5. Wire voice output to startup briefing and confirmations
-6. Polish: transition animations, quick-action chips, mobile layout
+3. Wire avatar state to `assistant.store.ts` tarsState
+4. Wire Whisper mic in AssistantInput → command matcher → /api/ai/chat
+5. Add Web Speech API output for briefing + short confirmations
+6. Polish: panel transitions, mobile layout, scroll behavior
 
-**Done when:** TARS monolith sits in corner, pulses when active, full conversation works with voice.
-
----
-
-### Sprint 6 — Session Memory (Add After Sprint 5 is stable)
-
-1. Add conversation history to Zustand store (already designed above)
-2. Include last 6 turns in `/api/ai/chat` payload
-3. Test multi-turn: "what goals do I have?" → "tell me more about the reading one"
-4. Tune context window — watch for Gemma getting confused with long histories
+**Done when:** TARS monolith in corner, clickable, voice input produces
+responses, briefing speaks aloud.
 
 ---
 
-## 12. Critical Gotchas
+### Sprint 6 — Session Memory + Multi-Turn
 
-### Agent Architecture
+Add conversation continuity after single-turn chat is stable.
 
-**⚠️ Context size must be capped.** An uncapped PolarisContext for a power user (20 goals, 500 activities) will overflow Gemma's 128K context window in practice because the model also needs space for the conversation, tools, and response. Hard cap: 10 goals, 7 days of history, each activity summary 1 line max.
+**Tasks:**
+1. Include last 6 turns from Zustand store in `/api/ai/chat` payload
+2. Backend includes history in the messages array sent to the LLM
+3. Test: "what goals do I have?" → "tell me more about the reading one"
+4. Add sliding window: when > 6 turns, drop oldest
+5. Tune context window — watch for LLM confusion with long histories
 
-**⚠️ Tool call validation is mandatory.** Gemma will occasionally return a tool call with wrong param types or missing required fields. Every tool call result must be run through Zod validation before being used. If validation fails → ask Gemma to retry once → if still fails → fall back to asking the user for clarification.
+**Done when:** Multi-turn conversation works naturally without the LLM
+"forgetting" what was just discussed.
 
-**⚠️ The dispatcher heuristic will misclassify edge cases.** "I want to read more this month" looks like `log_activity` but is actually `create_goal`. Test a diverse set of inputs. When the heuristic is unsure, default to `query` (safest — read-only) rather than `log_activity` (could create unwanted data).
+---
 
-**⚠️ Don't auto-execute writes, ever.** The temptation will be to add `autoAcceptMs` to more and more tool calls as it "works most of the time." Resist this. The cost of a wrongly auto-logged activity is low, but the trust erosion from TARS logging the wrong thing without asking is permanent. Keep auto-accept only for activities the NLP parser is >90% confident about.
+### Future Sprints (Not Now)
+
+| Sprint | Feature | Prerequisite |
+|--------|---------|-------------|
+| 7 | Groq provider | Sprint 0 interface done |
+| 8 | Persistent memory (DB-backed facts) | Sprint 6 stable for 2+ weeks |
+| 9 | Gemini TTS (replace Web Speech API) | Sprint 5 |
+| 10 | Pattern detection ("you always skip Fridays") | Sprint 8 |
+
+---
+
+## 13. Critical Gotchas
+
+### Provider Architecture
+
+**Context size must be capped.** An uncapped PolarisContext for a power user
+(20 goals, 500 activities) will overwhelm the LLM's useful working window.
+Hard cap: 10 goals, 7 days of history, each activity summary 1 line max.
+
+**Tool call validation is mandatory.** LLMs occasionally return tool calls
+with wrong param types or missing required fields. Every tool call must be
+Zod-validated before use. Validation fails → ask user for clarification
+(don't retry the LLM — it'll often make the same mistake).
+
+**The heuristic classifier will misclassify edge cases.** "I want to read
+more this month" looks like `log_activity` but is actually `create_goal`.
+When unsure, default to `query` (safest — read-only) not `log_activity`
+(could create unwanted data).
+
+**Don't auto-execute writes, ever.** Keep auto-accept only for activities
+the NLP parser is >90% confident about. Trust erosion from wrong auto-logs
+is permanent.
 
 ### Frontend
 
-**⚠️ The typewriter animation + SSE streaming is tricky to get right.** SSE sends chunks, but chunks don't align with words. You'll get partial words mid-chunk. Buffer chunks, split by spaces, animate word-by-word. Test with both fast (Groq) and slow (local Gemma) inference.
+**SSE streaming + typewriter is tricky.** SSE chunks don't align with word
+boundaries. Buffer chunks, split by spaces, animate word-by-word. Test with
+both fast (Gemini ~1s) and slow (local Gemma ~100s) inference.
 
-**⚠️ speechSynthesis queues.** If the user interrupts TARS mid-sentence and says something new, `speechSynthesis.cancel()` must be called before the new response starts speaking, or you'll get overlapping audio.
+**speechSynthesis queues.** Call `cancel()` before new speech starts to
+prevent overlapping audio.
 
-**⚠️ The assistant panel must not block the main UI.** It should be a drawer that pushes content, or an overlay with a clear close mechanism. Users will open it by accident. Make closing it one tap/click, always.
+**Panel must not block main UI.** Right drawer that pushes content, or
+overlay with clear close. Users will open it by accident — closing must
+be one tap/click.
 
-**⚠️ Mobile keyboard + fixed panel = chaos.** When the soft keyboard opens in the AssistantInput on mobile, it pushes the layout. The panel must use `position: fixed` with `env(safe-area-inset-bottom)` padding to handle this. Test on actual iOS and Android.
+**Mobile keyboard + fixed panel = chaos.** Use `position: fixed` with
+`env(safe-area-inset-bottom)` padding. Test on actual iOS/Android.
 
-### AI
+### AI Providers
 
-**⚠️ Gemma 4 function calling is new — test it independently first.** Before wiring it into the full stack, write a standalone test: send a single tool-calling request to Gemma and verify the output format. Don't assume it works until you've seen it output a valid `tool_call` object. Use Groq + llama3.3-70b first to verify the prompt is right, then port to Gemma.
+**Gemini function calling response format differs from OpenAI/Ollama.**
+Gemini returns `functionCall: { name, args }` inside `content.parts[]`.
+OpenAI returns `tool_calls[]` on the message object. Each provider's
+`chat()` method must normalize this to the common `ChatResult` interface.
 
-**⚠️ The briefing runs on app load — it must not block the UI.** The SSE stream fires and forgets. If the briefing takes 15 seconds (slow Gemma), the app is already usable. The panel just shows a typing indicator until the stream arrives. Never `await` the briefing in the app initialization path.
+**Gemini streaming uses `alt=sse` query param.** Ollama uses NDJSON.
+OpenAI uses `stream: true` in the body. Each provider's `chatStream()`
+handles its own format and yields plain text chunks.
 
-**⚠️ Session history makes the context window grow.** After 10 turns, you're sending 10 turn history + PolarisContext + tool schemas + the new message. This adds up fast. Implement a sliding window: keep only last 6 turns. When the window is full, summarize the older turns into a single "earlier in this conversation" message.
+**The briefing runs on app load — it must not block the UI.** The SSE
+stream fires and forgets. If inference takes 15 seconds, the app is
+already usable. Never `await` the briefing in app initialization.
 
----
-
-## 13. Research Spikes Needed
-
-Before Sprint 5, one dev should do these as isolated experiments (not in the main codebase):
-
-### Spike 1 — Three.js Floating Canvas
-**Question:** Can a Three.js Canvas render inside a `position: fixed` div without z-index/event issues?  
-**Test:** Create a minimal React app with a Three.js canvas in a fixed div, verify clicks work, verify it doesn't break page scrolling, verify it works on mobile.  
-**Time:** 2-3 hours
-
-### Spike 2 — Gemma 4 Function Calling
-**Question:** Does Gemma 4 e4b via Ollama reliably output tool_call JSON for the 6 tools defined?  
-**Test:** Write a standalone script that calls Ollama with the tool schemas and 10 test inputs. Measure how often the output parses correctly.  
-**Time:** 2-3 hours
-
-### Spike 3 — Groq Provider Integration
-**Question:** Does the existing provider interface work with Groq's API (OpenAI-compatible)?  
-**Test:** Add GroqProvider as a thin wrapper around the OpenAI provider with a different base URL. Test with the briefing prompt.  
-**Time:** 1-2 hours (Groq is OpenAI-compatible so this should be trivial)
-
-### Spike 4 — SSE + Typewriter UX
-**Question:** Does the streaming text feel good? Does it handle slow chunks gracefully?  
-**Test:** Use the existing `/api/ai/analyze-week/stream` endpoint (already built) and build the typewriter component. Tune chunk buffering until it feels natural.  
-**Time:** 2-3 hours
+**Session history grows the context window.** After 10 turns, you're
+sending 10 turn history + PolarisContext + tool schemas + new message.
+Hard limit: 6 turns. When full, drop oldest pair.
 
 ---
 
-## Summary — What You're Building
+## 14. Architecture Decisions Log
 
-In plain English: TARS is a floating Three.js monolith in the corner of your Polaris app. Click it (or press `Cmd+/`) and a panel slides in. TARS greets you in the morning with a personalized briefing that streams in with a typewriter effect. You can type or speak to it. It understands natural language commands, logs your activities (with your confirmation), creates goals, answers questions about your data, plays music, and navigates the app. It runs on Gemma 4 locally, degrades gracefully to a template-based response if Ollama is offline, and never touches your database without asking first.
+Decisions made during the review process (April 2026):
 
-The whole thing is built in 6 sprints, starting from a stable Phase 3 foundation, with the frontend avatar as the last piece (not the first).
+| # | Decision | Rationale |
+|---|----------|-----------|
+| 1 | 3 functions instead of 6 Agent classes | Agents were just prompt + if/else. Classes add indirection without value. |
+| 2 | Gemini as primary cloud provider (not Groq) | API key available and verified. Function calling, streaming, multi-turn all tested. |
+| 3 | `gemma-4-26b-a4b-it` as default Gemini model | 1,500 RPD vs 20 RPD for gemini-2.5-flash. Same Gemma 4 arch as local Ollama. |
+| 4 | `AIProvider` gets `chat()` + `chatStream()` | One interface, all providers. Eliminates `callProviderText()` duplication. |
+| 5 | Action Registry (`TARSAction` union) instead of agent tools | TARS maps NLP → typed action → existing frontend hooks. No new CRUD layer. |
+| 6 | Command matching is client-side only | No API call for "play music". Pattern matching is just string ops. |
+| 7 | Remove `POST /api/ai/command` endpoint | Redundant — command matching is client-side now. |
+| 8 | Sprint 0 before any TARS features | Provider interface must be right before building on top of it. |
+| 9 | `PolarisContext` enriched incrementally | Don't add all fields at once. Phase 1: todayPlanned/Completed. Phase 2: last7Days. |
+| 10 | No persistent memory until Sprint 8+ | Over-engineering risk. Single-shot context covers 90% of use cases. |
+| 11 | No `agents/` directory | Functions in `tars/` directory instead. Simpler. |
+| 12 | Ollama is offline fallback only, not primary | 72–278s latency is unusable for chat. Keep for batch ops (weekly analysis). |
+| 13 | Provider status indicator in Settings | User has no way to know if LLM is connected. Health check + status badge fixes this. |
+| 14 | Config endpoint generalized for all providers | Was Ollama-only. Now returns provider/model/status for Gemini, Ollama, OpenAI, Mock. |
+| 15 | `.env.example` for backend | No env documentation existed. Just set `AI_PROVIDER=gemini` + `GEMINI_API_KEY`. |
 
 ---
 
-*This document should be added to the Polaris Docs/ folder and updated as decisions are made during implementation.*
+*Last updated: April 14, 2026 (v2.1 — added model ladder, provider status, Ollama latency data)*

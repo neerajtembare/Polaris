@@ -75,6 +75,7 @@ const polarisContext = {
   longestStreak:    17,
   timeOfDay:        'morning' as const,
   dayOfWeek:        'Monday',
+  currentDate:      '2026-04-14',
 };
 
 // ---------------------------------------------------------------------------

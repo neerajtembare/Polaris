@@ -35,9 +35,9 @@ import {
   LineChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import ReactiveCard from './ui/ReactiveCard';
-import PulseWave from './3d/PulseWave';
-import { EnhancedHeatmap } from './widgets/EnhancedHeatmap';
+import ReactiveCard from '../ui/ReactiveCard';
+import PulseWave from '../3d/PulseWave';
+import { EnhancedHeatmap } from '../widgets/EnhancedHeatmap';
 import { useMetrics } from '@/hooks/useMetrics';
 import { useWeeklyInsights } from '@/hooks/useWeeklyInsights';
 import { useFocusStatsByDay } from '@/hooks/useFocusSessions';

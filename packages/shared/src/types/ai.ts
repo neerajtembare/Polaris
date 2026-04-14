@@ -70,3 +70,37 @@ export interface AIWeeklyAnalysis {
   suggestions:   string[];
   provider:      string;
 }
+
+// ---------------------------------------------------------------------------
+// Context — injected into every AI prompt call
+// ---------------------------------------------------------------------------
+
+/** Time-of-day bucket for personalised greeting/tone */
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night';
+
+/**
+ * Shared context object assembled once per AI call.
+ * Injected into every AI prompt — daily coach, briefing, chat, analysis.
+ * Capped at 10 goals and 20 recent activities to avoid context-window bloat.
+ */
+export interface PolarisContext {
+  activeGoals: Array<{
+    id: string;
+    title: string;
+    /** 0–100 */
+    progress: number;
+    timeframe: string;
+  }>;
+  /** Last 7 days of activities — title + date string + type */
+  recentActivities: Array<{
+    title: string;
+    date: string;
+    type: string;
+  }>;
+  currentStreak: number;
+  longestStreak: number;
+  timeOfDay: TimeOfDay;
+  dayOfWeek: string;
+  /** ISO date string for today (YYYY-MM-DD) */
+  currentDate: string;
+}

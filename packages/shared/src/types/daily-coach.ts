@@ -1,41 +1,17 @@
 /**
  * @file types/daily-coach.ts
- * @description Types for the Daily Coach AI feature and PolarisContext.
- *   PolarisContext is the shared data object injected into every AI prompt.
+ * @description Types for the Daily Coach AI feature response.
+ *   PolarisContext and TimeOfDay live in ai.ts — they are general AI context types.
  * @module @polaris/shared/types
  *
  * @relatedFiles
- * - packages/ai/src/PolarisAI.ts
+ * - packages/ai/src/features/daily-coach.ts
  * - apps/backend/src/services/polaris-context.service.ts
  * - apps/frontend/src/hooks/useDailyCoach.ts
  */
 
-/** Time-of-day bucket for personalised greeting/tone */
-export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night';
-
-/**
- * Shared context object assembled once per AI call.
- * Capped at 10 goals and 20 recent activities to avoid context-window bloat.
- */
-export interface PolarisContext {
-  activeGoals: Array<{
-    id: string;
-    title: string;
-    /** 0–100 */
-    progress: number;
-    timeframe: string;
-  }>;
-  /** Last 7 days of activities — title + date string + type */
-  recentActivities: Array<{
-    title: string;
-    date: string;
-    type: string;
-  }>;
-  currentStreak: number;
-  longestStreak: number;
-  timeOfDay: TimeOfDay;
-  dayOfWeek: string;
-}
+import type { TimeOfDay } from './ai.js';
+export type { TimeOfDay };
 
 /** Suggested activity returned by the daily coach */
 export interface CoachSuggestion {

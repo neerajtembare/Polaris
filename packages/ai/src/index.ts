@@ -5,16 +5,16 @@
  */
 
 // Main facade — use this in the backend
-export { PolarisAI, polarisAI } from './PolarisAI.js';
-export type { GoalContext, GoalInput, AIGoalBreakdown, AIWeeklyAnalysis, DailyCoachResponse } from './PolarisAI.js';
+export { PolarisAI, polarisAI } from './polaris-ai.js';
+export type { GoalContext, GoalInput, AIGoalBreakdown, AIWeeklyAnalysis, DailyCoachResponse } from './polaris-ai.js';
 
 // Provider utilities (for config endpoint)
 export { getProvider, getMockProvider } from './providers/index.js';
 
 // Individual functions (for direct use without the class)
-export { breakdownGoal } from './breakdown.js';
-export { analyzeWeek } from './analyze-week.js';
-export { dailyCoach } from './daily-coach.js';
+export { breakdownGoal } from './features/breakdown-goal.js';
+export { analyzeWeek } from './features/analyze-week.js';
+export { dailyCoach } from './features/daily-coach.js';
 
 // Types
 export type { AIProvider } from './types.js';

@@ -8,7 +8,7 @@
  * @module @polaris/backend/ai
  */
 
-import { logAiExchange } from './aiLogger.js';
+import { logAiExchange } from './ai-logger.js';
 
 interface CallProviderTextOptions {
   systemPrompt: string;

@@ -7,8 +7,8 @@
  */
 
 import type { AIGoalBreakdown, AISubGoal, AISuggestedActivity } from '@polaris/shared';
-import { buildGoalBreakdownUserPrompt, GOAL_BREAKDOWN_SYSTEM_PROMPT } from './prompts/goal-breakdown.js';
-import { callProviderText } from './utils/callProviderText.js';
+import { buildGoalBreakdownUserPrompt, GOAL_BREAKDOWN_SYSTEM_PROMPT } from '../prompts/goal-breakdown.prompt.js';
+import { callProviderText } from '../utils/call-provider-text.js';
 
 export type { AIGoalBreakdown, AISubGoal, AISuggestedActivity };
 

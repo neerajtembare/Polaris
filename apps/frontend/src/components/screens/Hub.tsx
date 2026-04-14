@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import ReactiveCard from './ui/ReactiveCard';
+import ReactiveCard from '../ui/ReactiveCard';
 import { useMetrics } from '@/hooks/useMetrics';
 import { useGoals } from '@/hooks/useGoals';
 import { useTodayActivities } from '@/hooks/useActivities';

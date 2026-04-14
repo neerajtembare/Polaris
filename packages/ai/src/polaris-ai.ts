@@ -22,9 +22,9 @@
 import type { AIActivityParse, DashboardMetrics, PolarisContext, DailyCoachResponse } from '@polaris/shared';
 import type { GoalContext } from './types.js';
 import { getProvider, getMockProvider } from './providers/index.js';
-import { breakdownGoal, type GoalInput, type AIGoalBreakdown } from './breakdown.js';
-import { analyzeWeek, type AIWeeklyAnalysis } from './analyze-week.js';
-import { dailyCoach } from './daily-coach.js';
+import { breakdownGoal, type GoalInput, type AIGoalBreakdown } from './features/breakdown-goal.js';
+import { analyzeWeek, type AIWeeklyAnalysis } from './features/analyze-week.js';
+import { dailyCoach } from './features/daily-coach.js';
 
 export type { DailyCoachResponse };
 

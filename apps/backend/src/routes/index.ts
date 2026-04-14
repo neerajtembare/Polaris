@@ -11,12 +11,12 @@
  */
 
 import type { FastifyPluginAsync } from 'fastify';
-import { goalsRoutes }      from './goals.js';
-import { activitiesRoutes } from './activities.js';
-import metricsRoutes        from './metrics.js';
-import aiRoutes             from './ai.js';
-import voiceRoutes          from './voice.js';
-import focusSessionsRoutes  from './focus-sessions.js';
+import { goalsRoutes }      from './goal.routes.js';
+import { activitiesRoutes } from './activity.routes.js';
+import metricsRoutes        from './metric.routes.js';
+import aiRoutes             from './ai.routes.js';
+import voiceRoutes          from './voice.routes.js';
+import focusSessionsRoutes  from './focus-session.routes.js';
 
 /**
  * Register all application routes as a Fastify plugin.

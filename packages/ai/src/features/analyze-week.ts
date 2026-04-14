@@ -7,8 +7,8 @@
  */
 
 import type { AIWeeklyAnalysis, DashboardMetrics } from '@polaris/shared';
-import { buildWeeklyAnalysisUserPrompt, WEEKLY_ANALYSIS_SYSTEM_PROMPT } from './prompts/weekly-analysis.js';
-import { callProviderText } from './utils/callProviderText.js';
+import { buildWeeklyAnalysisUserPrompt, WEEKLY_ANALYSIS_SYSTEM_PROMPT } from '../prompts/weekly-analysis.prompt.js';
+import { callProviderText } from '../utils/call-provider-text.js';
 
 export type { AIWeeklyAnalysis };
 
