@@ -9,6 +9,7 @@
  * @relatedFiles
  * - Docs/TARS_AGENT_ARCHITECTURE.md — system design and provider architecture
  * - Docs/tars_updateplan.md — sprint-level bug fix and UX improvement plan
+ * - Docs/TARS_review — external review feedback (Claude analysis)
  * - packages/ai/src/tars/ — action types, tool schemas, intent classifier
  * - apps/frontend/src/hooks/useCommandMatcher.ts — client-side command patterns
  * - apps/backend/src/controllers/ai.controller.ts — chat endpoint handler
@@ -16,9 +17,26 @@
 
 # TARS — Capability Matrix
 
-> **Version:** 1.0 | **April 14, 2026**
+> **Version:** 2.0 | **April 15, 2026**
 > **Purpose:** Single source of truth for what TARS can, should, and will be able to do.
 > **Scope:** Phases 0 & 1 (MVP). AI features from Phase 3+ are listed under Tier 5 (Deferred).
+
+---
+
+## Design Philosophy — "Guided AI"
+
+TARS is a **Guided AI assistant**: the AI understands intent, the app executes deterministically.
+
+```
+Human language  →  AI understands intent  →  Action Graph  →  Execution
+"I read 30 pages"    { type: 'log_activity',   logActivity()   DB write
+                       title: 'Reading',        (same function
+                       value: 30, unit:'pages'} the UI uses)
+```
+
+**The AI's job ends at intent extraction.** Everything after that is deterministic, testable, and independent of AI. TARS does not invent new capabilities — it finds the right path through capabilities that already exist.
+
+**Trust comes from predictability, not capability breadth.** A reliable assistant with 15 solid features beats a fragile one with 50. Every capability must be solid, every correction path obvious, and every error recoverable.
 
 ---
 
@@ -38,29 +56,220 @@ Each capability row contains:
 
 ## Architecture Recap
 
-TARS processes commands in two layers:
+TARS processes commands in three layers, with screen context for disambiguation:
 
 ```
-User input
+User input + currentScreen context
   │
   ▼
 [Layer 1] Client-Side Command Matcher (zero network, instant)
-  │  Matches fixed patterns: navigate, audio, focus, clear chat
-  │  If matched → execute immediately, no API call
+  │  Matches fixed patterns: navigate, audio, focus, clear chat, help
+  │  If matched → execute immediately, return action + optional Quick Reply Chips
+  │  No API call needed
   │
   ▼ (no match, falls through)
 [Layer 2] POST /api/ai/chat (backend)
+  │  Receives: { message, history, pendingActionType, currentScreen }
   │  Heuristic intent classification → LLM if ambiguous/complex
+  │  Screen context used for disambiguation ("add one" on Goals → create_goal)
   │  Write intents → LLM tool call → TARSAction returned to frontend
   │  Read intents → LLM text response
+  │  Response includes: text + action + optional Quick Reply Chips
   │
   ▼ (write actions only)
-[Layer 3] ToolConfirmCard (frontend)
-  │  User sees proposed action with 3s auto-accept countdown
-  │  Confirm → execute via API   |   Cancel → discard
+[Layer 3] Editable ToolConfirmCard (frontend)
+  │  User sees proposed action with EDITABLE fields (real dropdowns, pickers)
+  │  Auto-accept countdown (5s)
+  │  Confirm → execute via same function the UI uses → Undo toast (30s)
+  │  Cancel → discard
 ```
 
-**Rule:** If no AI is needed, the command is handled at Layer 1 (or as a direct API read). Only write operations and complex queries use the LLM.
+**Rules:**
+- Client-side match always wins over server for fixed commands (zero latency)
+- AI only handles ambiguous, complex, or natural-language inputs
+- All write operations require user confirmation before execution
+- Quick Reply Chips are always deterministic (hardcoded per action type), never AI-generated
+
+---
+
+## Foundational UX Systems
+
+These are cross-cutting patterns that affect ALL capabilities. They must be built as systems, not case-by-case.
+
+### F1. Quick Reply Chips
+
+Every TARS response can optionally include deterministic action buttons ("chips") below the text. Chips are hardcoded per action type result — never AI-generated.
+
+```typescript
+interface TARSResponse {
+  text: string                    // What TARS says
+  chips?: QuickReplyChip[]        // Optional action shortcuts
+  confirmCard?: PendingAction     // For write confirmations
+}
+
+interface QuickReplyChip {
+  label: string                   // Button text
+  action: TARSAction              // What it does when tapped
+  icon?: string                   // Optional icon
+}
+```
+
+**Chip sets per action result:**
+
+| After this action... | TARS shows these chips |
+|---|---|
+| `audio.play` (no genre) | `[Lo-fi]` `[Jazz]` `[Classical]` `[Ambient]` `[Rain]` `[Stop Music]` |
+| `show_goals` | `[Add New Goal]` `[Goal Breakdown]` `[View Progress]` |
+| `log_activity` (confirmed) | `[Start Focus]` `[Log Another]` `[View Today]` |
+| `query` ("how am I doing?") | `[Weekly Review]` `[View Goals]` `[Suggest Activity]` |
+| `help` command | Category chips: `[Navigation]` `[Audio]` `[Log Activity]` `[Goals]` `[Focus]` — tapping expands to specific commands |
+| Ambiguous topic (e.g. "goals") | `[Show All Goals]` `[Add New Goal]` `[View Progress]` `[Goal Breakdown]` |
+| Error / failure | `[Retry]` `[Open Manual Form]` |
+
+**Status:** ❌ Missing — `QuickReplyChip` type does not exist yet. Must be added to `TARSAction` response system.
+**Files:** `packages/ai/src/tars/action-types.ts` (type), `apps/frontend/src/components/assistant/` (render chips), `useAssistant.ts` + `useCommandMatcher.ts` (return chips with responses)
+
+**Critical rule:** Chips must always map to a real `TARSAction`. If a chip doesn't map to an executable action, tapping it breaks the experience.
+
+---
+
+### F2. Editable ToolConfirmCard
+
+Write confirmations must show **real editable fields** — not display-only text. The user should be able to correct what the AI got wrong without re-prompting.
+
+```
+┌─────────────────────────────────────┐
+│  Log Activity                       │
+│  ─────────────────────────────────  │
+│  Title:  [Morning Run          ]    │  ← editable text
+│  Type:   [Quantity        ▼]        │  ← dropdown
+│  Value:  [5    ] [km      ▼]        │  ← number input + unit dropdown
+│  Goal:   [Fitness Goal    ▼]        │  ← dropdown of actual goals from store
+│  Date:   [Today           ]         │  ← date picker
+│                                     │
+│  [Accept ✓]  [Edit]  [Cancel ✗]     │
+│  Auto-accepting in 5s ●●●●○         │
+└─────────────────────────────────────┘
+```
+
+The AI gets 80% right, the user fixes the 20%. The final params (possibly user-edited) are passed to the **same function** the manual UI uses — not a TARS-specific endpoint.
+
+**Status:** ⚠️ Partial — `ToolConfirmCard` exists but fields are display-only, not editable. Goal selector is not a dropdown of real goals.
+**Files:** `apps/frontend/src/components/assistant/ToolConfirmCard.tsx`
+
+---
+
+### F3. Undo / Rollback (30s)
+
+Every write action TARS executes should be undoable for 30 seconds. After a successful write, show a toast with an undo button. Undo calls `DELETE /api/activities/:id` (soft-delete) or equivalent.
+
+```typescript
+// In Zustand assistant store
+lastAction: { type: string; id: string; timestamp: number } | null
+```
+
+**Status:** ❌ Missing — no undo capability exists.
+**Files:** `assistant.store.ts` (state), `useAssistantActions.ts` (toast + undo), `ToolConfirmCard.tsx` (trigger after confirm)
+
+---
+
+### F4. Screen Context Awareness
+
+TARS should know what screen the user is currently on. This disambiguates short commands:
+- "add one" on Goals screen → `create_goal`
+- "add one" on Hub → ambiguous, ask
+- "show progress" on Goals → specific goal progress
+- "show progress" on Hub → dashboard metrics
+
+```typescript
+// Added to /api/ai/chat payload
+{ 
+  message: string,
+  currentScreen: ScreenId,    // ← new field
+  history: ChatMessage[],
+  pendingActionType?: string
+}
+```
+
+The intent classifier uses `currentScreen` as a hint for disambiguation. The command matcher can also use it for screen-relative shortcuts.
+
+**Status:** ❌ Missing — `currentScreen` is not sent with chat requests.
+**Files:** `useAssistant.ts` (send screen), `ai.controller.ts` (receive), `intent-classifier.ts` (use as hint)
+
+---
+
+### F5. Typing Indicator
+
+When TARS is processing (API call in flight), show a three-dot typing animation in the conversation thread. One `isTarsTyping` boolean in the store. Standard chat UX — its absence makes the interface feel broken during the 1–3 second API call.
+
+**Status:** ❌ Missing — no typing indicator during processing.
+**Files:** `assistant.store.ts` (flag), `ConversationThread.tsx` (render dots), `useAssistant.ts` (set/clear flag)
+
+---
+
+### F6. Error Recovery UX
+
+When a TARS action fails (network error, validation error, AI timeout):
+
+1. Show a **specific** error message inline in conversation ("Couldn't log that activity — the goal wasn't found")
+2. Show a **Retry** button on the failed message
+3. If the error is AI-side (Gemini timeout), offer fallback: `[Retry]` `[Open Manual Form]`
+
+**Status:** ⚠️ Partial — retry button exists on error messages. No fallback to manual form, no specific error messages.
+**Files:** `ConversationThread.tsx`, `useAssistant.ts`, `useAssistantActions.ts`
+
+---
+
+### F7. State Persistence Across Refreshes
+
+Persist to `localStorage` with 24-hour TTL:
+- Last ~10 conversation messages (so the user doesn't lose context on refresh)
+- Avatar position `{ x, y }` (once draggable avatar is implemented)
+- Panel open/close state
+- Last used AI provider/model (already persisted via Settings)
+
+**Status:** ❌ Missing — conversation history is session-only (cleared on refresh).
+**Files:** `assistant.store.ts` (add `persist` middleware from Zustand)
+
+---
+
+### F8. Input History (Up Arrow)
+
+Pressing Up Arrow in the TARS input cycles through previous user messages (like a terminal). One `string[]` for history + `onKeyDown` handler. Users who log the same phrases often ("log 30 pages") benefit immediately.
+
+**Status:** ❌ Missing
+**Files:** `AssistantInput.tsx`
+
+---
+
+### F9. Message Timestamps + Collapsible History
+
+For longer conversations:
+- Show timestamps on hover (relative: "2 min ago", "today at 3:14 PM")
+- Messages beyond the most recent 6 collapse behind a "Show earlier" disclosure
+- Keeps the panel clean during long sessions
+
+**Status:** ❌ Missing
+**Files:** `ConversationThread.tsx`, `AssistantMessage.tsx`, `UserMessage.tsx`
+
+---
+
+### F10. "What Can I Do?" — Capability Discovery
+
+A `help` command that renders the command reference as **tappable category chips** in conversation — not a text wall.
+
+```
+TARS: "Here's what I can do:"
+
+[Navigation ▼]  [Audio ▼]  [Log Activity]
+[View Goals]     [Focus Session]  [Weekly Review]
+[Ask me anything]
+```
+
+Tapping a category expands to show specific commands as chips. This is the single best onboarding and discoverability tool.
+
+**Status:** ❌ Missing
+**Files:** `useCommandMatcher.ts` (pattern), TARS response rendering (chip groups)
 
 ---
 
@@ -121,6 +330,8 @@ Instant, client-side execution. Zero network calls. These must work reliably for
 | 1.17 | Clear TARS chat history | ❌ Missing | ❌ No | "clear chat", "reset", "start over", "clear" | Client-side: `clearHistory()` in Zustand store. Button exists in panel header but not as a voice/text command |
 | 1.18 | Toggle dark/light theme | ❌ Missing | ❌ No | "dark mode", "light mode", "toggle theme", "switch theme" | Client-side: dispatch theme action (theme state lives in App.tsx) |
 | 1.19 | Open/close TARS panel | ✅ Works | ❌ No | *(keyboard: Ctrl+T, Esc)* | Already works via hotkeys. Could add: "open tars", "close" as text commands |
+| 1.20 | Help / "What can I do?" | ❌ Missing | ❌ No | "help", "what can you do?", "commands" | See F10. Returns category chips in conversation. Client-side, no API call needed |
+| 1.21 | Input history (Up Arrow) | ❌ Missing | ❌ No | *(press Up Arrow in input box)* | See F8. Cycles through previous user messages like a terminal |
 
 ---
 
@@ -146,7 +357,15 @@ These query the backend and return data as a text response. No data is written. 
 
 ## Tier 3 — Write Operations (AI Required + User Confirmation)
 
-All writes go through the LLM → `ToolConfirmCard` confirmation flow. The user must confirm before any data is mutated. The 3-second auto-accept countdown is shown.
+All writes go through the LLM → **Editable ToolConfirmCard** → **Undo Toast** flow. The user must confirm before any data is mutated. Fields are editable (real dropdowns for goals, units, date picker). After confirmation, a 30-second undo toast is shown (see F3).
+
+**Full write flow:**
+1. AI extracts structured draft from natural language (tool call)
+2. Frontend shows Editable ToolConfirmCard — all fields are real inputs (see F2)
+3. User accepts (or edits and then accepts). Auto-accept countdown at 5s
+4. Frontend calls the **same function** the manual UI uses (e.g. `useCreateActivity()`)
+5. Success → TARS confirms with data ("Done. Morning Run logged — 5km. Fitness goal now 34%.") + Quick Reply Chips
+6. 30-second Undo toast shown (see F3)
 
 | # | Capability | Status | Needs AI? | Example Phrases | Note |
 |---|---|---|---|---|---|
@@ -192,53 +411,74 @@ Not in scope for Phase 0/1. Listed here for completeness and planning.
 | 5.5 | TARS personality customisation | Phase 3 | Adjust humor level, verbosity, proactivity (currently wired in the UI prototype but does nothing) |
 | 5.6 | Multi-device / cloud sync | Phase 5 | TARS context persisted across devices |
 | 5.7 | External integrations | Phase 4+ | Apple Health, Strava, calendar imports |
+| 5.8 | Draggable TARS avatar | Phase 2 | Floating draggable avatar (div with Three.js canvas inside) separate from panel. Click → open panel, drag → reposition. Position persisted in localStorage. See TARS_review for implementation pattern (plain div drag, not Three.js drag). |
+| 5.9 | Wake word voice activation | Phase 3 | "Hey TARS" / "Polaris" wake word using Web Speech API `SpeechRecognition` with `continuous: true`. Entirely browser-native |
 
 ---
 
 ## Implementation Priority Order
 
-### Sprint A — Make Existing Features Actually Work (Tier 0 + Tier 1 fixes)
+### Sprint A — Bug Fixes + Core UX Foundation (Tier 0 + key Foundational Systems)
 
 This is the minimum viable TARS. Everything after this is additive.
 
+**Bug fixes (must be first):**
 1. **[0.1]** Fix multi-turn confirmation — `pendingAction` draft must survive the "yes" round-trip
-2. **[0.2]** Fix audio playback — auto-select lofi station, add in-chat genre buttons  
+2. **[0.2]** Fix audio playback — auto-select lofi station when no stream loaded
 3. **[0.3]** Expand command matcher — single-word shortcuts ("music", "hub", "goals", "settings", etc.)
 4. **[0.4]** Suppress Gemini thinking output — `thinkingBudget: 0` in Gemini provider
-5. **[1.11]** Play by genre — "play lofi", "play jazz"
-6. **[1.12]** In-chat genre quick-select buttons after "play music"
-7. **[1.17]** "clear chat" text command → wire to existing `clearHistory()` in store
-8. **[1.18]** "dark mode" / "light mode" commands → toggle theme from TARS
 
-### Sprint B — Data Read Queries (Tier 2)
+**Foundational UX (build as systems, reused everywhere):**
+5. **[F1]** Quick Reply Chips system — `QuickReplyChip` type + render in conversation thread + hardcoded chip sets per action
+6. **[F5]** Typing indicator — three-dot animation during processing
+7. **[F6]** Error recovery UX — specific inline errors + retry button + `[Open Manual Form]` chip
+8. **[F4]** Screen context awareness — send `currentScreen` with chat requests
 
-9. **[2.1–2.2]** Today's planned/completed activities — inline text response in chat
-10. **[2.3]** Inline streak response instead of just navigating
-11. **[2.5]** Progress on a specific goal — "how's my reading goal?"
-12. **[2.7–2.9]** Dashboard metrics via TARS — "my stats this week"
+### Sprint B — Basic Commands + Chat Polish (Tier 1 new items + Foundational polish)
 
-### Sprint C — Intelligent Features Surface (Tier 4 items that already have backends)
+9. **[1.11]** Play by genre — "play lofi", "play jazz" + genre chips after `audio.play`
+10. **[1.12]** In-chat genre quick-select buttons (uses F1 chip system)
+11. **[1.17]** "clear chat" text command
+12. **[1.18]** "dark mode" / "light mode" commands
+13. **[1.20]** Help / "What can I do?" — category chips using F10
+14. **[F8]** Input history (Up Arrow) in AssistantInput
+15. **[F9]** Message timestamps on hover + collapsible older messages
 
-13. **[4.1]** Daily coaching via TARS phrase
-14. **[4.3]** Weekly analysis via TARS phrase
-15. **[4.4]** Goal breakdown via TARS phrase
-16. **[4.5]** Activity suggestions via TARS phrase
+### Sprint C — Write Flow Polish (Tier 3 UX)
 
-### Sprint D — Advanced Write Flows
+16. **[F2]** Editable ToolConfirmCard — real dropdowns for goal selector, unit picker, date picker
+17. **[F3]** Undo / Rollback — 30-second undo toast after confirmed writes
+18. **[F7]** State persistence — last 10 messages + panel state in localStorage (24h TTL)
 
-17. **[4.6]** Conversational goal creation (multi-turn guided)
-18. **[1.15–1.16]** Focus duration + goal-targeted focus
-19. **[3.5–3.8]** Update/delete activities and goals (deferred per user decision)
+### Sprint D — Data Read Queries (Tier 2)
+
+19. **[2.1–2.2]** Today's planned/completed activities — inline text response in chat
+20. **[2.3]** Inline streak response instead of just navigating
+21. **[2.5]** Progress on a specific goal — "how's my reading goal?"
+22. **[2.7–2.9]** Dashboard metrics via TARS — "my stats this week"
+
+### Sprint E — Intelligent Features Surface (Tier 4 items that already have backends)
+
+23. **[4.1]** Daily coaching via TARS phrase
+24. **[4.3]** Weekly analysis via TARS phrase
+25. **[4.4]** Goal breakdown via TARS phrase
+26. **[4.5]** Activity suggestions via TARS phrase
+
+### Sprint F — Advanced Flows
+
+27. **[4.6]** Conversational goal creation (multi-turn guided)
+28. **[1.15–1.16]** Focus duration + goal-targeted focus
+29. **[3.5–3.8]** Update/delete activities and goals (deferred per user decision)
 
 ---
 
 ## Command Reference Card
 
-Quick lookup of all supported phrases (Sprint A target state):
+Quick lookup of all supported phrases (Sprint B target state):
 
 ```
 NAVIGATION
-  hub | home | dashboard
+  hub | home | dashboard | take me home
   goals | my goals | goal list
   insights | stats | analytics
   history | past activities
@@ -259,13 +499,15 @@ FOCUS
 UI
   clear chat | reset | start over
   dark mode | light mode | toggle theme
+  help | what can you do? | commands
+  (Up Arrow — cycle previous inputs)
 
-WRITE OPERATIONS (ask + confirm)
+WRITE OPERATIONS (ask + confirm via editable card + undo toast)
   "I [did X]" → log completed activity
   "I'm going to [do X]" → plan activity
   "new goal: [X]" | "I want to [X]" → create goal
 
-DATA QUERIES (inline response)
+DATA QUERIES (inline response + follow-up chips)
   what's planned today? | today's list
   what did I do today?
   my streak | what's my streak?
@@ -285,9 +527,16 @@ INTELLIGENT
 
 | Decision | Rationale |
 |---|---|
-| Audio defaults to lofi auto-pick | Removes friction. Genre buttons shown in-chat as quick alternatives |
+| "Guided AI" philosophy | AI translates intent → deterministic action graph. Trust comes from predictability, not capability breadth (ref: TARS_review) |
+| Quick Reply Chips are never AI-generated | Chips must always map to a real `TARSAction`. Hardcoded per action type result to prevent broken experiences |
+| Editable ToolConfirmCard with real dropdowns | AI gets 80% right, user fixes 20%. Feels collaborative not adversarial. Same function as manual UI |
+| 30-second undo after writes | Users will confirm things too fast. One extra state field, massive trust improvement |
+| Screen context sent with chat requests | "add one" on Goals → `create_goal`. One field, massive disambiguation improvement |
+| Audio defaults to lofi auto-pick | Removes friction. Genre chips shown in-chat as quick alternatives |
 | Update/Delete operations deferred | Basic CRUD must be stable before adding mutation complexity |
+| Draggable avatar deferred to Phase 2 | Nice-to-have. Avatar separate from panel (plain div drag, Three.js inside). Not blocking |
 | All writes require user confirmation | Core safety principle — TARS never mutates data without explicit user OK |
 | Client-side match always wins over server | Zero-latency UX for fixed commands. Server is for intent-ambiguous inputs only |
 | Voice auto-submit deferred | Current behaviour (fills text bar) is acceptable for Phase 1. Full voice assistant mode is Phase 2 |
+| Conversation persistence via localStorage (24h TTL) | Nobody wants to re-explain what they were doing after an accidental refresh |
 | Capabilities doc lives in Docs/ | Alongside TARS_AGENT_ARCHITECTURE.md and tars_updateplan.md |

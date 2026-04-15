@@ -159,6 +159,21 @@ Fix conversation memory (multi-turn), fix intent classification for follow-ups, 
 
 ---
 
+## Alignment with TARS_CAPABILITIES.md (v2.0)
+
+This plan covers **Sprint A items 1–4** from TARS_CAPABILITIES.md.
+Additional Sprint A items (Quick Reply Chips F1, Typing Indicator F5, Error Recovery F6, Screen Context F4) are documented in the capabilities doc and will be implemented after these foundational fixes.
+
+Key additions from the [TARS_review](./TARS_review) that affect this plan:
+- **F1 Quick Reply Chips**: Every action result should return optional tappable chips (deterministic, never AI-generated). Build as a system alongside Phases 4–5.
+- **F2 Editable ToolConfirmCard**: Write confirmation cards need real dropdowns (goal picker, unit picker), not display-only text. Implement in Sprint C (TARS_CAPABILITIES.md).
+- **F3 Undo/Rollback**: 30-second undo toast after confirmed writes. Implement in Sprint C.
+- **F4 Screen Context**: Send `currentScreen` with chat requests. Implement in Sprint A (after bug fixes).
+- **F5 Typing Indicator**: Three-dot animation during processing. Implement in Sprint A.
+- **F8 Input History**: Up Arrow cycles previous inputs. Implement in Sprint B.
+
+---
+
 ## Verification
 
 1. "log 1 hour study" → TARS proposes → "yes" → TARS executes (multi-turn + intent fix)
@@ -175,7 +190,7 @@ Fix conversation memory (multi-turn), fix intent classification for follow-ups, 
 ## Decisions
 
 - **20-message history cap** — trimmed server-side, prevents token abuse
-- **No persistence** — privacy-first, cleared on refresh/close
+- **Conversation persistence (24h TTL)** — last ~10 messages persisted to localStorage per TARS_review. Overrides previous "no persistence" decision
 - **`thinkingBudget: 0`** — correct API-level suppression for gemma-4
 - **Confirmation-aware intent** — "yes" with pending action → re-routes to action intent with tools
 - **`maxTokens: 600`** when tools are included (up from 400) — prevents truncated tool call JSON
