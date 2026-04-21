@@ -42,7 +42,7 @@ export class OpenAIProvider implements AIProvider {
           { role: 'user',   content: userPrompt },
         ],
       }),
-      // No timeout — allow OpenAI to respond at its own pace
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {
@@ -126,6 +126,7 @@ export class OpenAIProvider implements AIProvider {
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {

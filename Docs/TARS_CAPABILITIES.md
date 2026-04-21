@@ -126,8 +126,8 @@ interface QuickReplyChip {
 | Ambiguous topic (e.g. "goals") | `[Show All Goals]` `[Add New Goal]` `[View Progress]` `[Goal Breakdown]` |
 | Error / failure | `[Retry]` `[Open Manual Form]` |
 
-**Status:** ❌ Missing — `QuickReplyChip` type does not exist yet. Must be added to `TARSAction` response system.
-**Files:** `packages/ai/src/tars/action-types.ts` (type), `apps/frontend/src/components/assistant/` (render chips), `useAssistant.ts` + `useCommandMatcher.ts` (return chips with responses)
+**Status:** ✅ Complete — `QuickReplyChip` type exists in `action-types.ts`, rendered in `ConversationThread.tsx`, returned by backend `chipsForAction()` and client-side command handlers.
+**Files:** `packages/ai/src/tars/action-types.ts`, `apps/frontend/src/components/assistant/ConversationThread.tsx`, `useAssistant.ts`, `useCommandMatcher.ts`, `ai.controller.ts`
 
 **Critical rule:** Chips must always map to a real `TARSAction`. If a chip doesn't map to an executable action, tapping it breaks the experience.
 
@@ -154,7 +154,7 @@ Write confirmations must show **real editable fields** — not display-only text
 
 The AI gets 80% right, the user fixes the 20%. The final params (possibly user-edited) are passed to the **same function** the manual UI uses — not a TARS-specific endpoint.
 
-**Status:** ⚠️ Partial — `ToolConfirmCard` exists but fields are display-only, not editable. Goal selector is not a dropdown of real goals.
+**Status:** ✅ Complete — all fields editable (text, number, unit dropdown, type select, goal dropdown via `useGoals()`). `onPointerDown` cancels auto-accept when user interacts. Passes user-edited draft to `onAccept`.
 **Files:** `apps/frontend/src/components/assistant/ToolConfirmCard.tsx`
 
 ---
@@ -168,8 +168,8 @@ Every write action TARS executes should be undoable for 30 seconds. After a succ
 lastAction: { type: string; id: string; timestamp: number } | null
 ```
 
-**Status:** ❌ Missing — no undo capability exists.
-**Files:** `assistant.store.ts` (state), `useAssistantActions.ts` (toast + undo), `ToolConfirmCard.tsx` (trigger after confirm)
+**Status:** ✅ Complete — 30-second undo toast after every confirmed write. `lastAction` in Zustand store. Undo calls `deleteActivity`/`deleteGoal`.
+**Files:** `assistant.store.ts`, `useAssistantActions.tsx`
 
 ---
 
@@ -193,8 +193,8 @@ TARS should know what screen the user is currently on. This disambiguates short 
 
 The intent classifier uses `currentScreen` as a hint for disambiguation. The command matcher can also use it for screen-relative shortcuts.
 
-**Status:** ❌ Missing — `currentScreen` is not sent with chat requests.
-**Files:** `useAssistant.ts` (send screen), `ai.controller.ts` (receive), `intent-classifier.ts` (use as hint)
+**Status:** ✅ Complete — `currentScreen` sent with every `/api/ai/chat` request, used by intent classifier for disambiguation.
+**Files:** `useAssistant.ts`, `ai.controller.ts`, `intent-classifier.ts`
 
 ---
 
@@ -202,8 +202,8 @@ The intent classifier uses `currentScreen` as a hint for disambiguation. The com
 
 When TARS is processing (API call in flight), show a three-dot typing animation in the conversation thread. One `isTarsTyping` boolean in the store. Standard chat UX — its absence makes the interface feel broken during the 1–3 second API call.
 
-**Status:** ❌ Missing — no typing indicator during processing.
-**Files:** `assistant.store.ts` (flag), `ConversationThread.tsx` (render dots), `useAssistant.ts` (set/clear flag)
+**Status:** ✅ Complete — 3-dot bouncing animation in `ConversationThread.tsx` when `isProcessing` is true; driven by `tarsState === 'processing'`.
+**Files:** `assistant.store.ts`, `ConversationThread.tsx`, `useAssistant.ts`
 
 ---
 
@@ -215,8 +215,8 @@ When a TARS action fails (network error, validation error, AI timeout):
 2. Show a **Retry** button on the failed message
 3. If the error is AI-side (Gemini timeout), offer fallback: `[Retry]` `[Open Manual Form]`
 
-**Status:** ⚠️ Partial — retry button exists on error messages. No fallback to manual form, no specific error messages.
-**Files:** `ConversationThread.tsx`, `useAssistant.ts`, `useAssistantActions.ts`
+**Status:** ✅ Complete — inline error messages with `[Retry]` and `[Open Manual Form]` chips. `onRetry` wired through `ConversationThread` → `AssistantPanel`.
+**Files:** `ConversationThread.tsx`, `useAssistant.ts`, `AssistantPanel.tsx`
 
 ---
 
@@ -228,8 +228,8 @@ Persist to `localStorage` with 24-hour TTL:
 - Panel open/close state
 - Last used AI provider/model (already persisted via Settings)
 
-**Status:** ❌ Missing — conversation history is session-only (cleared on refresh).
-**Files:** `assistant.store.ts` (add `persist` middleware from Zustand)
+**Status:** ✅ Complete — Zustand `persist` middleware, key `polaris:tars` v1. Last 10 non-typing messages + `isOpen` persisted. Ephemeral fields stripped.
+**Files:** `assistant.store.ts`
 
 ---
 
@@ -237,7 +237,7 @@ Persist to `localStorage` with 24-hour TTL:
 
 Pressing Up Arrow in the TARS input cycles through previous user messages (like a terminal). One `string[]` for history + `onKeyDown` handler. Users who log the same phrases often ("log 30 pages") benefit immediately.
 
-**Status:** ❌ Missing
+**Status:** ✅ Complete — Up/Down arrow history, max 50 entries, deduplicates consecutive. Restores draft on Down past index 0.
 **Files:** `AssistantInput.tsx`
 
 ---
@@ -249,7 +249,7 @@ For longer conversations:
 - Messages beyond the most recent 6 collapse behind a "Show earlier" disclosure
 - Keeps the panel clean during long sessions
 
-**Status:** ❌ Missing
+**Status:** ✅ Complete — relative timestamps on hover in both message types. `formatRelativeTime()`: "just now / Nm ago / Nh ago / short date".
 **Files:** `ConversationThread.tsx`, `AssistantMessage.tsx`, `UserMessage.tsx`
 
 ---
@@ -268,8 +268,8 @@ TARS: "Here's what I can do:"
 
 Tapping a category expands to show specific commands as chips. This is the single best onboarding and discoverability tool.
 
-**Status:** ❌ Missing
-**Files:** `useCommandMatcher.ts` (pattern), TARS response rendering (chip groups)
+**Status:** ✅ Complete — `help`/`what can you do?`/`commands` matched client-side. Returns 9 HELP_CHIPS by category.
+**Files:** `useCommandMatcher.ts`, `useAssistant.ts`
 
 ---
 
@@ -311,8 +311,8 @@ Instant, client-side execution. Zero network calls. These must work reliably for
 | 1.8 | Play music (auto-select lofi default) | ⚠️ Buggy | ❌ No | "play music", "music", "play", "start music" | Tier 0.2 fix: auto-load lofi station if none selected |
 | 1.9 | Stop / pause music | ✅ Works | ❌ No | "stop music", "pause", "music off", "stop" | Client-side |
 | 1.10 | Skip to next track | ✅ Works | ❌ No | "next track", "skip", "next" | Client-side |
-| 1.11 | Play by genre | ❌ Missing | ❌ No | "play lofi", "play jazz", "play classical", "play ambient" | Client-side: match genre keyword → `{ type: 'audio.play', genre: 'lofi' }` → Radio Browser search |
-| 1.12 | In-chat genre buttons | ❌ Missing | ❌ No | *(auto-shown after "play music")* | When `audio.play` fires with no genre, TARS replies with quick-select buttons: Lo-fi · Jazz · Classical · Ambient |
+| 1.11 | Play by genre | ✅ Works | ❌ No | "play lofi", "play jazz", "play classical", "play ambient" | GENRE_MAP in `useAssistantActions.tsx` maps genre → PRESET_STREAMS id |
+| 1.12 | In-chat genre buttons | ✅ Works | ❌ No | *(auto-shown after "play music")* | Chips returned by `chipsForAction()` on `audio.play` action |
 
 ### 1C. Focus Session
 
@@ -327,11 +327,11 @@ Instant, client-side execution. Zero network calls. These must work reliably for
 
 | # | Capability | Status | Needs AI? | Example Phrases | Note |
 |---|---|---|---|---|---|
-| 1.17 | Clear TARS chat history | ❌ Missing | ❌ No | "clear chat", "reset", "start over", "clear" | Client-side: `clearHistory()` in Zustand store. Button exists in panel header but not as a voice/text command |
-| 1.18 | Toggle dark/light theme | ❌ Missing | ❌ No | "dark mode", "light mode", "toggle theme", "switch theme" | Client-side: dispatch theme action (theme state lives in App.tsx) |
+| 1.17 | Clear TARS chat history | ✅ Works | ❌ No | "clear chat", "reset", "start over", "clear" | Handled in `useAssistant.ts` via `clearHistory()` from store |
+| 1.18 | Toggle dark/light theme | ✅ Works | ❌ No | "dark mode", "light mode", "toggle theme", "switch theme" | `toggle_theme` action via `onToggleTheme` callback chain |
 | 1.19 | Open/close TARS panel | ✅ Works | ❌ No | *(keyboard: Ctrl+T, Esc)* | Already works via hotkeys. Could add: "open tars", "close" as text commands |
-| 1.20 | Help / "What can I do?" | ❌ Missing | ❌ No | "help", "what can you do?", "commands" | See F10. Returns category chips in conversation. Client-side, no API call needed |
-| 1.21 | Input history (Up Arrow) | ❌ Missing | ❌ No | *(press Up Arrow in input box)* | See F8. Cycles through previous user messages like a terminal |
+| 1.20 | Help / "What can I do?" | ✅ Works | ❌ No | "help", "what can you do?", "commands" | Returns 9 HELP_CHIPS in chat (client-side, no API call) |
+| 1.21 | Input history (Up Arrow) | ✅ Works | ❌ No | *(press Up Arrow in input box)* | Up/Down arrow cycles; max 50 entries; Down restores draft |
 
 ---
 
@@ -341,15 +341,15 @@ These query the backend and return data as a text response. No data is written. 
 
 | # | Capability | Status | Needs AI? | Example Phrases | Note |
 |---|---|---|---|---|---|
-| 2.1 | Today's planned activities | ❌ Missing | ❌ No | "what's planned today?", "what do I have today?", "today's list" | Call `GET /api/activities/today`, format response in plain text. No LLM needed |
-| 2.2 | Today's completed activities | ❌ Missing | ❌ No | "what did I do today?", "today's progress" | Same endpoint (`GET /api/activities/today`), filter completed |
-| 2.3 | Current streak | ⚠️ Partial | ❌ No | "my streak", "what's my streak?", "streak count" | `show_streak` action exists. Currently just navigates or shows context data. Could return inline text: "3-day streak." |
-| 2.4 | Goal list (all active) | ⚠️ Partial | ❌ No | "list my goals", "show all goals", "what goals do I have?" | `show_goals` → navigates to Goals screen. Could also return a summary inline in chat |
-| 2.5 | Progress on a specific goal | ❌ Missing | ❌ No | "how's my reading goal?", "reading progress", "gym goal %" | Call `GET /api/goals/:id?includeProgress=true`. Requires goal name→ID resolution |
-| 2.6 | Dormant / inactive goals | ❌ Missing | ❌ No | "which goals am I neglecting?", "dormant goals", "inactive goals" | Call `GET /api/goals/-/dormant` and summarize |
-| 2.7 | Dashboard metrics summary | ❌ Missing | ❌ No | "how active was I this week?", "my stats", "weekly summary" | Call `GET /api/metrics/dashboard?period=week` and format key numbers |
-| 2.8 | Longest streak | ❌ Missing | ❌ No | "what's my longest streak?", "best streak" | Available in `GET /api/metrics/dashboard` under `longestStreak` |
-| 2.9 | Activity count this week/month | ❌ Missing | ❌ No | "how many activities this week?", "monthly count" | From dashboard metrics endpoint |
+| 2.1 | Today's planned activities | ✅ Works | ❌ No | "what's planned today?", "today's list" | `tryDirectQuery()` formats from `PolarisContext.todayPlanned` — no LLM |
+| 2.2 | Today's completed activities | ✅ Works | ❌ No | "what did I do today?", "today's progress" | `tryDirectQuery()` formats from `PolarisContext.todayCompleted` |
+| 2.3 | Current streak | ✅ Works | ❌ No | "my streak", "what's my streak?", "streak count" | `tryDirectQuery()` shows current + longest streak with contextual note |
+| 2.4 | Goal list (all active) | ✅ Works | ❌ No | "list my goals", "show all goals" | `tryDirectQuery()` shows title + progress% + last activity age |
+| 2.5 | Progress on a specific goal | ✅ Works | ❌ No | "how's my reading goal?", "reading progress" | `tryDirectQuery()` fuzzy-matches goal name from `activeGoals` context |
+| 2.6 | Dormant / inactive goals | ❌ Deferred | ❌ No | "which goals am I neglecting?", "dormant goals" | Future: use existing `GET /api/goals/-/dormant` endpoint |
+| 2.7 | Dashboard metrics summary | ✅ Works | ❌ No | "how active was I this week?", "my stats" | `tryDirectQuery()` derives from `recentActivities` + `activeGoals` |
+| 2.8 | Longest streak | ✅ Works | ❌ No | "what's my longest streak?", "best streak" | Included in streak response from `tryDirectQuery()` |
+| 2.9 | Activity count this week/month | ✅ Works | ❌ No | "how many activities this week?" | Included in weekly stats response from `tryDirectQuery()` |
 
 > **Implementation Note:** These should be handled server-side by the `/api/ai/chat` endpoint using the `query` intent. The `PolarisContext` already injects goals, activities, and streak data into every prompt — so the LLM can answer these accurately from context alone, without needing extra API calls. New direct-query capabilities (2.1, 2.2) should be handled with a dedicated `query` tool that constructs the formatted reply from context data.
 
@@ -388,11 +388,11 @@ These query, analyse, or coach — they don't write data. Backend services alrea
 
 | # | Capability | Status | Needs AI? | Example Phrases | Note |
 |---|---|---|---|---|---|
-| 4.1 | Daily coaching message | ✅ Backend exists | ✅ Yes | "coach me", "what should I focus on today?", "daily advice" | `GET /api/ai/daily-coach` already exists (also surfaces via MorningBanner). TARS just needs to call it on this phrase |
+| 4.1 | Daily coaching message | ✅ Works | ✅ Yes | "coach me", "what should I focus on today?", "daily advice" | `daily_coach` intent → `aiService.dailyCoach(ctx)` inline in `chatHandler`. Returns message + streak + suggestion as prefilled ToolConfirmCard |
 | 4.2 | Startup briefing | ✅ Works | ✅ Yes | *(auto-displayed on app load once per day)* | SSE stream via `GET /api/ai/briefing`. Already implemented in StartupBriefing component |
-| 4.3 | Weekly analysis / reflection | ✅ Backend exists | ✅ Yes | "analyze my week", "how was last week?", "weekly insights" | `POST /api/ai/analyze-week` exists. TARS routing just needs to call this endpoint on command |
-| 4.4 | Goal breakdown into sub-goals | ✅ Backend exists | ✅ Yes | "break down my reading goal", "how do I achieve this goal?", "sub-goals for gym" | `POST /api/ai/breakdown` exists. Returns suggested sub-goals and activities |
-| 4.5 | Activity suggestions | ❌ Missing | ✅ Yes | "what should I do next?", "suggest an activity", "what's a good task?" | Would call `/api/ai/daily-coach` and surface the `suggestedActivity` from its response |
+| 4.3 | Weekly analysis / reflection | ✅ Works | ✅ Yes | "analyze my week", "how was last week?", "weekly insights" | `analyze_week` intent → `aiService.analyzeWeek(metrics)` inline. Returns summary + 3 insights + 2 suggestions |
+| 4.4 | Goal breakdown into sub-goals | ✅ Works | ✅ Yes | "break down my reading goal", "how do I achieve this goal?", "sub-goals for gym" | `goal_breakdown` intent → fuzzy-matches goal from context → `aiService.breakdownGoal()`. Falls back to first active goal |
+| 4.5 | Activity suggestions | ✅ Works | ✅ Yes | "what should I do next?", "suggest an activity", "what's a good task?" | Covered by `daily_coach` intent — `DailyCoachResponse.suggestion` surfaces as prefilled ToolConfirmCard |
 | 4.6 | Conversational goal creation | ❌ Missing | ✅ Yes | "I want to learn guitar" → TARS asks: timeframe? target? → drafts goal → confirm | Multi-turn flow. TARS asks clarifying questions, accumulates answers over 2–3 turns, then proposes a `create_goal` action. Requires conversation memory (Tier 0.1 fix is a prerequisite) |
 | 4.7 | Progress coaching / insight | ❌ Missing | ✅ Yes | "am I on track?", "what's holding me back?", "encourage me" | Use PolarisContext (already injected) + LLM general `chat` intent. Should work today once Tier 0.4 (thinking leak) is fixed — LLM already has all the data |
 

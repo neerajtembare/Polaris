@@ -91,7 +91,7 @@ export async function breakdownGoal(input: GoalInput): Promise<AIGoalBreakdown> 
     const o = s as Record<string, unknown>;
     const sg: AISubGoal = { title: String(o['title'] ?? '') };
     const tf = o['timeframe'];
-    if (['long', 'medium', 'short'].includes(String(tf ?? ''))) sg.timeframe = tf as 'long' | 'medium' | 'short';
+    if (typeof tf === 'string' && (['long', 'medium', 'short'] as const).includes(tf as 'long' | 'medium' | 'short')) sg.timeframe = tf as 'long' | 'medium' | 'short';
     if (typeof o['targetDate'] === 'string' && o['targetDate'] !== 'null') sg.targetDate = o['targetDate'] as string;
     if (typeof o['targetValue'] === 'number') sg.targetValue = o['targetValue'] as number;
     if (typeof o['targetUnit'] === 'string') sg.targetUnit = o['targetUnit'] as string;

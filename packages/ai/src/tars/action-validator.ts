@@ -27,18 +27,21 @@ const timeframeSchema     = z.enum(['long', 'medium', 'short']);
 const activityDraftSchema = z.object({
   title:        z.string().min(1).max(500),
   activityType: activityTypeSchema,
-  value:        z.number().optional(),
+  value:        z.number().finite().nonnegative().optional(),
   unit:         z.string().optional(),
   goalId:       z.string().nullable().optional(),
   goalTitle:    z.string().nullable().optional(),
-  date:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  date:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(
+    (s) => !isNaN(Date.parse(s)),
+    'Invalid date'
+  ).optional(),
   status:       z.enum(['completed', 'planned']).optional(),
 });
 
 const goalDraftSchema = z.object({
   title:        z.string().min(1).max(500),
   timeframe:    timeframeSchema,
-  targetValue:  z.number().optional(),
+  targetValue:  z.number().finite().nonnegative().optional(),
   targetUnit:   z.string().optional(),
   description:  z.string().optional(),
 });

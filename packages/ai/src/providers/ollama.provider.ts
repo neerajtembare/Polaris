@@ -24,7 +24,9 @@ import { getMockProvider } from './index.js';
  * structured JSON output reliably without few-shot examples. */
 function isSmallModel(model: string): boolean {
   if (/^gemma4/i.test(model)) return false;
-  return /[1-8]b/i.test(model);
+  // Match standalone Xb size tokens (e.g. "3b", "7b") but not when preceded by
+  // other digits (e.g. "180b" contains "80b" but is NOT a small model).
+  return /(?<![0-9])[1-8]b(?!\w)/i.test(model);
 }
 
 type OllamaResponse = { response: string; done: boolean; total_duration?: number };
@@ -71,7 +73,7 @@ export class OllamaProvider implements AIProvider {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
-        // No timeout — Ollama can be slow on first inference; let it finish
+        // No timeout — Ollama inference is intentionally slow; let it finish
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -188,6 +190,7 @@ export class OllamaProvider implements AIProvider {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),
+      // No timeout — Ollama inference is intentionally slow; let it finish
     });
 
     if (!response.ok) {

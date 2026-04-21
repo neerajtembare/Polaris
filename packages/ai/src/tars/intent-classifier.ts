@@ -26,6 +26,9 @@ export type IntentType =
   | 'plan_activity'   // "I'm going to run tomorrow", "plan to study tonight"
   | 'create_goal'     // "new goal: run 100km", "I want to read more"
   | 'query'           // "how am I doing?", "what's my streak?"
+  | 'daily_coach'     // "coach me", "what should I focus on today?"
+  | 'analyze_week'    // "analyze my week", "how was my week?"
+  | 'goal_breakdown'  // "break down my reading goal", "how do I achieve my gym goal?"
   | 'chat'            // General conversation, unclear intent
   | 'unknown';        // Truly ambiguous — ask for clarification
 
@@ -43,10 +46,19 @@ const PLAN_PATTERNS = /\b(going\s+to|plan\s+to|planning\s+to|will\s+(do|run|read
 const GOAL_PATTERNS = /\b(create\s+a?\s*goal|new\s+goal|add\s+a?\s*goal|set\s+a?\s*goal|track\s+my|my\s+goal\s+is|i\s+want\s+to\s+(read|run|learn|build|save|exercise|study|write)\b|long.term\s+goal|start\s+tracking)\b/i;
 
 /** Patterns for queries / information requests */
-const QUERY_PATTERNS = /\b(how\s+am\s+i|how\s+did\s+i|what\s+is\s+my|what's\s+my|show\s+me|how\s+much|am\s+i\s+on\s+track|my\s+progress|my\s+streak|behind|ahead|stats|summary|compare|trend|which\s+goal|tell\s+me\s+about)\b/i;
+const QUERY_PATTERNS = /\b(how\s+am\s+i|how\s+did\s+i|what\s+is\s+my|what's\s+my|show\s+me|how\s+much|am\s+i\s+on\s+track|my\s+progress|my\s+streak|behind|ahead|stats|summary|compare|trend|which\s+goal|tell\s+me\s+about|what\s+did\s+i|what('s|\s+is|\s+are)?\s+(planned|do\s+i\s+have)|today'?s?\s+(plan|list|progress|completed|done|stats?)|today'?s?\s+activities?|\bstreak\b|list\s+(my\s+)?goals?|show\s+(all|my)\s+goals?|how\s+many\s+activities?|activity\s+count|weekly\s+(stats?|metrics?|performance|count)|how'?s?\s+(my|the)\s+\w+\s+goal|longest\s+streak)\b/i;
 
 /** Patterns for navigation commands (handled client-side — should not reach here) */
 const NAVIGATION_PATTERNS = /\b(go\s+to|open|navigate\s+to|show\s+(goals|settings|insights|history|hub|dashboard))\b/i;
+
+/** Patterns for daily-coach requests */
+const DAILY_COACH_PATTERNS = /\b(coach\s+me|daily\s+coach|what\s+should\s+i\s+(focus\s+on|do|work\s+on)\s+today|what'?s?\s+(my\s+)?focus\s+today|give\s+me\s+(advice|coaching|guidance|a\s+tip)|motivate\s+me|inspire\s+me|any\s+(advice|tips?|suggestions?)\s+for\s+today|today'?s?\s+(coaching|tip|advice)|suggest\s+(something|an?\s+activity))\b/i;
+
+/** Patterns for weekly analysis requests */
+const ANALYZE_WEEK_PATTERNS = /\b(analyze\s+my\s+week|weekly\s+(analysis|insights?|review|reflection)|how\s+(was\s+my\s+week|did\s+i\s+do\s+this\s+week|was\s+this\s+week)|last\s+week('?s?)?\s+(performance|summary|review)|reflect\s+on\s+(my\s+)?week|my\s+week\s+in\s+review)\b/i;
+
+/** Patterns for goal breakdown requests */
+const GOAL_BREAKDOWN_PATTERNS = /\b(break\s+(down|it\s+down)|break\s+down\s+(my\s+)?(\w+\s+)*goal|how\s+(do\s+i|can\s+i)\s+achieve|(decompose|deconstruct)\s+(my\s+)?(\w+\s+)*goal|sub.?goals?\s+for|steps?\s+to\s+(reach|achieve|meet)|break\s+(my\s+)?(\w+\s+)*goal\s+down)\b/i;
 
 // ---------------------------------------------------------------------------
 // Classifier
@@ -65,6 +77,11 @@ export interface ClassifyOptions {
    * so that the correct tool schemas are included in the LLM call.
    */
   pendingActionType?: string;
+  /**
+   * Current screen the user is viewing — used as a disambiguation hint.
+   * e.g. "add one" on Goals → create_goal, on Hub → ambiguous.
+   */
+  currentScreen?: string | undefined;
 }
 
 // Short phrases that confirm a previous TARS proposal
@@ -133,6 +150,21 @@ export function classifyIntent(input: string, options?: ClassifyOptions): Classi
   // Query
   if (QUERY_PATTERNS.test(lower)) {
     return { intent: 'query', confidence: 'high', method: 'heuristic' };
+  }
+
+  // Daily coach — check before generic chat
+  if (DAILY_COACH_PATTERNS.test(lower)) {
+    return { intent: 'daily_coach', confidence: 'high', method: 'heuristic' };
+  }
+
+  // Weekly analysis
+  if (ANALYZE_WEEK_PATTERNS.test(lower)) {
+    return { intent: 'analyze_week', confidence: 'high', method: 'heuristic' };
+  }
+
+  // Goal breakdown
+  if (GOAL_BREAKDOWN_PATTERNS.test(lower)) {
+    return { intent: 'goal_breakdown', confidence: 'high', method: 'heuristic' };
   }
 
   // Ambiguous — default to chat (LLM responds in plain text, no tools)

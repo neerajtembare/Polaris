@@ -164,7 +164,7 @@ export class MockProvider implements AIProvider {
       }
     }
 
-    const completionWords = ['meditat', 'yoga', 'did', 'completed', 'finished', 'done', 'journal'];
+    const completionWords = ['meditat', 'yoga', 'completed', 'finished', 'done', 'journal'];
     if (completionWords.some((w) => lower.includes(w))) {
       return { activityType: 'completion', value: null, unit: null };
     }

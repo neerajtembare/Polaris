@@ -23,25 +23,37 @@ interface CommandPattern {
 }
 
 const SCREEN_COMMANDS: Array<{ patterns: string[]; screen: ScreenId }> = [
-  { patterns: ['go to hub', 'go home', 'home', 'dashboard'],              screen: 'Hub' },
-  { patterns: ['go to goals', 'show goals', 'goals', 'open goals'],       screen: 'Goals' },
-  { patterns: ['go to insights', 'insights', 'show insights', 'stats'],   screen: 'Insights' },
-  { patterns: ['go to history', 'history', 'show history', 'past'],       screen: 'History' },
-  { patterns: ['go to settings', 'settings', 'preferences'],              screen: 'Settings' },
-  { patterns: ['weekly review', 'weekly', 'week review'],                 screen: 'WeeklyReview' },
+  { patterns: ['go to hub', 'go home', 'home', 'dashboard', 'hub'],        screen: 'Hub' },
+  { patterns: ['go to goals', 'show goals', 'goals', 'open goals', 'my goals', 'goal list'], screen: 'Goals' },
+  { patterns: ['go to insights', 'insights', 'show insights', 'stats', 'analytics'],   screen: 'Insights' },
+  { patterns: ['go to history', 'history', 'show history', 'past', 'past activities'], screen: 'History' },
+  { patterns: ['go to settings', 'settings', 'preferences'],                screen: 'Settings' },
+  { patterns: ['weekly review', 'weekly', 'week review', 'review'],         screen: 'WeeklyReview' },
 ];
 
 const COMMAND_PATTERNS: CommandPattern[] = [
   // Audio
-  { patterns: ['play music', 'play audio', 'play', 'start music', 'music on'],
+  { patterns: ['play music', 'play audio', 'play', 'start music', 'music on', 'music'],
     action: () => ({ type: 'audio.play' }) },
-  { patterns: ['stop music', 'pause music', 'stop audio', 'music off', 'quiet'],
+  { patterns: ['stop music', 'pause music', 'stop audio', 'music off', 'quiet', 'stop', 'pause'],
     action: () => ({ type: 'audio.stop' }) },
-  { patterns: ['next track', 'next music', 'skip', 'change music', 'next stream'],
+  { patterns: ['next track', 'next music', 'skip', 'change music', 'next stream', 'next'],
     action: () => ({ type: 'audio.next' }) },
 
+  // Play by genre
+  { patterns: ['play lofi', 'lofi', 'lo-fi', 'lo fi'],
+    action: () => ({ type: 'audio.play', genre: 'lofi' } as unknown as TARSAction) },
+  { patterns: ['play jazz', 'jazz'],
+    action: () => ({ type: 'audio.play', genre: 'jazz' } as unknown as TARSAction) },
+  { patterns: ['play classical', 'classical'],
+    action: () => ({ type: 'audio.play', genre: 'classical' } as unknown as TARSAction) },
+  { patterns: ['play ambient', 'ambient'],
+    action: () => ({ type: 'audio.play', genre: 'ambient' } as unknown as TARSAction) },
+  { patterns: ['play chillout', 'chillout', 'chill'],
+    action: () => ({ type: 'audio.play', genre: 'chillout' } as unknown as TARSAction) },
+
   // Focus
-  { patterns: ['start focus', 'focus mode', 'begin focus', 'focus session', 'pomodoro'],
+  { patterns: ['start focus', 'focus mode', 'begin focus', 'focus session', 'pomodoro', 'focus'],
     action: () => ({ type: 'focus.start' }) },
   { patterns: ['stop focus', 'end focus', 'exit focus', 'cancel focus'],
     action: () => ({ type: 'focus.stop' }) },
@@ -51,6 +63,18 @@ const COMMAND_PATTERNS: CommandPattern[] = [
     action: () => ({ type: 'show_streak' }) },
   { patterns: ['show my goals', 'list goals', 'what are my goals'],
     action: () => ({ type: 'show_goals' }) },
+
+  // UI
+  { patterns: ['clear chat', 'clear', 'reset chat', 'start over'],
+    action: () => ({ type: 'clear_chat' } as unknown as TARSAction) },
+  { patterns: ['dark mode', 'dark theme', 'switch to dark', 'go dark'],
+    action: () => ({ type: 'toggle_theme' }) },
+  { patterns: ['light mode', 'light theme', 'switch to light', 'go light'],
+    action: () => ({ type: 'toggle_theme' }) },
+  { patterns: ['toggle theme', 'switch theme', 'change theme', 'toggle dark'],
+    action: () => ({ type: 'toggle_theme' }) },
+  { patterns: ['help', 'what can you do', 'what can you do?', 'commands', 'command list', 'what do you do'],
+    action: () => ({ type: 'help' }) },
 ];
 
 // ---------------------------------------------------------------------------

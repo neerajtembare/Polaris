@@ -59,15 +59,26 @@ interface AssistantInputProps {
 }
 
 export function AssistantInput({ onSend, onCancel, disabled, isProcessing, isDark }: AssistantInputProps) {
-  const [value, setValue]         = useState('');
+  const [value, setValue]             = useState('');
   const [isListening, setIsListening] = useState(false);
-  const textareaRef               = useRef<HTMLTextAreaElement>(null);
-  const recogRef                  = useRef<ISpeechRecognition | null>(null);
-  const setTarsState              = useAssistantStore((s) => s.setTarsState);
+  const textareaRef                   = useRef<HTMLTextAreaElement>(null);
+  const recogRef                      = useRef<ISpeechRecognition | null>(null);
+  const setTarsState                  = useAssistantStore((s) => s.setTarsState);
+
+  // Input history — cycle with Up/Down Arrow (like a terminal)
+  const historyRef    = useRef<string[]>([]);
+  const historyIdxRef = useRef(-1);
+  const draftRef      = useRef(''); // saves current draft when cycling up
 
   const submit = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
+    // Save to history (deduplicate consecutive, cap at 50)
+    if (historyRef.current[0] !== trimmed) {
+      historyRef.current = [trimmed, ...historyRef.current].slice(0, 50);
+    }
+    historyIdxRef.current = -1;
+    draftRef.current = '';
     onSend(trimmed);
     setValue('');
     if (textareaRef.current) {
@@ -79,6 +90,42 @@ export function AssistantInput({ onSend, onCancel, disabled, isProcessing, isDar
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submit();
+      return;
+    }
+    // Up arrow — cycle back through history
+    if (e.key === 'ArrowUp' && !e.shiftKey) {
+      const hist = historyRef.current;
+      if (hist.length === 0) return;
+      e.preventDefault();
+      if (historyIdxRef.current === -1) {
+        draftRef.current = value; // save current draft
+      }
+      const nextIdx = Math.min(historyIdxRef.current + 1, hist.length - 1);
+      historyIdxRef.current = nextIdx;
+      const next = hist[nextIdx] ?? '';
+      setValue(next);
+      // Move cursor to end on next tick
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = next.length;
+          textareaRef.current.selectionEnd   = next.length;
+        }
+      });
+      return;
+    }
+    // Down arrow — cycle forward / restore draft
+    if (e.key === 'ArrowDown' && !e.shiftKey && historyIdxRef.current !== -1) {
+      e.preventDefault();
+      const nextIdx = historyIdxRef.current - 1;
+      historyIdxRef.current = nextIdx;
+      const next = nextIdx === -1 ? draftRef.current : (historyRef.current[nextIdx] ?? '');
+      setValue(next);
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = next.length;
+          textareaRef.current.selectionEnd   = next.length;
+        }
+      });
     }
   };
 

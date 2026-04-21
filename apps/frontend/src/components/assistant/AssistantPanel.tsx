@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAssistantStore } from '@/stores/assistant.store';
-import type { ScreenId } from '@/stores/assistant.store';
+import type { ScreenId, TARSAction } from '@/stores/assistant.store';
 import { useAssistant } from '@/hooks/useAssistant';
 import { useAssistantActions } from '@/hooks/useAssistantActions';
 import { ConversationThread } from './ConversationThread';
@@ -28,8 +28,11 @@ import { AssistantInput } from './AssistantInput';
 import { ToolConfirmCard } from './ToolConfirmCard';
 
 interface AssistantPanelProps {
-  isDark:     boolean;
-  onNavigate: (screen: ScreenId) => void;
+  isDark:        boolean;
+  onNavigate:    (screen: ScreenId) => void;
+  currentScreen: ScreenId;
+  onToggleTheme: () => void;
+  onStartFocus?: (opts: { durationMins?: number; goalId?: string }) => void;
 }
 
 const PANEL_W = 380;
@@ -47,11 +50,32 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-export function AssistantPanel({ isDark, onNavigate }: AssistantPanelProps) {
-  const { isOpen, close, toggle, messages, tarsState, pendingAction, clearHistory } =
+const WRITE_ACTION_TYPES = new Set<TARSAction['type']>(['log_activity', 'plan_activity', 'create_goal']);
+
+export function AssistantPanel({ isDark, onNavigate, currentScreen, onToggleTheme, onStartFocus }: AssistantPanelProps) {
+  const { isOpen, close, toggle, messages, tarsState, pendingAction, clearHistory, setPendingAction } =
     useAssistantStore();
-  const { sendMessage, cancelRequest }          = useAssistant({ onNavigate });
-  const { executeConfirmedAction, dismissAction } = useAssistantActions({ onNavigate });
+  const { executeConfirmedAction, dismissAction } = useAssistantActions({
+    onNavigate,
+    onToggleTheme,
+    ...(onStartFocus !== undefined ? { onStartFocus } : {}),
+  });
+  const { sendMessage, cancelRequest } = useAssistant({
+    onNavigate,
+    currentScreen,
+    onImmediateAction: executeConfirmedAction,
+    onToggleTheme,
+  });
+
+  // Route write actions (log_activity/plan_activity/create_goal) through confirmation dialog.
+  // Safe immediate actions execute directly.
+  const handleChipTap = (action: TARSAction) => {
+    if (WRITE_ACTION_TYPES.has(action.type)) {
+      setPendingAction(action);
+    } else {
+      void executeConfirmedAction(action);
+    }
+  };
 
   // ── Responsive: floating on desktop, full-screen on mobile ──────────────
   const [isMobile, setIsMobile] = useState(
@@ -86,8 +110,9 @@ export function AssistantPanel({ isDark, onNavigate }: AssistantPanelProps) {
     });
   }
 
-  function onHeaderPointerUp() {
+  function onHeaderPointerUp(e: React.PointerEvent<HTMLElement>) {
     isDragging.current = false;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
   }
 
   // ── Keyboard shortcuts ───────────────────────────────────────────────────
@@ -247,7 +272,13 @@ export function AssistantPanel({ isDark, onNavigate }: AssistantPanelProps) {
             </header>
 
             {/* Conversation thread */}
-            <ConversationThread messages={messages} isDark={isDark} onRetry={sendMessage} />
+            <ConversationThread
+              messages={messages}
+              isDark={isDark}
+              onRetry={sendMessage}
+              onChipTap={handleChipTap}
+              isProcessing={tarsState === 'processing'}
+            />
 
             {/* Pending action confirmation card */}
             {pendingAction && (

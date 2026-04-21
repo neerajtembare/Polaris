@@ -18,7 +18,7 @@
  * - src/hooks/useFocusSessions.ts
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -52,6 +52,10 @@ interface FocusModeProps {
   theme:    Theme;
   /** Called when the user closes Focus Mode (after complete/abandon or X button) */
   onClose:  () => void;
+  /** Pre-select a duration (minutes) when opened via TARS command */
+  initialMins?:   number;
+  /** Pre-select a goal ID when opened via TARS command */
+  initialGoalId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -523,12 +527,18 @@ function FocusAudioStrip({ isDark }: { isDark: boolean }) {
  * 2. Timer screen — countdown, break button, progress ring
  * 3. Post-session — auto-closes after logging
  */
-export function FocusMode({ theme, onClose }: FocusModeProps) {
+export function FocusMode({ theme, onClose, initialMins, initialGoalId }: FocusModeProps) {
   const isDark = theme === 'dark';
 
-  const [selectedMins,   setSelectedMins]   = useState<number>(25);
-  const [selectedGoalId, setSelectedGoalId] = useState('');
+  const [selectedMins,   setSelectedMins]   = useState<number>(initialMins ?? 25);
+  const [selectedGoalId, setSelectedGoalId] = useState(initialGoalId ?? '');
   const [activeSession,  setActiveSession]  = useState<FocusSession | null>(null);
+
+  // Apply TARS-provided initial values when the overlay opens
+  useEffect(() => {
+    if (initialMins !== undefined) setSelectedMins(initialMins);
+    if (initialGoalId !== undefined) setSelectedGoalId(initialGoalId);
+  }, [initialMins, initialGoalId]);
 
   const startSession = useStartFocusSession();
   const { data: goals = [] } = useGoals({ status: 'active' });

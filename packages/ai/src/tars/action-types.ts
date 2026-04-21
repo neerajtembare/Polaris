@@ -83,7 +83,7 @@ export type TARSAction =
   | { type: 'audio.next' }
 
   // Focus session (immediate)
-  | { type: 'focus.start'; goalId?: string }
+  | { type: 'focus.start'; goalId?: string; durationMins?: number }
   | { type: 'focus.stop' }
 
   // Write — MUST show confirmation card before executing
@@ -93,7 +93,11 @@ export type TARSAction =
 
   // Pure display — no mutation, no confirmation needed
   | { type: 'show_goals' }
-  | { type: 'show_streak' };
+  | { type: 'show_streak' }
+
+  // UI control (immediate)
+  | { type: 'toggle_theme' }
+  | { type: 'help' };
 
 // ---------------------------------------------------------------------------
 // Helper type-guards
@@ -111,4 +115,41 @@ export function requiresConfirmation(action: TARSAction): boolean {
 /** Returns true if the action is safe to auto-execute immediately */
 export function isImmediateAction(action: TARSAction): boolean {
   return !requiresConfirmation(action);
+}
+
+// ---------------------------------------------------------------------------
+// Quick Reply Chips — deterministic action shortcuts shown below TARS responses
+// ---------------------------------------------------------------------------
+
+/**
+ * A tappable chip rendered below a TARS response.
+ * Chips are always hardcoded per action type — NEVER AI-generated.
+ * Tapping a chip executes the mapped TARSAction immediately.
+ */
+export interface QuickReplyChip {
+  /** Button label */
+  label: string;
+  /** Action to execute when tapped */
+  action: TARSAction;
+  /** Optional icon name (e.g. 'play', 'plus', 'calendar') */
+  icon?: string;
+}
+
+// ---------------------------------------------------------------------------
+// TARS Response — the full shape returned by the chat endpoint
+// ---------------------------------------------------------------------------
+
+/**
+ * Structured response from POST /api/ai/chat.
+ * Chips are optional — only returned when the action type has a known chip set.
+ */
+export interface TARSResponse {
+  text:                 string | null;
+  action:               TARSAction | null;
+  requiresConfirmation: boolean;
+  chips?:               QuickReplyChip[];
+  intent:               string;
+  confidence:           string;
+  provider:             string;
+  latencyMs:            number;
 }

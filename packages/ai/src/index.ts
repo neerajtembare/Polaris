@@ -20,7 +20,7 @@ export { dailyCoach } from './features/daily-coach.js';
 export type { AIProvider, ChatMessage, ChatOptions, ChatResult, ToolSchema, ToolCall } from './types.js';
 
 // TARS — conversational assistant core
-export type { TARSAction, ActivityDraft, GoalDraft, ScreenId } from './tars/action-types.js';
+export type { TARSAction, ActivityDraft, GoalDraft, ScreenId, QuickReplyChip, TARSResponse } from './tars/action-types.js';
 export { requiresConfirmation, isImmediateAction } from './tars/action-types.js';
 export type { IntentType, ClassifyResult, ClassifyOptions } from './tars/intent-classifier.js';
 export { classifyIntent, getToolsForIntent } from './tars/intent-classifier.js';

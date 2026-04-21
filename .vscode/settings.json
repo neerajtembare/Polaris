@@ -63,6 +63,7 @@
     "npx vite": true,
     "npx prisma": true,
     "psql": true,
-    "mv": true
+    "mv": true,
+    "npm run --prefix packages/ai": true
   }
 }

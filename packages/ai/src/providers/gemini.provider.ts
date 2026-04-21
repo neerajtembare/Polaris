@@ -233,6 +233,7 @@ export class GeminiProvider implements AIProvider {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),
+      signal:  AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {
@@ -288,6 +289,7 @@ export class GeminiProvider implements AIProvider {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),
+      signal:  AbortSignal.timeout(60_000),
     });
 
     if (!response.ok || !response.body) {

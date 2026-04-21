@@ -16,20 +16,31 @@ import { useEffect, useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 interface AssistantMessageProps {
-  content:   string;
+  content:    string;
   /** When true, reveals content with typewriter animation then calls onDone */
-  isNew?:    boolean;
-  onDone?:   () => void;
+  isNew?:     boolean;
+  onDone?:    () => void;
   /** When true, renders an error style + retry button */
-  isError?:  boolean;
+  isError?:   boolean;
   /** Called when user clicks retry — resends the last user message */
-  onRetry?:  () => void;
-  isDark:    boolean;
+  onRetry?:   () => void;
+  isDark:     boolean;
+  timestamp?: number;
 }
 
 const CHAR_INTERVAL_MS = 18;
 
-export function AssistantMessage({ content, isNew, onDone, isError, onRetry, isDark }: AssistantMessageProps) {
+function formatRelativeTime(ts: number): string {
+  const diffMs  = Date.now() - ts;
+  const diffMin = Math.floor(diffMs / 60_000);
+  const diffH   = Math.floor(diffMs / 3_600_000);
+  if (diffMin < 1)  return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffH < 24)   return `${diffH}h ago`;
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+export function AssistantMessage({ content, isNew, onDone, isError, onRetry, isDark, timestamp }: AssistantMessageProps) {
   const [displayed, setDisplayed]   = useState(isNew ? '' : content);
   const intervalRef                  = useRef<ReturnType<typeof setInterval> | null>(null);
   const indexRef                     = useRef(0);
@@ -62,7 +73,7 @@ export function AssistantMessage({ content, isNew, onDone, isError, onRetry, isD
   }, [content, isNew]);
 
   return (
-    <div className="flex items-start gap-2.5 max-w-[85%]">
+    <div className="group flex items-start gap-2.5 max-w-[85%]">
       {/* TARS icon */}
       <div
         className={cn(
@@ -119,6 +130,18 @@ export function AssistantMessage({ content, isNew, onDone, isError, onRetry, isD
             </svg>
             Retry
           </button>
+        )}
+
+        {/* Timestamp — shown on hover once typing is complete */}
+        {timestamp && displayed.length >= content.length && (
+          <span
+            className={cn(
+              'text-[10px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 select-none',
+              isDark ? 'text-slate-600' : 'text-slate-400'
+            )}
+          >
+            {formatRelativeTime(timestamp)}
+          </span>
         )}
       </div>
     </div>

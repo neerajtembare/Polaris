@@ -81,7 +81,7 @@ export default function App() {
     transition: 'none',
     isAuthenticated: loadAuth(),
   });
-  const [showFocus,  setShowFocus]  = useState(false);
+  const [focusState, setFocusState] = useState<{ show: boolean; initialMins?: number; initialGoalId?: string }>({ show: false });
   const [showBanner, setShowBanner] = useState(() => !isBannerDismissedToday());
   const [showBriefing, setShowBriefing] = useState(true);
   const toggleAssistant = useAssistantStore((s) => s.toggle);
@@ -167,7 +167,7 @@ export default function App() {
   const sharedProps = { theme: navState.theme, onNavigate: navigate } as const;
 
   const screenContent: Record<string, React.ReactNode> = {
-    Hub:          <Hub      {...sharedProps} onStartFocus={() => setShowFocus(true)} />,
+    Hub:          <Hub      {...sharedProps} onStartFocus={() => setFocusState({ show: true })} />,
     Goals:        <GoalMatrix {...sharedProps} />,
     Insights:     <Insights {...sharedProps} />,
     History:      <History  {...sharedProps} />,
@@ -182,7 +182,7 @@ export default function App() {
       </Layout>
       {/* Morning banner — shown once per day, below the nav */}
       <AnimatePresence>
-        {showBanner && !showFocus && (
+        {showBanner && !focusState.show && (
           <MorningBanner
             isDark={navState.theme === 'dark'}
             onDismiss={dismissBanner}
@@ -190,8 +190,13 @@ export default function App() {
         )}
       </AnimatePresence>
       <AnimatePresence>
-        {showFocus && (
-          <FocusMode theme={navState.theme} onClose={() => setShowFocus(false)} />
+        {focusState.show && (
+          <FocusMode
+            theme={navState.theme}
+            onClose={() => setFocusState({ show: false })}
+            {...(focusState.initialMins    !== undefined ? { initialMins:   focusState.initialMins   } : {})}
+            {...(focusState.initialGoalId  !== undefined ? { initialGoalId: focusState.initialGoalId } : {})}
+          />
         )}
       </AnimatePresence>
       {/* Onboarding — shown to brand-new users with 0 goals and 0 activities */}
@@ -211,6 +216,9 @@ export default function App() {
       <AssistantPanel
         isDark={navState.theme === 'dark'}
         onNavigate={navigate}
+        currentScreen={navState.screen}
+        onToggleTheme={toggleTheme}
+        onStartFocus={(opts) => setFocusState({ show: true, ...opts })}
       />
       <AssistantAvatar isDark={navState.theme === 'dark'} />
       {/* Startup briefing — shown once per day, before anything else */}
