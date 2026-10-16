@@ -102,6 +102,8 @@ function daysBetween(earlier: string, later: string): number {
 export async function assemblePolarisContext(): Promise<PolarisContext> {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setHours(23, 59, 59, 999);
   const todayStr = todayStart.toISOString().split('T')[0] as string;
 
   // Active goals (max 10) — include latest completed activity date for dormancy
@@ -168,7 +170,7 @@ export async function assemblePolarisContext(): Promise<PolarisContext> {
     where: {
       isDeleted: false,
       status: 'planned',
-      activityDate: { gte: todayStart },
+      activityDate: { gte: todayStart, lte: todayEnd },
     },
     select: { title: true, goal: { select: { title: true } } },
     orderBy: { createdAt: 'asc' },
@@ -185,7 +187,7 @@ export async function assemblePolarisContext(): Promise<PolarisContext> {
     where: {
       isDeleted: false,
       status: 'completed',
-      activityDate: { gte: todayStart },
+      activityDate: { gte: todayStart, lte: todayEnd },
     },
     select: { title: true, value: true, unit: true },
     orderBy: { activityDate: 'asc' },

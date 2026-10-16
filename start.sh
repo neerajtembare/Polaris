@@ -22,7 +22,7 @@ cd "$SCRIPT_DIR"
 # ── Colours ────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 ok()   { echo -e "${GREEN}✓${NC} $*"; }
-warn() { echo -e "${YELLOW}"deleted"{NC} $*"; }
+warn() { echo -e "${YELLOW}!${NC} $*"; }
 err()  { echo -e "${RED}✗${NC} $*"; }
 info() { echo -e "${CYAN}→${NC} $*"; }
 
@@ -63,7 +63,7 @@ NODE_ENV=development
 
 WHISPER_URL=http://localhost:8001
 OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=gemma4:e4b
+OLLAMA_MODEL=llama3.2:3b
 AI_PROVIDER=ollama
 ENVEOF
     ok "Created apps/backend/.env"
@@ -75,20 +75,33 @@ ENVEOF
 # ─────────────────────────────────────────────────────────────────────────────
 
 start_ollama() {
-  if ! command -v ollama >/dev/null 2>&1; then
-    warn "Ollama not installed — AI parsing unavailable (install: https://ollama.ai)"
+  local OLLAMA_CMD
+  OLLAMA_CMD=$(command -v ollama 2>/dev/null || command -v ollama.exe 2>/dev/null || true)
+  local OLLAMA_MODEL_LOCAL
+  OLLAMA_MODEL_LOCAL=$(grep OLLAMA_MODEL apps/backend/.env 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d ' ' || echo 'llama3.2:3b')
+  [ -z "$OLLAMA_MODEL_LOCAL" ] && OLLAMA_MODEL_LOCAL="llama3.2:3b"
+
+  if curl -sf --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1; then
+    ok "Ollama server is running (http://localhost:11434)"
+    if [ -n "$OLLAMA_CMD" ] && ! curl -sf --max-time 2 http://localhost:11434/api/tags | grep -q "\"name\":\"${OLLAMA_MODEL_LOCAL}"; then
+      info "Pulling ${OLLAMA_MODEL_LOCAL} model (first run only)…"
+      "$OLLAMA_CMD" pull "${OLLAMA_MODEL_LOCAL}"
+    fi
+    ok "Ollama ready (${OLLAMA_MODEL_LOCAL})"
     return 0
   fi
-  if ! curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then
-    info "Starting Ollama server in background…"
-    ollama serve >/dev/null 2>&1 &
-    sleep 3
+
+  if [ -z "$OLLAMA_CMD" ]; then
+    warn "Ollama not running and command not found — AI local inference unavailable (install: https://ollama.ai)"
+    return 0
   fi
-  local OLLAMA_MODEL_LOCAL
-  OLLAMA_MODEL_LOCAL=$(grep OLLAMA_MODEL apps/backend/.env 2>/dev/null | cut -d= -f2 | tr -d '"' || echo 'gemma4:e4b')
-  if ! ollama list 2>/dev/null | grep -q "${OLLAMA_MODEL_LOCAL}"; then
+  info "Starting Ollama server in background…"
+  "$OLLAMA_CMD" serve >/dev/null 2>&1 &
+  sleep 3
+
+  if ! "$OLLAMA_CMD" list 2>/dev/null | grep -q "${OLLAMA_MODEL_LOCAL}"; then
     info "Pulling ${OLLAMA_MODEL_LOCAL} model (first run only)…"
-    ollama pull "${OLLAMA_MODEL_LOCAL}"
+    "$OLLAMA_CMD" pull "${OLLAMA_MODEL_LOCAL}"
   fi
   ok "Ollama ready (${OLLAMA_MODEL_LOCAL})"
 }
@@ -109,12 +122,12 @@ start_whisper() {
   local VENV_PY="$VENV_DIR/bin/python"
 
   if ! "$VENV_PY" -c "import uvicorn" >/dev/null 2>&1; then
-    info "Installing Whisper service dependencies…"
-    "$VENV_PY" -m pip install -r services/whisper/requirements.txt --quiet
+    info "Installing Whisper service dependencies (this downloads ~1.5GB of PyTorch/CUDA wheels, please wait)..."
+    "$VENV_PY" -m pip install -r services/whisper/requirements.txt
     ok "Whisper dependencies installed"
   fi
 
-  if curl -sf http://localhost:8001/health >/dev/null 2>&1; then
+  if curl -sf --max-time 2 http://localhost:8001/health >/dev/null 2>&1; then
     ok "Whisper already running (port 8001)"
     return 0
   fi
@@ -128,8 +141,8 @@ start_whisper() {
   echo $! > /tmp/polaris-whisper.pid
 
   local retries=0
-  while [ $retries -lt 15 ]; do
-    if curl -sf http://localhost:8001/health >/dev/null 2>&1; then
+  while [ $retries -lt 30 ]; do
+    if curl -sf --max-time 2 http://localhost:8001/health >/dev/null 2>&1; then
       ok "Whisper ready (base model, CPU)"
       return 0
     fi
@@ -154,8 +167,8 @@ cmd_local() {
   echo ""
   # Show AI service status before launching
   local w_ok o_ok
-  curl -sf http://localhost:8001/health    >/dev/null 2>&1 && w_ok=1 || w_ok=0
-  curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && o_ok=1 || o_ok=0
+  curl -sf --max-time 2 http://localhost:8001/health    >/dev/null 2>&1 && w_ok=1 || w_ok=0
+  curl -sf --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1 && o_ok=1 || o_ok=0
   echo "  AI service status:"
   [ "$w_ok" -eq 1 ] && echo -e "  ${GREEN}✓${NC} Whisper  http://localhost:8001  (voice input active)" \
                      || echo -e "  ${YELLOW}!${NC} Whisper  not running              (voice input disabled — run with --with-ai)"
@@ -217,6 +230,7 @@ cmd_stop() {
     kill "$(cat /tmp/polaris-whisper.pid)" 2>/dev/null && ok "Whisper stopped" || true
     rm -f /tmp/polaris-whisper.pid
   fi
+  pkill -f "uvicorn main:app" 2>/dev/null || true
   ok "Done. (To stop Docker containers: docker compose down)"
 }
 
@@ -232,10 +246,10 @@ cmd_check() {
   local b_ok f_ok w_ok o_ok
   echo ""
   echo "  Service health:"
-  curl -sf http://localhost:3001/health    >/dev/null 2>&1 && b_ok=1 || b_ok=0
-  curl -sf http://localhost:5173           >/dev/null 2>&1 && f_ok=1 || f_ok=0
-  curl -sf http://localhost:8001/health    >/dev/null 2>&1 && w_ok=1 || w_ok=0
-  curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && o_ok=1 || o_ok=0
+  curl -sf --max-time 2 http://localhost:3001/health    >/dev/null 2>&1 && b_ok=1 || b_ok=0
+  curl -sf --max-time 2 http://localhost:5173           >/dev/null 2>&1 && f_ok=1 || f_ok=0
+  curl -sf --max-time 2 http://localhost:8001/health    >/dev/null 2>&1 && w_ok=1 || w_ok=0
+  curl -sf --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1 && o_ok=1 || o_ok=0
   [ "$b_ok" -eq 1 ] && echo -e "  ${GREEN}✓${NC} Backend  http://localhost:3001" \
                      || echo -e "  ${RED}✗${NC} Backend  http://localhost:3001 (not running)"
   [ "$f_ok" -eq 1 ] && echo -e "  ${GREEN}✓${NC} Frontend http://localhost:5173" \

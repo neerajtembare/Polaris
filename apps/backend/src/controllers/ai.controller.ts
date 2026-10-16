@@ -35,13 +35,11 @@ import type { PolarisContext } from '@polaris/shared';
 // Chip sets — hardcoded per action type / intent (never AI-generated)
 // ---------------------------------------------------------------------------
 
-function chipsForAction(action: TARSAction | null, intent: IntentType): QuickReplyChip[] | undefined {
+function chipsForAction(action: TARSAction | null, intent: IntentType): QuickReplyChip[] {
   if (action) {
     switch (action.type) {
       case 'log_activity':
       case 'plan_activity':
-        // Shown AFTER the confirmation card is submitted — returned here so frontend
-        // can attach them to the success message added post-confirm.
         return [
           { label: 'Start Focus',  action: { type: 'focus.start' } },
           { label: 'Log Another',  action: { type: 'log_activity', draft: { title: '', activityType: 'completion' } } },
@@ -51,6 +49,11 @@ function chipsForAction(action: TARSAction | null, intent: IntentType): QuickRep
         return [
           { label: 'View Goals',   action: { type: 'navigate', screen: 'Goals' } },
           { label: 'Log Activity', action: { type: 'log_activity', draft: { title: '', activityType: 'completion' } } },
+        ];
+      case 'update_goal_status':
+        return [
+          { label: 'View Goals',   action: { type: 'navigate', screen: 'Goals' } },
+          { label: 'Start Focus',  action: { type: 'focus.start' } },
         ];
       case 'show_goals':
         return [
@@ -66,15 +69,56 @@ function chipsForAction(action: TARSAction | null, intent: IntentType): QuickRep
         ];
     }
   }
-  // Intent-based chips (no action returned — text-only responses)
-  if (intent === 'query') {
-    return [
-      { label: 'Weekly Review',    action: { type: 'navigate', screen: 'WeeklyReview' } },
-      { label: 'View Goals',       action: { type: 'navigate', screen: 'Goals' } },
-      { label: 'View Insights',    action: { type: 'navigate', screen: 'Insights' } },
-    ];
+
+  // Intent-based fallback chips for text-only responses
+  switch (intent) {
+    case 'query':
+    case 'analyze_week':
+      return [
+        { label: 'Weekly Review',    action: { type: 'navigate', screen: 'WeeklyReview' } },
+        { label: 'View Goals',       action: { type: 'navigate', screen: 'Goals' } },
+        { label: 'View Insights',    action: { type: 'navigate', screen: 'Insights' } },
+      ];
+    case 'daily_coach':
+      return [
+        { label: 'Start Focus',  action: { type: 'focus.start' } },
+        { label: 'View Goals',   action: { type: 'navigate', screen: 'Goals' } },
+        { label: 'Log Activity', action: { type: 'log_activity', draft: { title: '', activityType: 'completion' } } },
+      ];
+    case 'goal_breakdown':
+    case 'create_goal':
+      return [
+        { label: 'View Goals',   action: { type: 'navigate', screen: 'Goals' } },
+        { label: 'Add Goal',     action: { type: 'create_goal', draft: { title: '', timeframe: 'medium' } } },
+        { label: 'Log Activity', action: { type: 'log_activity', draft: { title: '', activityType: 'completion' } } },
+      ];
+    case 'log_activity':
+    case 'plan_activity':
+      return [
+        { label: 'Log Activity', action: { type: 'log_activity', draft: { title: '', activityType: 'completion' } } },
+        { label: 'Start Focus',  action: { type: 'focus.start' } },
+        { label: 'View Today',   action: { type: 'navigate', screen: 'Hub' } },
+      ];
+    default:
+      return [
+        { label: 'Log Activity', action: { type: 'log_activity', draft: { title: '', activityType: 'completion' } } },
+        { label: 'View Goals',   action: { type: 'navigate', screen: 'Goals' } },
+        { label: 'Start Focus',  action: { type: 'focus.start' } },
+      ];
   }
-  return undefined;
+}
+
+function cleanTarsTextResponse(raw: string | null): string | null {
+  if (!raw) return null;
+  let cleaned = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+    .trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+  }
+  cleaned = cleaned.replace(/^(Looking at the context|Based on your context|Let me analyze|Thinking\.\.\.):?\s*/i, '');
+  return cleaned || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +323,10 @@ interface ChatBody {
   pendingActionArgs?: TARSAction;
   /** Current screen the user is on — used for disambiguation (e.g. "add one" on Goals) */
   currentScreen?:     string;
+  /** Humor setting (0-100) */
+  humor?:             number;
+  /** Honesty setting (0-100) */
+  honesty?:           number;
 }
 
 // ---------------------------------------------------------------------------
@@ -686,7 +734,7 @@ export async function chatHandler(
   reply:   FastifyReply
 ): Promise<void> {
   try {
-    const { message, history, pendingActionType, pendingActionArgs, currentScreen } = request.body;
+    const { message, history, pendingActionType, pendingActionArgs, currentScreen, humor, honesty } = request.body;
     const startMs = Date.now();
 
     const { intent, confidence } = classifyIntent(
@@ -698,7 +746,7 @@ export async function chatHandler(
     // If the user is confirming a pending action AND we have the original draft,
     // skip the LLM entirely — return the same draft for the ToolConfirmCard to show again.
     // This prevents the LLM from regenerating a different activity from history.
-    const isConfirmationIntent = ['log_activity', 'plan_activity', 'create_goal'].includes(intent);
+    const isConfirmationIntent = ['log_activity', 'plan_activity', 'create_goal', 'update_goal_status'].includes(intent);
     if (isConfirmationIntent && pendingActionArgs && pendingActionArgs.type === intent) {
       const latencyMs = Date.now() - startMs;
       request.log.info(
@@ -920,7 +968,7 @@ export async function chatHandler(
     // ── End Sprint E intents ──────────────────────────────────────────────────
 
     const tools   = getToolsForIntent(intent);
-    const system  = buildTarsSystemMessage(JSON.stringify(ctx, null, 2));
+    const system  = buildTarsSystemMessage(JSON.stringify(ctx, null, 2), { humor, honesty });
     const provider = getProvider();
 
     // Build multi-turn message array: system + history (capped) + current user message
@@ -943,8 +991,8 @@ export async function chatHandler(
         ...(tools.length > 0 ? { tools } : {}),
       }
     );
-
     const latencyMs = Date.now() - startMs;
+    const cleanedText = cleanTarsTextResponse(result.text);
 
     // If the LLM called a tool, validate and return a TARSAction
     if (result.toolCall) {
@@ -957,7 +1005,7 @@ export async function chatHandler(
         return reply.send({
           success: true,
           data: {
-            response:             result.text,
+            response:             cleanedText,
             action:               validated.action,
             requiresConfirmation: requiresConfirmation(validated.action),
             chips:                chipsForAction(validated.action, intent),
@@ -983,7 +1031,7 @@ export async function chatHandler(
     return reply.send({
       success: true,
       data: {
-        response:             result.text,
+        response:             cleanedText ?? "TARS online. Ready for command.",
         action:               null,
         requiresConfirmation: false,
         chips:                chipsForAction(null, intent),

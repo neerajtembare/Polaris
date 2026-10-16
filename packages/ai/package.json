@@ -17,7 +17,8 @@
     "dev":       "tsc --watch"
   },
   "dependencies": {
-    "@polaris/shared": "*"
+    "@polaris/shared": "*",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

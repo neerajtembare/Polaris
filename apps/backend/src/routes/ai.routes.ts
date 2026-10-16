@@ -216,9 +216,15 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
         body: {
           type: 'object',
           required: ['message'],
-          additionalProperties: false,
+          additionalProperties: true,
           properties: {
-            message: { type: 'string', minLength: 1, maxLength: 2000 },
+            message:           { type: 'string', minLength: 1, maxLength: 2000 },
+            history:           { type: 'array', items: { type: 'object' } },
+            pendingActionType: { type: 'string' },
+            pendingActionArgs: { type: 'object' },
+            currentScreen:     { type: 'string' },
+            humor:             { type: 'number', minimum: 0, maximum: 100 },
+            honesty:           { type: 'number', minimum: 0, maximum: 100 },
           },
         },
       },

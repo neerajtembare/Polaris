@@ -36,7 +36,7 @@ function Ensure-LocalDeps {
 function Ensure-Env {
     if (-not (Test-Path "apps\backend\.env")) {
         Write-Warn "apps/backend/.env not found — creating defaults. Run .\setup.sh for full setup."
-        Set-Content "apps\backend\.env" "DATABASE_URL=`"file:./data/polaris.db`"`nPORT=3001`nNODE_ENV=development"
+        Set-Content "apps\backend\.env" "DATABASE_URL=`"postgresql://polaris:polaris@localhost:5432/polaris_dev`"`nPORT=3001`nNODE_ENV=development`nAI_PROVIDER=ollama`nOLLAMA_URL=http://localhost:11434`nOLLAMA_MODEL=gemma4:e4b"
         Write-Ok "Created apps/backend/.env"
     }
     New-Item -ItemType Directory -Force "apps\backend\data" | Out-Null

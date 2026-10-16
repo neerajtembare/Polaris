@@ -15,7 +15,7 @@ import 'dotenv/config';
 export const config = {
   port: parseInt(process.env['PORT'] ?? '3001', 10),
   nodeEnv: process.env['NODE_ENV'] ?? 'development',
-  databaseUrl: process.env['DATABASE_URL'] ?? 'file:./data/polaris.db',
+  databaseUrl: process.env['DATABASE_URL'] ?? 'postgresql://polaris:polaris@localhost:5432/polaris_dev',
   isDev: (process.env['NODE_ENV'] ?? 'development') === 'development',
   /** Comma-separated allowed origins for CORS in production, e.g. "https://app.example.com" */
   corsOrigin: process.env['CORS_ORIGIN'] ?? '',

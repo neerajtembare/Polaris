@@ -125,6 +125,61 @@ export const CREATE_GOAL_TOOL: ToolSchema = {
   },
 };
 
+/**
+ * Tool: update_goal_status
+ * Used when the user asks to pause, resume, complete, or archive a goal.
+ * Examples: "pause my reading goal", "mark reading goal as completed"
+ */
+export const UPDATE_GOAL_STATUS_TOOL: ToolSchema = {
+  name: 'update_goal_status',
+  description:
+    'Update status of an existing goal (e.g., active, paused, completed, archived). ' +
+    'Requires user confirmation.',
+  parameters: {
+    type: 'object',
+    properties: {
+      goalId: {
+        type: 'string',
+        description: 'ID of the goal to update from context.',
+      },
+      goalTitle: {
+        type: 'string',
+        description: 'Title of the goal to update.',
+      },
+      status: {
+        type: 'string',
+        enum: ['active', 'paused', 'completed', 'archived'],
+        description: 'Target goal status.',
+      },
+    },
+    required: ['goalId', 'status'],
+  },
+};
+
+/**
+ * Tool: start_focus_session
+ * Used when the user asks to start a focus timer.
+ * Examples: "start 25 minute focus session for reading"
+ */
+export const START_FOCUS_SESSION_TOOL: ToolSchema = {
+  name: 'start_focus_session',
+  description: 'Start a focus / pomodoro session timer. Executes immediately.',
+  parameters: {
+    type: 'object',
+    properties: {
+      goalId: {
+        type: 'string',
+        description: 'Optional ID of the goal to attach the focus session to.',
+      },
+      durationMins: {
+        type: 'number',
+        description: 'Planned focus duration in minutes (e.g. 25, 50). Defaults to 25.',
+      },
+    },
+    required: [],
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Grouped by intent — import these in the chat handler
 // ---------------------------------------------------------------------------
@@ -138,5 +193,17 @@ export const PLAN_ACTIVITY_TOOLS: ToolSchema[] = [PLAN_ACTIVITY_TOOL];
 /** Tools to include when intent is create_goal */
 export const CREATE_GOAL_TOOLS: ToolSchema[] = [CREATE_GOAL_TOOL];
 
+/** Tools for updating goal status */
+export const UPDATE_GOAL_STATUS_TOOLS: ToolSchema[] = [UPDATE_GOAL_STATUS_TOOL];
+
+/** Tools for focus session creation */
+export const START_FOCUS_SESSION_TOOLS: ToolSchema[] = [START_FOCUS_SESSION_TOOL];
+
 /** All write tools — use only if intent routing is unclear */
-export const ALL_WRITE_TOOLS: ToolSchema[] = [LOG_ACTIVITY_TOOL, PLAN_ACTIVITY_TOOL, CREATE_GOAL_TOOL];
+export const ALL_WRITE_TOOLS: ToolSchema[] = [
+  LOG_ACTIVITY_TOOL,
+  PLAN_ACTIVITY_TOOL,
+  CREATE_GOAL_TOOL,
+  UPDATE_GOAL_STATUS_TOOL,
+  START_FOCUS_SESSION_TOOL,
+];

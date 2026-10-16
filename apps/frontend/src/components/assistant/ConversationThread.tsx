@@ -76,8 +76,8 @@ export function ConversationThread({ messages, isDark, onRetry, onChipTap, isPro
               timestamp={msg.timestamp}
               {...(lastUserMsg && onRetry ? { onRetry: () => onRetry(lastUserMsg) } : {})}
             />
-            {/* Quick Reply Chips — rendered once typing is complete */}
-            {msg.chips && msg.chips.length > 0 && !msg.isNew && (
+            {/* Quick Reply Chips */}
+            {msg.chips && msg.chips.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pl-8">
                 {msg.chips.map((chip, chipIdx) => (
                   <button

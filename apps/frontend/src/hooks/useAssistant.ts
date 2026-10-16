@@ -80,7 +80,7 @@ interface UseAssistantOptions {
  * All state lives in useAssistantStore.
  */
 export function useAssistant({ onNavigate, currentScreen, onImmediateAction, onToggleTheme }: UseAssistantOptions = {}) {
-  const { addMessage, setTarsState, setPendingAction, messages, pendingAction, clearHistory } = useAssistantStore();
+  const { addMessage, setTarsState, setPendingAction, messages, pendingAction, humor, honesty, clearHistory } = useAssistantStore();
   const matchCommand  = useCommandMatcher();
   const abortRef      = useRef<AbortController | null>(null);
 
@@ -102,7 +102,7 @@ export function useAssistant({ onNavigate, currentScreen, onImmediateAction, onT
         onImmediateAction?.(action);
       }
     }
-    if (requiresConfirmation || action.type === 'log_activity' || action.type === 'plan_activity' || action.type === 'create_goal') {
+    if (requiresConfirmation) {
       setPendingAction(action);
     }
   }, [onNavigate, onImmediateAction, onToggleTheme, setPendingAction]);
@@ -165,7 +165,7 @@ export function useAssistant({ onNavigate, currentScreen, onImmediateAction, onT
     // Also include the full draft so the backend can short-circuit the LLM on confirmation.
     const pendingActionType = pendingAction?.type;
     // Only send the full draft for write actions (the ones that require confirmation)
-    const WRITE_TYPES = ['log_activity', 'plan_activity', 'create_goal'] as const;
+    const WRITE_TYPES = ['log_activity', 'plan_activity', 'create_goal', 'update_goal_status'] as const;
     const pendingActionArgs =
       pendingAction &&
       WRITE_TYPES.includes(pendingAction.type as typeof WRITE_TYPES[number])
@@ -184,6 +184,8 @@ export function useAssistant({ onNavigate, currentScreen, onImmediateAction, onT
           message: trimmed,
           history,
           pendingActionType,
+          humor,
+          honesty,
           ...(pendingActionArgs ? { pendingActionArgs } : {}),
           ...(currentScreen    ? { currentScreen }    : {}),
         }),

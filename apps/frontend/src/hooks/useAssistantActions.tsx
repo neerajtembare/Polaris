@@ -19,7 +19,7 @@
 import { useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useCreateActivity, useDeleteActivity } from './useActivities';
-import { useCreateGoal, useDeleteGoal }         from './useGoals';
+import { useCreateGoal, useUpdateGoal, useDeleteGoal } from './useGoals';
 import { useAssistantStore } from '@/stores/assistant.store';
 import { useAudioPlayer, PRESET_STREAMS } from '@/stores/audioPlayer.store';
 import type { TARSAction, ScreenId } from '@/stores/assistant.store';
@@ -28,16 +28,18 @@ interface UseAssistantActionsOptions {
   onNavigate?: (screen: ScreenId) => void;
   onToggleTheme?: () => void;
   onStartFocus?: (opts: { durationMins?: number; goalId?: string }) => void;
+  onStopFocus?: () => void;
 }
 
 /**
  * Returns an `executeConfirmedAction` function.
  * Call only AFTER the user has accepted the ToolConfirmCard.
  */
-export function useAssistantActions({ onNavigate, onToggleTheme, onStartFocus }: UseAssistantActionsOptions = {}) {
+export function useAssistantActions({ onNavigate, onToggleTheme, onStartFocus, onStopFocus }: UseAssistantActionsOptions = {}) {
   const createActivity  = useCreateActivity();
   const deleteActivity  = useDeleteActivity();
   const createGoal      = useCreateGoal();
+  const updateGoal      = useUpdateGoal();
   const deleteGoal      = useDeleteGoal();
   const setPending      = useAssistantStore((s) => s.setPendingAction);
   const addMessage      = useAssistantStore((s) => s.addMessage);
@@ -158,6 +160,20 @@ export function useAssistantActions({ onNavigate, onToggleTheme, onStartFocus }:
         break;
       }
 
+      case 'update_goal_status': {
+        const { draft } = action;
+        await updateGoal.mutateAsync({
+          id: draft.goalId,
+          data: { status: draft.status },
+        });
+        addMessage({
+          role: 'assistant',
+          content: `Goal status updated to "${draft.status}".`,
+          isNew: true,
+        });
+        break;
+      }
+
       case 'navigate':
         onNavigate?.(action.screen);
         break;
@@ -220,6 +236,11 @@ export function useAssistantActions({ onNavigate, onToggleTheme, onStartFocus }:
         break;
       }
 
+      case 'focus.stop':
+        onStopFocus?.();
+        addMessage({ role: 'assistant', content: 'Focus session stopped.', isNew: true });
+        break;
+
       case 'toggle_theme':
         onToggleTheme?.();
         break;
@@ -239,7 +260,7 @@ export function useAssistantActions({ onNavigate, onToggleTheme, onStartFocus }:
       default:
         addMessage({ role: 'assistant', content: 'Action type not recognized.', isNew: true });
     }
-  }, [createActivity, deleteActivity, createGoal, deleteGoal, setPending, addMessage, onNavigate, onToggleTheme, onStartFocus, setLastAction, audioPlayer]);
+  }, [createActivity, deleteActivity, createGoal, updateGoal, deleteGoal, setPending, addMessage, onNavigate, onToggleTheme, onStartFocus, onStopFocus, setLastAction, audioPlayer]);
 
   const dismissAction = useCallback(() => {
     setPending(null);

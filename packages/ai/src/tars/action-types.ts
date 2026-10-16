@@ -59,6 +59,12 @@ export interface GoalDraft {
   description?: string;
 }
 
+export interface GoalStatusDraft {
+  goalId:    string;
+  goalTitle?: string;
+  status:    'active' | 'paused' | 'completed' | 'archived';
+}
+
 // ---------------------------------------------------------------------------
 // TARSAction — union of all possible actions
 // ---------------------------------------------------------------------------
@@ -68,7 +74,7 @@ export interface GoalDraft {
  *
  * Three categories:
  *   1. Immediate (no confirmation): navigate, audio, focus, show_*
- *   2. Confirmed writes: log_activity, plan_activity, create_goal
+ *   2. Confirmed writes: log_activity, plan_activity, create_goal, update_goal_status
  *   3. Future: search, export, archive (not implemented yet)
  *
  * Consumers (frontend useAssistantActions hook) switch on `action.type`.
@@ -87,9 +93,10 @@ export type TARSAction =
   | { type: 'focus.stop' }
 
   // Write — MUST show confirmation card before executing
-  | { type: 'log_activity';  draft: ActivityDraft }
-  | { type: 'plan_activity'; draft: ActivityDraft }
-  | { type: 'create_goal';   draft: GoalDraft }
+  | { type: 'log_activity';        draft: ActivityDraft }
+  | { type: 'plan_activity';       draft: ActivityDraft }
+  | { type: 'create_goal';         draft: GoalDraft }
+  | { type: 'update_goal_status';  draft: GoalStatusDraft }
 
   // Pure display — no mutation, no confirmation needed
   | { type: 'show_goals' }
@@ -106,9 +113,10 @@ export type TARSAction =
 /** Returns true if the action requires user confirmation before executing */
 export function requiresConfirmation(action: TARSAction): boolean {
   return (
-    action.type === 'log_activity'  ||
-    action.type === 'plan_activity' ||
-    action.type === 'create_goal'
+    action.type === 'log_activity'        ||
+    action.type === 'plan_activity'       ||
+    action.type === 'create_goal'         ||
+    action.type === 'update_goal_status'
   );
 }
 

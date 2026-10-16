@@ -16,7 +16,6 @@
  */
 
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { TimeframeBadge, StatusBadge } from '../ui/Badge.tsx';
 import { ProgressBar } from '../ui/ProgressBar.tsx';
 import { ConfirmModal } from '../ui/ConfirmModal.tsx';
@@ -42,7 +41,7 @@ interface GoalCardProps {
 
 /**
  * Renders a goal as a card with:
- * - Title linked to the detail page
+ * - Title
  * - Timeframe + status badges
  * - Progress bar if the goal has a target value
  * - Delete button
@@ -67,12 +66,11 @@ export function GoalCard({ goal, onDelete }: GoalCardProps) {
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <Link
-            to={`/goals/${goal.id}`}
-            className="text-sm font-semibold text-gray-100 hover:text-indigo-300 transition-colors line-clamp-2"
+          <span
+            className="text-sm font-semibold text-gray-100 line-clamp-2"
           >
             {goal.title}
-          </Link>
+          </span>
           {goal.description && (
             <p className="mt-1 text-xs text-gray-500 line-clamp-2">{goal.description}</p>
           )}

@@ -22,15 +22,17 @@
 // ---------------------------------------------------------------------------
 
 export type IntentType =
-  | 'log_activity'    // "I read 30 pages", "ran 5km today"
-  | 'plan_activity'   // "I'm going to run tomorrow", "plan to study tonight"
-  | 'create_goal'     // "new goal: run 100km", "I want to read more"
-  | 'query'           // "how am I doing?", "what's my streak?"
-  | 'daily_coach'     // "coach me", "what should I focus on today?"
-  | 'analyze_week'    // "analyze my week", "how was my week?"
-  | 'goal_breakdown'  // "break down my reading goal", "how do I achieve my gym goal?"
-  | 'chat'            // General conversation, unclear intent
-  | 'unknown';        // Truly ambiguous — ask for clarification
+  | 'log_activity'       // "I read 30 pages", "ran 5km today"
+  | 'plan_activity'      // "I'm going to run tomorrow", "plan to study tonight"
+  | 'create_goal'        // "new goal: run 100km", "I want to read more"
+  | 'update_goal_status' // "pause my reading goal", "resume gym goal"
+  | 'start_focus'        // "start 25 min focus", "pomodoro for reading"
+  | 'query'              // "how am I doing?", "what's my streak?"
+  | 'daily_coach'        // "coach me", "what should I focus on today?"
+  | 'analyze_week'       // "analyze my week", "how was my week?"
+  | 'goal_breakdown'     // "break down my reading goal", "how do I achieve my gym goal?"
+  | 'chat'               // General conversation, unclear intent
+  | 'unknown';           // Truly ambiguous — ask for clarification
 
 // ---------------------------------------------------------------------------
 // Heuristic patterns (ordered by specificity — more specific first)
@@ -44,6 +46,12 @@ const PLAN_PATTERNS = /\b(going\s+to|plan\s+to|planning\s+to|will\s+(do|run|read
 
 /** Patterns for goal creation */
 const GOAL_PATTERNS = /\b(create\s+a?\s*goal|new\s+goal|add\s+a?\s*goal|set\s+a?\s*goal|track\s+my|my\s+goal\s+is|i\s+want\s+to\s+(read|run|learn|build|save|exercise|study|write)\b|long.term\s+goal|start\s+tracking)\b/i;
+
+/** Patterns for updating goal status */
+const UPDATE_GOAL_PATTERNS = /\b(pause\s+((my|the)\s+)?.*goal|resume\s+((my|the)\s+)?.*goal|archive\s+((my|the)\s+)?.*goal|mark\s+.*goal\s+as\s+(completed|done|paused|archived))\b/i;
+
+/** Patterns for starting focus session */
+const START_FOCUS_PATTERNS = /\b(start\s+(a\s+)?(focus|pomodoro)|begin\s+focus|focus\s+session\s+for|pomodoro\s+timer)\b/i;
 
 /** Patterns for queries / information requests */
 const QUERY_PATTERNS = /\b(how\s+am\s+i|how\s+did\s+i|what\s+is\s+my|what's\s+my|show\s+me|how\s+much|am\s+i\s+on\s+track|my\s+progress|my\s+streak|behind|ahead|stats|summary|compare|trend|which\s+goal|tell\s+me\s+about|what\s+did\s+i|what('s|\s+is|\s+are)?\s+(planned|do\s+i\s+have)|today'?s?\s+(plan|list|progress|completed|done|stats?)|today'?s?\s+activities?|\bstreak\b|list\s+(my\s+)?goals?|show\s+(all|my)\s+goals?|how\s+many\s+activities?|activity\s+count|weekly\s+(stats?|metrics?|performance|count)|how'?s?\s+(my|the)\s+\w+\s+goal|longest\s+streak)\b/i;
@@ -96,80 +104,62 @@ const DENY_PATTERNS =
  * Classify the intent of a user message.
  * Returns immediately from heuristics for ~80% of inputs.
  * Falls back to 'chat' for ambiguous inputs (the LLM will handle them).
- *
- * When `options.pendingActionType` is set (there's an outstanding TARS proposal),
- * short confirmation/denial words are mapped to the right intent so the correct
- * tool schemas are included in the LLM call — fixing the "I don't have context
- * for 'yes'" problem.
- *
- * NOTE: Fixed commands (play music, go to goals, etc.) should be matched
- * client-side BEFORE calling this. If navigation patterns are detected here,
- * classify as 'chat' to let the LLM handle the response gracefully.
  */
 export function classifyIntent(input: string, options?: ClassifyOptions): ClassifyResult {
   const lower = input.toLowerCase().trim();
 
-  // ── Confirmation-aware routing ────────────────────────────────────────────
-  // If there's a pending action proposal and the user responds with a short
-  // confirmation/denial, route to the right intent so tools are included.
   if (options?.pendingActionType) {
     const pendingIntent = options.pendingActionType as IntentType;
-    const isWriteIntent = ['log_activity', 'plan_activity', 'create_goal'].includes(pendingIntent);
+    const isWriteIntent = ['log_activity', 'plan_activity', 'create_goal', 'update_goal_status'].includes(pendingIntent);
 
     if (isWriteIntent && CONFIRM_PATTERNS.test(lower)) {
-      // e.g. "yes" while log_activity is pending → intent = log_activity → tools included
       return { intent: pendingIntent, confidence: 'high', method: 'heuristic' };
     }
     if (DENY_PATTERNS.test(lower)) {
-      // User is canceling — use chat so the LLM can acknowledge naturally
       return { intent: 'chat', confidence: 'high', method: 'heuristic' };
     }
   }
-  // ── End confirmation-aware routing ───────────────────────────────────────
 
-  // Navigation — shouldn't reach backend, but handle gracefully
   if (NAVIGATION_PATTERNS.test(lower)) {
     return { intent: 'chat', confidence: 'high', method: 'heuristic' };
   }
 
-  // Goal creation — check before log (some phrases could overlap)
+  if (UPDATE_GOAL_PATTERNS.test(lower)) {
+    return { intent: 'update_goal_status', confidence: 'high', method: 'heuristic' };
+  }
+
+  if (START_FOCUS_PATTERNS.test(lower)) {
+    return { intent: 'start_focus', confidence: 'high', method: 'heuristic' };
+  }
+
   if (GOAL_PATTERNS.test(lower)) {
     return { intent: 'create_goal', confidence: 'high', method: 'heuristic' };
   }
 
-  // Plan (future) — check before log (past)
   if (PLAN_PATTERNS.test(lower)) {
     return { intent: 'plan_activity', confidence: 'high', method: 'heuristic' };
   }
 
-  // Log (past/completed)
   if (LOG_PATTERNS.test(lower)) {
     return { intent: 'log_activity', confidence: 'high', method: 'heuristic' };
   }
 
-  // Query
   if (QUERY_PATTERNS.test(lower)) {
     return { intent: 'query', confidence: 'high', method: 'heuristic' };
   }
 
-  // Daily coach — check before generic chat
   if (DAILY_COACH_PATTERNS.test(lower)) {
     return { intent: 'daily_coach', confidence: 'high', method: 'heuristic' };
   }
 
-  // Weekly analysis
   if (ANALYZE_WEEK_PATTERNS.test(lower)) {
     return { intent: 'analyze_week', confidence: 'high', method: 'heuristic' };
   }
 
-  // Goal breakdown
   if (GOAL_BREAKDOWN_PATTERNS.test(lower)) {
     return { intent: 'goal_breakdown', confidence: 'high', method: 'heuristic' };
   }
 
-  // Ambiguous — default to chat (LLM responds in plain text, no tools)
-  // This is safer than defaulting to log_activity which would send tool schemas
-  // and risk creating unwanted data from ambiguous input.
   return { intent: 'chat', confidence: 'low', method: 'fallback' };
 }
 
@@ -177,7 +167,13 @@ export function classifyIntent(input: string, options?: ClassifyOptions): Classi
 // Tool inclusion helper
 // ---------------------------------------------------------------------------
 
-import { LOG_ACTIVITY_TOOLS, PLAN_ACTIVITY_TOOLS, CREATE_GOAL_TOOLS } from './tool-schemas.js';
+import {
+  LOG_ACTIVITY_TOOLS,
+  PLAN_ACTIVITY_TOOLS,
+  CREATE_GOAL_TOOLS,
+  UPDATE_GOAL_STATUS_TOOLS,
+  START_FOCUS_SESSION_TOOLS,
+} from './tool-schemas.js';
 import type { ToolSchema } from '../types.js';
 
 /**
@@ -186,9 +182,11 @@ import type { ToolSchema } from '../types.js';
  */
 export function getToolsForIntent(intent: IntentType): ToolSchema[] {
   switch (intent) {
-    case 'log_activity':   return LOG_ACTIVITY_TOOLS;
-    case 'plan_activity':  return PLAN_ACTIVITY_TOOLS;
-    case 'create_goal':    return CREATE_GOAL_TOOLS;
-    default:               return [];
+    case 'log_activity':       return LOG_ACTIVITY_TOOLS;
+    case 'plan_activity':      return PLAN_ACTIVITY_TOOLS;
+    case 'create_goal':        return CREATE_GOAL_TOOLS;
+    case 'update_goal_status': return UPDATE_GOAL_STATUS_TOOLS;
+    case 'start_focus':        return START_FOCUS_SESSION_TOOLS;
+    default:                   return [];
   }
 }

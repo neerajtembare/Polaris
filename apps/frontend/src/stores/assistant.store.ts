@@ -43,16 +43,23 @@ export interface GoalDraft {
   description?: string;
 }
 
+export interface GoalStatusDraft {
+  goalId:     string;
+  goalTitle?: string;
+  status:     'active' | 'paused' | 'completed' | 'archived';
+}
+
 export type TARSAction =
-  | { type: 'navigate';      screen: ScreenId }
-  | { type: 'audio.play';    streamId?: string }
+  | { type: 'navigate';            screen: ScreenId }
+  | { type: 'audio.play';          streamId?: string }
   | { type: 'audio.stop' }
   | { type: 'audio.next' }
-  | { type: 'focus.start';   goalId?: string; durationMins?: number }
+  | { type: 'focus.start';         goalId?: string; durationMins?: number }
   | { type: 'focus.stop' }
-  | { type: 'log_activity';  draft: ActivityDraft }
-  | { type: 'plan_activity'; draft: ActivityDraft }
-  | { type: 'create_goal';   draft: GoalDraft }
+  | { type: 'log_activity';        draft: ActivityDraft }
+  | { type: 'plan_activity';       draft: ActivityDraft }
+  | { type: 'create_goal';         draft: GoalDraft }
+  | { type: 'update_goal_status';  draft: GoalStatusDraft }
   | { type: 'show_goals' }
   | { type: 'show_streak' }
   | { type: 'toggle_theme' }
@@ -107,6 +114,12 @@ interface AssistantStore {
   pendingAction: TARSAction | null;
   /** Last confirmed write action — used for 30-second undo toast */
   lastAction:    { type: string; id: string; timestamp: number } | null;
+  /** Humor setting (0 to 100) */
+  humor:         number;
+  /** Honesty / directness setting (0 to 100) */
+  honesty:       number;
+  /** Retro CRT overlay toggle */
+  isCrtEnabled:  boolean;
 
   // Actions
   open:             () => void;
@@ -119,6 +132,9 @@ interface AssistantStore {
   setTarsState:     (state: TarsState) => void;
   setPendingAction: (action: TARSAction | null) => void;
   setLastAction:    (action: { type: string; id: string; timestamp: number } | null) => void;
+  setHumor:         (humor: number) => void;
+  setHonesty:       (honesty: number) => void;
+  toggleCrt:        () => void;
   clearHistory:     () => void;
 }
 
@@ -139,6 +155,9 @@ export const useAssistantStore = create<AssistantStore>()(
   messages:      [],
   pendingAction: null,
   lastAction:    null,
+  humor:         75,
+  honesty:       90,
+  isCrtEnabled:  true,
 
   open:   () => set({ isOpen: true }),
   close:  () => set({ isOpen: false }),
@@ -172,17 +191,22 @@ export const useAssistantStore = create<AssistantStore>()(
   setTarsState:     (tarsState)     => set({ tarsState }),
   setPendingAction: (pendingAction) => set({ pendingAction }),
   setLastAction:    (lastAction)    => set({ lastAction }),
+  setHumor:         (humor)         => set({ humor }),
+  setHonesty:       (honesty)       => set({ honesty }),
+  toggleCrt:        ()              => set((s) => ({ isCrtEnabled: !s.isCrtEnabled })),
 
   clearHistory: () => set({ messages: [], pendingAction: null }),
   }),
   {
     name: 'polaris:tars',
     version: 1,
-    // Only persist the last 10 messages + panel visibility.
-    // pendingAction, tarsState, and lastAction are ephemeral session state.
+    // Persist panel visibility, humor, honesty, CRT setting + last 20 messages.
     partialize: (s) => ({
-      isOpen:   s.isOpen,
-      messages: s.messages
+      isOpen:       s.isOpen,
+      humor:        s.humor,
+      honesty:      s.honesty,
+      isCrtEnabled: s.isCrtEnabled,
+      messages:     s.messages
         .filter((m) => !m.isNew)   // don't persist messages still typing
         .slice(-20)
         .map(({ chips: _c, action: _a, ...rest }) => rest), // strip transient fields

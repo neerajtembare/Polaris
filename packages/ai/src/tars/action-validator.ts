@@ -46,13 +46,25 @@ const goalDraftSchema = z.object({
   description:  z.string().optional(),
 });
 
+const goalStatusDraftSchema = z.object({
+  goalId:    z.string().min(1),
+  goalTitle: z.string().optional(),
+  status:    z.enum(['active', 'paused', 'completed', 'archived']),
+});
+
+const focusSessionArgsSchema = z.object({
+  goalId:       z.string().optional(),
+  durationMins: z.number().finite().positive().optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Per-tool validators
 // ---------------------------------------------------------------------------
 
-const logActivityArgsSchema  = activityDraftSchema;
-const planActivityArgsSchema = activityDraftSchema;
-const createGoalArgsSchema   = goalDraftSchema;
+const logActivityArgsSchema      = activityDraftSchema;
+const planActivityArgsSchema     = activityDraftSchema;
+const createGoalArgsSchema       = goalDraftSchema;
+const updateGoalStatusArgsSchema = goalStatusDraftSchema;
 
 // ---------------------------------------------------------------------------
 // Validate a tool call returned by the LLM
@@ -94,6 +106,27 @@ export function validateToolCall(
         return { ok: false, reason: `create_goal validation failed: ${result.error.message}` };
       }
       return { ok: true, action: { type: 'create_goal', draft: result.data as import('./action-types.js').GoalDraft } };
+    }
+
+    case 'update_goal_status': {
+      const result = updateGoalStatusArgsSchema.safeParse(rawArgs);
+      if (!result.success) {
+        return { ok: false, reason: `update_goal_status validation failed: ${result.error.message}` };
+      }
+      return { ok: true, action: { type: 'update_goal_status', draft: result.data as import('./action-types.js').GoalStatusDraft } };
+    }
+
+    case 'start_focus_session': {
+      const result = focusSessionArgsSchema.safeParse(rawArgs);
+      if (!result.success) {
+        return { ok: false, reason: `start_focus_session validation failed: ${result.error.message}` };
+      }
+      const focusAction: TARSAction = {
+        type: 'focus.start',
+        ...(result.data.goalId ? { goalId: result.data.goalId } : {}),
+        ...(result.data.durationMins ? { durationMins: result.data.durationMins } : {}),
+      };
+      return { ok: true, action: focusAction };
     }
 
     default:

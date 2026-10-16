@@ -219,6 +219,7 @@ export default function App() {
         currentScreen={navState.screen}
         onToggleTheme={toggleTheme}
         onStartFocus={(opts) => setFocusState({ show: true, ...opts })}
+        onStopFocus={() => setFocusState({ show: false })}
       />
       <AssistantAvatar isDark={navState.theme === 'dark'} />
       {/* Startup briefing — shown once per day, before anything else */}

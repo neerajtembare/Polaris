@@ -81,10 +81,10 @@ export async function buildApp() {
   // Security headers
   await app.register(helmet, { contentSecurityPolicy: false });
 
-  // CORS — configure via CORS_ORIGIN env var in production; dev defaults to Vite dev server
+  // CORS — configure via CORS_ORIGIN env var in production; dev allows any local origin
   await app.register(cors, {
     origin: config.isDev
-      ? ['http://localhost:5173']
+      ? true
       : (config.corsOrigin ? config.corsOrigin.split(',').map((o) => o.trim()) : false),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });

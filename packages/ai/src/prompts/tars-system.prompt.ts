@@ -48,12 +48,42 @@ Capabilities:
 - You cannot access the internet or data outside the provided context.`;
 
 
+export interface TarsPersonaOptions {
+  humor?:   number | undefined; // 0 to 100
+  honesty?: number | undefined; // 0 to 100
+}
+
 /**
- * Build a full system message that includes the TARS persona AND the user's current context.
- * The context section is the authoritative data source for the session.
+ * Build a full system message that includes the TARS persona (dynamically tuned by humor & honesty),
+ * and the user's current context.
  */
-export function buildTarsSystemMessage(contextBlock: string): string {
+export function buildTarsSystemMessage(contextBlock: string, options?: TarsPersonaOptions): string {
+  const humor   = options?.humor ?? 75;
+  const honesty = options?.honesty ?? 90;
+
+  let humorInstruction = '';
+  if (humor >= 70) {
+    humorInstruction = '- Humor level is set to HIGH. Use dry wit, movie-accurate TARS sarcasm, and sharp observational humor about progress or slacking.';
+  } else if (humor >= 35) {
+    humorInstruction = '- Humor level is MODERATE. Subtle dry wit, professional and composed with light humor.';
+  } else {
+    humorInstruction = '- Humor level is SET TO ZERO. Be strictly robotic, precise, and devoid of jokes or sarcasm.';
+  }
+
+  let honestyInstruction = '';
+  if (honesty >= 80) {
+    honestyInstruction = '- Honesty protocol is 100% DIRECT. Do not sugarcoat missed goals or streaks. Give blunt, unfiltered assessments.';
+  } else if (honesty >= 50) {
+    honestyInstruction = '- Honesty protocol is BALANCED. Be constructive, fair, and realistic.';
+  } else {
+    honestyInstruction = '- Honesty protocol is TACTFUL. Be gentle, encouraging, and diplomatic.';
+  }
+
   return `${TARS_SYSTEM_PROMPT}
+
+Persona Settings for this Session:
+${humorInstruction}
+${honestyInstruction}
 
 --- USER CONTEXT (use only this data — do not fabricate) ---
 ${contextBlock}

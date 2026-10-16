@@ -20,7 +20,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useGoals } from '@/hooks/useGoals';
-import type { TARSAction, ActivityDraft, GoalDraft, ScreenId } from '@/stores/assistant.store';
+import type { TARSAction, ActivityDraft, GoalDraft, GoalStatusDraft, ScreenId } from '@/stores/assistant.store';
 
 // ---------------------------------------------------------------------------
 // Common field styles
@@ -106,9 +106,10 @@ export function ToolConfirmCard({
 
   const countdownPct = autoAcceptMs && msLeft > 0 ? (msLeft / autoAcceptMs) * 100 : 0;
   const verbLabel =
-    draft.type === 'log_activity'  ? 'Log Activity' :
-    draft.type === 'plan_activity' ? 'Plan Activity' :
-    draft.type === 'create_goal'   ? 'Create Goal'   : 'Confirm';
+    draft.type === 'log_activity'       ? 'Log Activity' :
+    draft.type === 'plan_activity'      ? 'Plan Activity' :
+    draft.type === 'create_goal'        ? 'Create Goal' :
+    draft.type === 'update_goal_status' ? 'Update Goal Status' : 'Confirm';
 
   return (
     <div
@@ -134,6 +135,16 @@ export function ToolConfirmCard({
 
       {draft.type === 'create_goal' && (
         <GoalFields
+          draft={draft.draft}
+          isDark={isDark}
+          onChange={(updated) =>
+            setDraft({ ...draft, draft: updated } as TARSAction)
+          }
+        />
+      )}
+
+      {draft.type === 'update_goal_status' && (
+        <GoalStatusFields
           draft={draft.draft}
           isDark={isDark}
           onChange={(updated) =>
@@ -356,4 +367,44 @@ function GoalFields({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Goal Status Fields
+// ---------------------------------------------------------------------------
+
+interface GoalStatusFieldsProps {
+  draft:    GoalStatusDraft;
+  isDark:   boolean;
+  onChange: (updated: GoalStatusDraft) => void;
+}
+
+function GoalStatusFields({ draft, isDark, onChange }: GoalStatusFieldsProps) {
+  const upd = (patch: Partial<GoalStatusDraft>) => onChange({ ...draft, ...patch });
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <label className={cn('block mb-1', labelClass(isDark))}>Goal</label>
+        <p className={cn('text-xs font-medium px-2.5 py-1.5 rounded-lg border', isDark ? 'border-white/10 bg-white/5 text-slate-200' : 'border-slate-200 bg-slate-100 text-slate-800')}>
+          {draft.goalTitle ?? `Goal ID: ${draft.goalId}`}
+        </p>
+      </div>
+
+      <div>
+        <label className={cn('block mb-1', labelClass(isDark))}>Target Status</label>
+        <select
+          value={draft.status}
+          onChange={(e) => upd({ status: e.target.value as GoalStatusDraft['status'] })}
+          className={fieldClass(isDark)}
+        >
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+          <option value="completed">Completed</option>
+          <option value="archived">Archived</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
 
